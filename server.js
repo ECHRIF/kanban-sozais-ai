@@ -44,7 +44,7 @@ const pool = mysql.createPool({
         owner_name       VARCHAR(200)   NOT NULL,
         title            VARCHAR(500)   NOT NULL,
         project          VARCHAR(300)   DEFAULT '',
-        description      TEXT           DEFAULT '',
+        description      TEXT           NULL,
         priority         VARCHAR(20)    DEFAULT 'medium',
         column_id        VARCHAR(50)    DEFAULT 'todo',
         deadline         VARCHAR(20)    DEFAULT NULL,
@@ -90,7 +90,7 @@ const pool = mysql.createPool({
         name             VARCHAR(300)   NOT NULL,
         revenue_forfait  DECIMAL(12,2)  DEFAULT 0,
         revenue_mode     VARCHAR(20)    DEFAULT 'forfait',
-        description      TEXT           DEFAULT '',
+        description      TEXT           NULL,
         created_at       VARCHAR(50)    DEFAULT NULL,
         PRIMARY KEY (name)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -100,8 +100,8 @@ const pool = mysql.createPool({
         id          INT UNSIGNED   AUTO_INCREMENT NOT NULL,
         actor       VARCHAR(200)   NOT NULL,
         tool_name   VARCHAR(50)    NOT NULL,
-        input_json  TEXT           DEFAULT NULL,
-        result_json TEXT           DEFAULT NULL,
+        input_json  TEXT           NULL,
+        result_json TEXT           NULL,
         created_at  DATETIME       DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
         INDEX idx_actor (actor),
