@@ -1,0 +1,827 @@
+// ============================================================
+// Kanban SOZAIS — AI-First Edition
+// Stack : Node.js + Express + MySQL + Claude (Anthropic)
+// Architecture : Claude tool_use en cœur — l'IA agit directement
+// sur la base de données (créer, modifier, déplacer, réaffecter)
+// ============================================================
+require("dotenv").config();
+const express    = require("express");
+const mysql      = require("mysql2/promise");
+const cors       = require("cors");
+const path       = require("path");
+const Anthropic  = require("@anthropic-ai/sdk");
+const nodemailer = require("nodemailer");
+const cron       = require("node-cron");
+
+const app  = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.static(path.join(__dirname, "public")));
+
+// ─── Pool MySQL ───────────────────────────────────────────────
+const pool = mysql.createPool({
+  host:     process.env.DB_HOST     || "localhost",
+  port:     parseInt(process.env.DB_PORT || "3306"),
+  user:     process.env.DB_USER     || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME     || "kanban_sozais",
+  waitForConnections: true,
+  connectionLimit:    10,
+  queueLimit:         0,
+});
+
+(async () => {
+  try {
+    const conn = await pool.getConnection();
+    console.log("✅ MySQL OK →", process.env.DB_NAME || "kanban_sozais");
+    conn.release();
+  } catch (err) {
+    console.error("❌ MySQL:", err.message);
+  }
+})();
+
+// ─── Client Anthropic ─────────────────────────────────────────
+const anthropic = process.env.ANTHROPIC_API_KEY
+  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  : null;
+
+// ─── Mailer ───────────────────────────────────────────────────
+const mailer = (process.env.EMAIL_USER && process.env.EMAIL_PASS)
+  ? nodemailer.createTransport({
+      host: process.env.EMAIL_HOST || "smtp.gmail.com",
+      port: parseInt(process.env.EMAIL_PORT || "587"),
+      secure: false,
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+    })
+  : null;
+
+function requireAI(res) {
+  if (!anthropic) {
+    res.status(503).json({ error: "Clé ANTHROPIC_API_KEY manquante dans .env" });
+    return false;
+  }
+  return true;
+}
+
+// ─── Helper : toutes données équipe ──────────────────────────
+async function getAllData() {
+  const [employees] = await pool.query(
+    "SELECT * FROM employees WHERE is_admin = 0 ORDER BY pole, is_chef DESC, name"
+  );
+  const [tasks] = await pool.query("SELECT * FROM tasks");
+  const byOwner = {};
+  tasks.forEach((t) => {
+    if (!byOwner[t.owner_name]) byOwner[t.owner_name] = [];
+    byOwner[t.owner_name].push({
+      id: t.id, title: t.title, project: t.project,
+      priority: t.priority, column: t.column_id,
+      deadline: t.deadline, estimatedHours: t.estimated_hours,
+      timerSeconds: t.timer_seconds,
+    });
+  });
+  return { employees, byOwner };
+}
+
+// ─── Génération ID ────────────────────────────────────────────
+const genId = () => Math.random().toString(36).substr(2, 9);
+
+// ============================================================
+// ─── OUTILS IA (Claude tool_use) ─────────────────────────────
+// ============================================================
+const AGENT_TOOLS = [
+  {
+    name: "get_team_data",
+    description: "Récupère toutes les données en temps réel : tâches, statuts, deadlines, timers de tous les collaborateurs. Toujours utiliser avant d'analyser ou de prendre des décisions.",
+    input_schema: {
+      type: "object",
+      properties: {
+        filter: { type: "string", description: "Optionnel: 'Fluide', 'Élec', ou nom d'un collaborateur" }
+      }
+    }
+  },
+  {
+    name: "create_task",
+    description: "Crée une nouvelle tâche dans le Kanban pour un collaborateur. Utiliser quand l'utilisateur demande de créer ou ajouter une tâche.",
+    input_schema: {
+      type: "object",
+      required: ["owner_name", "title", "priority"],
+      properties: {
+        owner_name:      { type: "string", description: "Nom exact du collaborateur (doit exister dans l'équipe)" },
+        title:           { type: "string", description: "Titre de la tâche" },
+        project:         { type: "string", description: "Nom du projet/affaire (ex: Hôpital Tunis Nord)" },
+        description:     { type: "string", description: "Description détaillée" },
+        priority:        { type: "string", enum: ["high", "medium", "low"] },
+        column:          { type: "string", enum: ["backlog", "todo", "in_progress", "review", "done"], description: "Colonne initiale (défaut: todo)" },
+        deadline:        { type: "string", description: "Échéance au format YYYY-MM-DD" },
+        estimated_hours: { type: "number", description: "Heures estimées pour cette tâche" }
+      }
+    }
+  },
+  {
+    name: "update_task",
+    description: "Modifie une tâche existante. Seuls les champs fournis sont modifiés.",
+    input_schema: {
+      type: "object",
+      required: ["task_id"],
+      properties: {
+        task_id:         { type: "string", description: "ID de la tâche à modifier" },
+        title:           { type: "string" },
+        project:         { type: "string" },
+        description:     { type: "string" },
+        priority:        { type: "string", enum: ["high", "medium", "low"] },
+        column:          { type: "string", enum: ["backlog", "todo", "in_progress", "review", "done"] },
+        deadline:        { type: "string", description: "Format YYYY-MM-DD" },
+        estimated_hours: { type: "number" }
+      }
+    }
+  },
+  {
+    name: "move_task",
+    description: "Déplace une tâche vers une autre colonne du Kanban.",
+    input_schema: {
+      type: "object",
+      required: ["task_id", "column"],
+      properties: {
+        task_id: { type: "string" },
+        column:  { type: "string", enum: ["backlog", "todo", "in_progress", "review", "done"] }
+      }
+    }
+  },
+  {
+    name: "reassign_task",
+    description: "Réaffecte une tâche d'un collaborateur à un autre. La tâche disparaît du tableau source et apparaît dans le tableau cible.",
+    input_schema: {
+      type: "object",
+      required: ["task_id", "new_owner"],
+      properties: {
+        task_id:   { type: "string" },
+        new_owner: { type: "string", description: "Nom exact du nouveau collaborateur" }
+      }
+    }
+  },
+  {
+    name: "delete_task",
+    description: "Supprime définitivement une tâche. Demander confirmation à l'utilisateur avant de supprimer.",
+    input_schema: {
+      type: "object",
+      required: ["task_id"],
+      properties: {
+        task_id: { type: "string" }
+      }
+    }
+  },
+  {
+    name: "bulk_create_tasks",
+    description: "Crée plusieurs tâches en une seule opération. Utile pour importer une liste ou créer un lot de tâches.",
+    input_schema: {
+      type: "object",
+      required: ["tasks"],
+      properties: {
+        tasks: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["owner_name", "title", "priority"],
+            properties: {
+              owner_name:      { type: "string" },
+              title:           { type: "string" },
+              project:         { type: "string" },
+              description:     { type: "string" },
+              priority:        { type: "string", enum: ["high", "medium", "low"] },
+              column:          { type: "string", enum: ["backlog", "todo", "in_progress", "review", "done"] },
+              deadline:        { type: "string" },
+              estimated_hours: { type: "number" }
+            }
+          }
+        }
+      }
+    }
+  }
+];
+
+// ─── Exécuteur d'outils ───────────────────────────────────────
+async function execTool(name, input) {
+  switch (name) {
+
+    case "get_team_data": {
+      const { employees, byOwner } = await getAllData();
+      const today = new Date().toISOString().split("T")[0];
+      let filtered = employees;
+      if (input.filter) {
+        const f = input.filter.toLowerCase();
+        filtered = employees.filter(e =>
+          e.pole.toLowerCase().includes(f) || e.name.toLowerCase().includes(f)
+        );
+      }
+      const data = filtered.map(e => {
+        const tasks = byOwner[e.name] || [];
+        const overdue = tasks.filter(t => t.deadline && t.deadline < today && t.column !== "done");
+        const inProg  = tasks.filter(t => t.column === "in_progress").length;
+        const done    = tasks.filter(t => t.column === "done").length;
+        const totalH  = tasks.reduce((s, t) => s + (parseFloat(t.estimatedHours) || 0), 0);
+        const workedH = tasks.reduce((s, t) => s + (t.timerSeconds || 0) / 3600, 0);
+        return {
+          name: e.name, role: e.role, pole: e.pole,
+          stats: { total: tasks.length, inProgress: inProg, done, overdue: overdue.length, totalH: Math.round(totalH), workedH: Math.round(workedH * 10) / 10 },
+          tasks: tasks.map(t => ({
+            id: t.id, title: t.title, project: t.project,
+            priority: t.priority, column: t.column,
+            deadline: t.deadline || null, estimatedHours: t.estimatedHours,
+            timerSeconds: t.timerSeconds,
+            isOverdue: !!(t.deadline && t.deadline < today && t.column !== "done")
+          }))
+        };
+      });
+      return { ok: true, team: data, today };
+    }
+
+    case "create_task": {
+      const [emp] = await pool.query("SELECT name FROM employees WHERE name = ?", [input.owner_name]);
+      if (!emp.length) return { error: `Collaborateur introuvable: "${input.owner_name}". Vérifiez l'orthographe exacte.` };
+      const id = genId();
+      await pool.query(
+        `INSERT INTO tasks (id, owner_name, title, project, description, priority, column_id, deadline, estimated_hours, timer_seconds, timer_running, created_at, revenue_amount)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 0)`,
+        [id, input.owner_name, input.title, input.project || "", input.description || "",
+         input.priority || "medium", input.column || "todo",
+         input.deadline || null, input.estimated_hours || null, new Date().toISOString()]
+      );
+      return { ok: true, task_id: id, action: "create_task", owner: input.owner_name, title: input.title, column: input.column || "todo", priority: input.priority || "medium" };
+    }
+
+    case "update_task": {
+      const [rows] = await pool.query("SELECT * FROM tasks WHERE id = ?", [input.task_id]);
+      if (!rows.length) return { error: `Tâche introuvable: "${input.task_id}"` };
+      const t = rows[0];
+      await pool.query(
+        `UPDATE tasks SET title=?, project=?, description=?, priority=?, column_id=?, deadline=?, estimated_hours=? WHERE id=?`,
+        [
+          input.title           ?? t.title,
+          input.project         ?? t.project,
+          input.description     ?? t.description,
+          input.priority        ?? t.priority,
+          input.column          ?? t.column_id,
+          input.deadline        !== undefined ? (input.deadline || null) : t.deadline,
+          input.estimated_hours !== undefined ? (input.estimated_hours || null) : t.estimated_hours,
+          input.task_id
+        ]
+      );
+      return { ok: true, task_id: input.task_id, action: "update_task", title: input.title || t.title, owner: t.owner_name };
+    }
+
+    case "move_task": {
+      const [rows] = await pool.query("SELECT * FROM tasks WHERE id = ?", [input.task_id]);
+      if (!rows.length) return { error: `Tâche introuvable: "${input.task_id}"` };
+      const t = rows[0];
+      const prevCol = t.column_id;
+      await pool.query("UPDATE tasks SET column_id=? WHERE id=?", [input.column, input.task_id]);
+      return { ok: true, task_id: input.task_id, action: "move_task", title: t.title, owner: t.owner_name, from: prevCol, to: input.column };
+    }
+
+    case "reassign_task": {
+      const [rows] = await pool.query("SELECT * FROM tasks WHERE id = ?", [input.task_id]);
+      if (!rows.length) return { error: `Tâche introuvable: "${input.task_id}"` };
+      const [emp] = await pool.query("SELECT name FROM employees WHERE name = ?", [input.new_owner]);
+      if (!emp.length) return { error: `Collaborateur introuvable: "${input.new_owner}"` };
+      const t = rows[0];
+      await pool.query("UPDATE tasks SET owner_name=? WHERE id=?", [input.new_owner, input.task_id]);
+      return { ok: true, task_id: input.task_id, action: "reassign_task", title: t.title, from: t.owner_name, to: input.new_owner };
+    }
+
+    case "delete_task": {
+      const [rows] = await pool.query("SELECT * FROM tasks WHERE id = ?", [input.task_id]);
+      if (!rows.length) return { error: `Tâche introuvable: "${input.task_id}"` };
+      const t = rows[0];
+      await pool.query("DELETE FROM tasks WHERE id=?", [input.task_id]);
+      return { ok: true, task_id: input.task_id, action: "delete_task", title: t.title, owner: t.owner_name };
+    }
+
+    case "bulk_create_tasks": {
+      const created = [];
+      const errors  = [];
+      for (const task of (input.tasks || [])) {
+        const [emp] = await pool.query("SELECT name FROM employees WHERE name = ?", [task.owner_name]);
+        if (!emp.length) { errors.push(`Inconnu: "${task.owner_name}"`); continue; }
+        const id = genId();
+        await pool.query(
+          `INSERT INTO tasks (id, owner_name, title, project, description, priority, column_id, deadline, estimated_hours, timer_seconds, timer_running, created_at, revenue_amount)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, 0)`,
+          [id, task.owner_name, task.title, task.project || "", task.description || "",
+           task.priority || "medium", task.column || "todo",
+           task.deadline || null, task.estimated_hours || null, new Date().toISOString()]
+        );
+        created.push({ task_id: id, owner: task.owner_name, title: task.title });
+      }
+      return { ok: true, action: "bulk_create_tasks", created, errors, count: created.length };
+    }
+
+    default:
+      return { error: `Outil inconnu: "${name}"` };
+  }
+}
+
+// ─── Prompt système de l'agent IA ────────────────────────────
+function buildAgentSystemPrompt(userName, userRole, isAdmin, isChef) {
+  const today = new Date().toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  return (
+    `Tu es l'assistant IA de l'application Kanban SOZAIS — un outil de gestion de tâches pour une équipe d'ingénierie.\n` +
+    `Aujourd'hui : ${today}. Utilisateur connecté : ${userName} (${userRole}${isAdmin ? ", Admin" : isChef ? ", Chef" : ""}).\n\n` +
+    `TES CAPACITÉS :\n` +
+    `- Tu peux CRÉER des tâches directement dans le Kanban (create_task, bulk_create_tasks)\n` +
+    `- Tu peux MODIFIER des tâches (update_task)\n` +
+    `- Tu peux DÉPLACER des tâches entre colonnes (move_task)\n` +
+    `- Tu peux RÉAFFECTER des tâches à d'autres collaborateurs (reassign_task)\n` +
+    `- Tu peux SUPPRIMER des tâches (delete_task — demander confirmation d'abord)\n` +
+    `- Tu peux ANALYSER la charge, les retards, et faire des recommandations (get_team_data)\n\n` +
+    `RÈGLES IMPORTANTES :\n` +
+    `- Réponds TOUJOURS en français, de façon concise et professionnelle\n` +
+    `- Avant d'analyser ou recommander, UTILISE get_team_data pour avoir des données fraîches\n` +
+    `- Quand tu crées/modifies/déplaces une tâche, CONFIRME clairement ce que tu as fait\n` +
+    `- Si un nom de collaborateur est ambigu, propose les options possibles\n` +
+    `- Pour les suppressions, demande toujours confirmation sauf si l'utilisateur a dit "confirme" ou "oui"\n` +
+    `- Propose des actions concrètes, pas juste des conseils abstraits\n` +
+    `- Les colonnes disponibles : backlog, todo (À faire), in_progress (En cours), review (En revue), done (Terminé)\n` +
+    `- Les priorités : high (Haute 🔴), medium (Moyenne 🟠), low (Basse 🟢)\n\n` +
+    `FORMAT DE CONFIRMATION :\n` +
+    `Après une action, confirme avec : "✅ [Action] : [détails]"\n` +
+    `Exemple : "✅ Tâche créée : 'Audit réseau bâtiment B' assignée à Imen AZAZA (Haute priorité, À faire)"\n`
+  );
+}
+
+// ─── API : Agent IA (cœur du système) ─────────────────────────
+// POST /api/ai/agent
+app.post("/api/ai/agent", async (req, res) => {
+  if (!requireAI(res)) return;
+  try {
+    const { messages, userName, userRole, isAdmin, isChef } = req.body;
+    const systemPrompt = buildAgentSystemPrompt(userName, userRole || "", !!isAdmin, !!isChef);
+
+    const actions = [];
+    let convMessages = messages.map(m => ({
+      role: m.role,
+      content: typeof m.content === "string" ? m.content : m.content
+    }));
+
+    let iterations = 0;
+    while (iterations < 10) {
+      iterations++;
+
+      const response = await anthropic.messages.create({
+        model:      "claude-opus-4-6",
+        max_tokens: 2048,
+        system:     systemPrompt,
+        tools:      AGENT_TOOLS,
+        messages:   convMessages,
+      });
+
+      if (response.stop_reason === "end_turn") {
+        const text = response.content.find(b => b.type === "text")?.text || "";
+        return res.json({ reply: text, actions });
+      }
+
+      if (response.stop_reason === "tool_use") {
+        convMessages.push({ role: "assistant", content: response.content });
+
+        const toolResults = [];
+        for (const block of response.content) {
+          if (block.type !== "tool_use") continue;
+          console.log(`🤖 Tool: ${block.name}`, JSON.stringify(block.input).slice(0, 120));
+          let result;
+          try {
+            result = await execTool(block.name, block.input);
+          } catch (err) {
+            result = { error: err.message };
+          }
+          console.log(`   → ${JSON.stringify(result).slice(0, 100)}`);
+          // Ne logger que les actions qui modifient les données
+          if (block.name !== "get_team_data") {
+            actions.push({ tool: block.name, input: block.input, result });
+          }
+          toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(result) });
+        }
+        convMessages.push({ role: "user", content: toolResults });
+      }
+    }
+
+    res.json({ reply: "Désolé, la limite de traitement a été atteinte. Réessayez.", actions });
+  } catch (err) {
+    console.error("POST /api/ai/agent", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API : Briefing quotidien ──────────────────────────────────
+// GET /api/ai/briefing/:userName
+app.get("/api/ai/briefing/:userName", async (req, res) => {
+  if (!requireAI(res)) return;
+  try {
+    const { userName } = req.params;
+    const today      = new Date().toISOString().split("T")[0];
+    const tomorrow   = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+    const weekLater  = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
+    const dayOfWeek  = new Date().toLocaleDateString("fr-FR", { weekday: "long" });
+
+    const [tasks] = await pool.query(
+      "SELECT * FROM tasks WHERE owner_name = ? ORDER BY deadline ASC NULLS LAST",
+      [userName]
+    );
+
+    const overdue  = tasks.filter(t => t.deadline && t.deadline < today && t.column_id !== "done");
+    const dueToday = tasks.filter(t => t.deadline === today && t.column_id !== "done");
+    const dueSoon  = tasks.filter(t => t.deadline > today && t.deadline <= weekLater && t.column_id !== "done");
+    const inProg   = tasks.filter(t => t.column_id === "in_progress");
+    const todo     = tasks.filter(t => ["todo", "backlog"].includes(t.column_id));
+    const done     = tasks.filter(t => t.column_id === "done");
+    const highPrio = tasks.filter(t => t.priority === "high" && t.column_id !== "done");
+
+    const dataStr =
+      `${tasks.length} tâches au total (${done.length} terminées)\n` +
+      `En cours (${inProg.length}): ${inProg.map(t => `"${t.title}"`).join(", ") || "aucune"}\n` +
+      (overdue.length  ? `🚨 En retard (${overdue.length}): ${overdue.map(t => `"${t.title}" (dû le ${t.deadline})`).join(", ")}\n` : "") +
+      (dueToday.length ? `⚠️ À rendre AUJOURD'HUI (${dueToday.length}): ${dueToday.map(t => `"${t.title}"`).join(", ")}\n` : "") +
+      (dueSoon.length  ? `📅 À rendre cette semaine (${dueSoon.length}): ${dueSoon.map(t => `"${t.title}" (${t.deadline})`).join(", ")}\n` : "") +
+      (highPrio.length ? `🔴 Haute priorité non terminées (${highPrio.length}): ${highPrio.map(t => `"${t.title}"`).join(", ")}\n` : "") +
+      `À faire (${todo.length} tâches restantes)`;
+
+    const response = await anthropic.messages.create({
+      model:      "claude-opus-4-6",
+      max_tokens: 500,
+      messages: [{
+        role:    "user",
+        content: `Génère un briefing de début de journée (${dayOfWeek}) pour ${userName}.\n\n` +
+                 `Situation :\n${dataStr}\n\n` +
+                 `Instructions :\n` +
+                 `- Commence par un bonjour adapté au jour de la semaine\n` +
+                 `- 3-5 phrases maximum, ton chaleureux et motivant\n` +
+                 `- Mentionne clairement les urgences (retards, deadlines du jour) si il y en a\n` +
+                 `- Termine par une priorité claire ou un encouragement\n` +
+                 `- Utilise des emojis avec parcimonie\n` +
+                 `- En français`
+      }]
+    });
+
+    res.json({ briefing: response.content[0].text, stats: { total: tasks.length, done: done.length, overdue: overdue.length, dueToday: dueToday.length, inProgress: inProg.length } });
+  } catch (err) {
+    console.error("GET /api/ai/briefing", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API : Analyse de charge ──────────────────────────────────
+// GET /api/ai/workload
+app.get("/api/ai/workload", async (req, res) => {
+  if (!requireAI(res)) return;
+  try {
+    const { employees, byOwner } = await getAllData();
+    const today = new Date().toISOString().split("T")[0];
+    const dataStr = employees.map(e => {
+      const tasks   = byOwner[e.name] || [];
+      const totalH  = tasks.reduce((s, t) => s + (parseFloat(t.estimatedHours) || 0), 0);
+      const workedH = tasks.reduce((s, t) => s + (t.timerSeconds || 0) / 3600, 0);
+      const overdue = tasks.filter(t => t.deadline && t.deadline < today && t.column !== "done").length;
+      const inProg  = tasks.filter(t => t.column === "in_progress").length;
+      const todo    = tasks.filter(t => ["todo", "backlog"].includes(t.column)).length;
+      return (
+        `${e.name} (${e.role}, ${e.pole}): ` +
+        `${tasks.length} tâches dont ${inProg} en cours, ${todo} à faire, ` +
+        `${overdue} en retard — ${totalH.toFixed(0)}h estimées, ${workedH.toFixed(1)}h réalisées`
+      );
+    }).join("\n");
+
+    const response = await anthropic.messages.create({
+      model:      "claude-opus-4-6",
+      max_tokens: 1500,
+      messages: [{
+        role:    "user",
+        content: `Analyse la charge de travail de l'équipe SOZAIS et identifie les déséquilibres.\n\n` +
+                 `Données :\n${dataStr}\n\n` +
+                 `Fournis :\n` +
+                 `1. Diagnostic de charge (qui est surchargé / qui a de la capacité)\n` +
+                 `2. 3-5 recommandations concrètes de redistribution\n` +
+                 `3. Personnes nécessitant une attention urgente\n\n` +
+                 `Sois direct et actionnable. En français.`,
+      }],
+    });
+    res.json({ analysis: response.content[0].text });
+  } catch (err) {
+    console.error("GET /api/ai/workload", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API : Priorisation ───────────────────────────────────────
+// POST /api/ai/prioritize/:ownerName
+app.post("/api/ai/prioritize/:ownerName", async (req, res) => {
+  if (!requireAI(res)) return;
+  try {
+    const { ownerName } = req.params;
+    const [rows] = await pool.query(
+      "SELECT * FROM tasks WHERE owner_name = ? AND column_id != 'done'",
+      [ownerName]
+    );
+    if (!rows.length) return res.json({ order: [], reasoning: "Aucune tâche active à prioriser." });
+
+    const today    = new Date().toISOString().split("T")[0];
+    const tasksStr = rows.map((t, i) =>
+      `${i + 1}. ID:${t.id} | "${t.title}" | prio:${t.priority} | col:${t.column_id}` +
+      ` | échéance:${t.deadline || "non définie"} | estimé:${t.estimated_hours || "?"}h` +
+      ` | fait:${(t.timer_seconds / 3600).toFixed(1)}h`
+    ).join("\n");
+
+    const response = await anthropic.messages.create({
+      model:      "claude-opus-4-6",
+      max_tokens: 800,
+      messages: [{
+        role:    "user",
+        content: `Aujourd'hui : ${today}. Priorise ces tâches pour ${ownerName} (du plus urgent au moins urgent).\n\n` +
+                 `${tasksStr}\n\n` +
+                 `Réponds UNIQUEMENT avec un JSON valide :\n` +
+                 `{"order": ["id1", "id2", ...], "reasoning": "explication courte en 2-3 phrases"}`,
+      }],
+    });
+
+    const text      = response.content[0].text.trim();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    let result;
+    try {
+      result = JSON.parse(jsonMatch ? jsonMatch[0] : text);
+    } catch {
+      result = { order: rows.map(r => r.id), reasoning: "Priorisation appliquée par date d'échéance." };
+    }
+    res.json(result);
+  } catch (err) {
+    console.error("POST /api/ai/prioritize", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API : Rapport hebdomadaire ───────────────────────────────
+async function generateAndSendReport() {
+  const { employees, byOwner } = await getAllData();
+  const today = new Date().toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
+  const dataStr = employees.map(e => {
+    const tasks    = byOwner[e.name] || [];
+    const done     = tasks.filter(t => t.column === "done").length;
+    const inProg   = tasks.filter(t => t.column === "in_progress").length;
+    const overdue  = tasks.filter(t => t.deadline && new Date(t.deadline) < new Date() && t.column !== "done");
+    const workedH  = tasks.reduce((s, t) => s + (t.timerSeconds || 0) / 3600, 0);
+    return (
+      `${e.name} (${e.role}, ${e.pole}): ` +
+      `${done} terminées, ${inProg} en cours, ${tasks.length - done} restantes, ` +
+      `${overdue.length} en retard, ${workedH.toFixed(1)}h travaillées. ` +
+      `Retards: ${overdue.map(t => '"' + t.title + '"').join(", ") || "aucun"}`
+    );
+  }).join("\n");
+
+  const response = await anthropic.messages.create({
+    model:      "claude-opus-4-6",
+    max_tokens: 2000,
+    messages: [{
+      role:    "user",
+      content: `Génère un rapport hebdomadaire professionnel pour l'équipe SOZAIS — ${today}.\n\n` +
+               `Données :\n${dataStr}\n\n` +
+               `Structure requise :\n` +
+               `1. Résumé exécutif (2-3 phrases)\n` +
+               `2. Performance Pôle Fluide\n` +
+               `3. Performance Pôle Élec\n` +
+               `4. Points d'attention (retards, surcharges)\n` +
+               `5. Recommandations pour la semaine suivante\n\n` +
+               `Style professionnel, en français.`,
+    }],
+  });
+
+  const reportText = response.content[0].text;
+  if (mailer && process.env.REPORT_EMAIL) {
+    await mailer.sendMail({
+      from:    process.env.EMAIL_USER,
+      to:      process.env.REPORT_EMAIL,
+      subject: `📊 Rapport hebdomadaire SOZAIS — ${today}`,
+      text:    reportText,
+      html:    `<pre style="font-family:Arial,sans-serif;white-space:pre-wrap;line-height:1.6">${reportText}</pre>`,
+    });
+  }
+  return reportText;
+}
+
+app.post("/api/ai/weekly-report", async (req, res) => {
+  if (!requireAI(res)) return;
+  try {
+    const report = await generateAndSendReport();
+    res.json({ report, sent: !!(mailer && process.env.REPORT_EMAIL) });
+  } catch (err) {
+    console.error("POST /api/ai/weekly-report", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+cron.schedule("0 18 * * 5", async () => {
+  if (!anthropic) return;
+  console.log("🤖 Rapport hebdo automatique...");
+  try { await generateAndSendReport(); console.log("✅ Rapport envoyé."); }
+  catch (err) { console.error("❌ Rapport:", err.message); }
+});
+
+// ─── API : Tâches ─────────────────────────────────────────────
+app.get("/api/tasks/:ownerName", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT * FROM tasks WHERE owner_name = ? ORDER BY created_at ASC",
+      [req.params.ownerName]
+    );
+    const tasks = rows.map(r => ({
+      id:             r.id,
+      title:          r.title,
+      project:        r.project        || "",
+      description:    r.description    || "",
+      priority:       r.priority       || "medium",
+      column:         r.column_id      || "todo",
+      deadline:       r.deadline       || "",
+      estimatedHours: r.estimated_hours != null ? String(r.estimated_hours) : "",
+      timerSeconds:   r.timer_seconds  || 0,
+      timerRunning:   !!r.timer_running,
+      timerStartedAt: r.timer_started_at ? Number(r.timer_started_at) : null,
+      createdAt:      r.created_at     || new Date().toISOString(),
+      revenueAmount:  parseFloat(r.revenue_amount) || 0,
+    }));
+    res.json(tasks);
+  } catch (err) {
+    console.error("GET /api/tasks", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/tasks/:ownerName", async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const { ownerName } = req.params;
+    const tasks = req.body;
+    await conn.beginTransaction();
+    await conn.query("DELETE FROM tasks WHERE owner_name = ?", [ownerName]);
+    if (tasks && tasks.length > 0) {
+      const values = tasks.map(t => [
+        t.id, ownerName, t.title || "", t.project || "", t.description || "",
+        t.priority || "medium", t.column || "todo", t.deadline || null,
+        t.estimatedHours ? parseFloat(t.estimatedHours) : null,
+        t.timerSeconds || 0, t.timerRunning ? 1 : 0, t.timerStartedAt || null,
+        t.createdAt || new Date().toISOString(), parseFloat(t.revenueAmount) || 0,
+      ]);
+      await conn.query(
+        `INSERT INTO tasks (id, owner_name, title, project, description, priority, column_id, deadline, estimated_hours, timer_seconds, timer_running, timer_started_at, created_at, revenue_amount) VALUES ?`,
+        [values]
+      );
+    }
+    await conn.commit();
+    res.json({ ok: true, count: tasks ? tasks.length : 0 });
+  } catch (err) {
+    await conn.rollback();
+    console.error("POST /api/tasks", err);
+    res.status(500).json({ error: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// ─── API : Mots de passe ──────────────────────────────────────
+app.get("/api/pwd/:name", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT password FROM passwords WHERE name = ?", [req.params.name]);
+    res.json({ password: rows.length ? rows[0].password : null });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/pwd/:name", async (req, res) => {
+  try {
+    const { password } = req.body;
+    await pool.query(
+      `INSERT INTO passwords (name, password) VALUES (?, ?) ON DUPLICATE KEY UPDATE password = VALUES(password)`,
+      [req.params.name, password]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── API : Employés ───────────────────────────────────────────
+app.get("/api/employees", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM employees ORDER BY is_admin DESC, pole ASC, is_chef DESC, name ASC");
+    res.json(rows.map(r => ({ name: r.name, role: r.role, pole: r.pole, isChef: !!r.is_chef, isAdmin: !!r.is_admin, tjm: parseFloat(r.tjm) || 0 })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/employees", async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const employees = req.body;
+    await conn.beginTransaction();
+    await conn.query("DELETE FROM employees WHERE is_admin = 0");
+    const nonAdmins = employees.filter(e => !e.isAdmin);
+    if (nonAdmins.length > 0) {
+      const values = nonAdmins.map(e => [e.name, e.role, e.pole, e.isChef ? 1 : 0, 0, parseFloat(e.tjm) || 0]);
+      await conn.query("INSERT INTO employees (name, role, pole, is_chef, is_admin, tjm) VALUES ?", [values]);
+    }
+    await conn.commit();
+    res.json({ ok: true });
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err.message });
+  } finally { conn.release(); }
+});
+
+// ─── API : Frais fixes ────────────────────────────────────────
+app.get("/api/fixed-costs", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM fixed_costs ORDER BY category");
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/fixed-costs", async (req, res) => {
+  try {
+    const costs = req.body;
+    const now = new Date().toISOString();
+    for (const c of costs) {
+      await pool.query(
+        `INSERT INTO fixed_costs (category, label, amount_monthly, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE label=VALUES(label), amount_monthly=VALUES(amount_monthly), updated_at=VALUES(updated_at)`,
+        [c.category, c.label, parseFloat(c.amount_monthly) || 0, now]
+      );
+    }
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── API : Projets ────────────────────────────────────────────
+app.get("/api/projects", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM projects ORDER BY name");
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/projects", async (req, res) => {
+  try {
+    const { name, revenue_forfait, revenue_mode, description } = req.body;
+    await pool.query(
+      `INSERT INTO projects (name, revenue_forfait, revenue_mode, description, created_at) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE revenue_forfait=VALUES(revenue_forfait), revenue_mode=VALUES(revenue_mode), description=VALUES(description)`,
+      [name, parseFloat(revenue_forfait) || 0, revenue_mode || "forfait", description || "", new Date().toISOString()]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── API : Rentabilité ────────────────────────────────────────
+app.get("/api/profitability", async (req, res) => {
+  try {
+    const [tasks]     = await pool.query("SELECT t.*, e.tjm FROM tasks t LEFT JOIN employees e ON t.owner_name = e.name WHERE t.project != ''");
+    const [projRows]  = await pool.query("SELECT * FROM projects");
+    const [costsRows] = await pool.query("SELECT * FROM fixed_costs");
+
+    const projMap = {};
+    projRows.forEach(p => { projMap[p.name] = p; });
+    const totalFixedMonthly = costsRows.reduce((s, c) => s + parseFloat(c.amount_monthly || 0), 0);
+
+    const byProject = {};
+    tasks.forEach(t => {
+      if (!byProject[t.project]) byProject[t.project] = { tasks: [], collaborateurs: new Set() };
+      byProject[t.project].tasks.push(t);
+      byProject[t.project].collaborateurs.add(t.owner_name);
+    });
+
+    const projects = Object.entries(byProject).map(([projName, data]) => {
+      const heures      = data.tasks.reduce((s, t) => s + (t.timer_seconds || 0) / 3600, 0);
+      const coutMO      = data.tasks.reduce((s, t) => { const days = (t.timer_seconds || 0) / 3600 / 8; return s + days * (parseFloat(t.tjm) || 0); }, 0);
+      const caLivrables = data.tasks.reduce((s, t) => s + (parseFloat(t.revenue_amount) || 0), 0);
+      const projInfo    = projMap[projName];
+      const caForfait   = projInfo ? parseFloat(projInfo.revenue_forfait) || 0 : 0;
+      const revenueMode = projInfo ? projInfo.revenue_mode : "forfait";
+      const caRetenu    = revenueMode === "livrables" ? caLivrables : caForfait;
+      const margeBrute  = caRetenu - coutMO;
+      const margePct    = caRetenu > 0 ? (margeBrute / caRetenu) * 100 : null;
+      return {
+        project: projName, heures: Math.round(heures * 10) / 10, cout_mo: Math.round(coutMO * 100) / 100,
+        ca_livrables: Math.round(caLivrables * 100) / 100, ca_forfait: caForfait,
+        revenue_mode: revenueMode, ca_retenu: Math.round(caRetenu * 100) / 100,
+        marge_brute: Math.round(margeBrute * 100) / 100,
+        marge_pct: margePct !== null ? Math.round(margePct * 10) / 10 : null,
+        nb_taches: data.tasks.length, nb_collaborateurs: data.collaborateurs.size,
+      };
+    });
+    projects.sort((a, b) => b.ca_retenu - a.ca_retenu);
+    res.json({ projects, total_fixed_monthly: Math.round(totalFixedMonthly * 100) / 100, fixed_costs: costsRows });
+  } catch (err) {
+    console.error("GET /api/profitability", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Fallback → index.html ────────────────────────────────────
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+app.listen(PORT, () => {
+  console.log(`\n🚀 Kanban SOZAIS AI-First — http://localhost:${PORT}`);
+  console.log(`   IA : ${anthropic ? "✅ Claude actif" : "❌ Clé ANTHROPIC_API_KEY manquante"}\n`);
+});

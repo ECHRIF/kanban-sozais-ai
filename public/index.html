@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kanban AI — SOZAIS</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0F1923; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useCallback, useEffect, useRef } = React;
+
+
+const DARK = "#0F1923", DARK2 = "#1A2736", DARK3 = "#223344", DARK4 = "#2A3F55";
+const BLUE = "#3B82F6", GREEN = "#10B981", ORANGE = "#F59E0B", RED = "#EF4444", PURPLE = "#8B5CF6", CYAN = "#06B6D4";
+const TXT = "#F1F5F9", TXT2 = "#94A3B8", TXT3 = "#64748B", BRD = "#2D4052";
+const DEFAULT_PASSWORD = "kanban2026";
+
+const LOGO_SRC = "data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCAOcBo4DASIAAhEBAxEB/8QAHQABAAEFAQEBAAAAAAAAAAAAAAQCAwUGBwEICf/EAGcQAQABAwICBAMNDg4QBQUBAAABAgMEBREGIRIxUWEHE0EIFSIyNVJxgZGxstHSFBZCVVZzdHWSk6GzwcIjNjdTVGJygoOElLTD4hckJiszNENERWWVoqOk0+ElRmOl4xg4ZMTx8P/EABsBAQACAwEBAAAAAAAAAAAAAAADBAECBQYH/8QANhEBAAIBAgQEAwcDBQEBAQAAAAECAwQREiExUQUTMkEUM2EiQlJxgZGxBhWhIzTB0fAWJPH/2gAMAwEAAhEDEQA/APjIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHuwPB7s92BSKtnuwKBX0TogoFfROiCgV9E2BQKtnmwPB7s8AAAAA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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHuwPB7s92BSKtnuwKBX0TogoFfROiCgV9E2BQKtnmwPB7s8AAAAAAAAAAAAA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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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";
+
+const COLS = [
+  { id: "backlog", title: "Backlog", color: TXT3, icon: "📋" },
+  { id: "todo", title: "À faire", color: BLUE, icon: "📌" },
+  { id: "in_progress", title: "En cours", color: ORANGE, icon: "⚡" },
+  { id: "review", title: "En revue", color: PURPLE, icon: "🔍" },
+  { id: "done", title: "Terminé", color: GREEN, icon: "✅" },
+];
+const PRIOS = [
+  { id: "high", label: "Haute", color: RED, icon: "🔴" },
+  { id: "medium", label: "Moyenne", color: ORANGE, icon: "🟠" },
+  { id: "low", label: "Basse", color: GREEN, icon: "🟢" },
+];
+const DEFAULT_EMPLOYEES = [
+  { name: "Souha ARFAOUI", role: "Cheffe Pôle Fluide", pole: "Fluide", isChef: true },
+  { name: "Imen AZAZA", role: "Ingénieure fluide", pole: "Fluide", isChef: false },
+  { name: "Souha BEN HASSEN", role: "Ingénieure fluide", pole: "Fluide", isChef: false },
+  { name: "Chadha DAOUIDI", role: "Ingénieure fluide", pole: "Fluide", isChef: false },
+  { name: "Hamadi MTIRI", role: "Projeteur fluide", pole: "Fluide", isChef: false },
+  { name: "Abdelhak AMRI", role: "Technicien sup fluide", pole: "Fluide", isChef: false },
+  { name: "Nesrine KAYEL", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
+  { name: "Nadhir GHOUMA", role: "Technicien sup fluide", pole: "Fluide", isChef: false },
+  { name: "Achraf SAOUDI", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
+  { name: "Tayeb KSENTINI", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
+  { name: "Chadha SAADAOUI", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
+  { name: "Shayma MASTOURI", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
+  { name: "Rihab ATTIA", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
+  { name: "Fatma RHAIMI", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
+  { name: "Sabah AJARRAR", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
+  { name: "Majdi AMARA", role: "Chef Pôle Élec", pole: "Élec", isChef: true },
+  { name: "Yassine KHCHIMI", role: "Ingénieur Elec", pole: "Élec", isChef: false },
+  { name: "Rakia MANSOUR", role: "Ingénieur Elec", pole: "Élec", isChef: false },
+  { name: "Safa SOUAYAH", role: "Ingénieur Elec", pole: "Élec", isChef: false },
+  { name: "Rima MABROUKI", role: "Ingénieur Elec", pole: "Élec", isChef: false },
+  { name: "Mohamed KLII", role: "Ingénieur Elec", pole: "Élec", isChef: false },
+  { name: "Nadhmi JAMEL", role: "Ingénieur Elec", pole: "Élec", isChef: false },
+  { name: "Walid GHARBI", role: "Ingénieur Elec", pole: "Élec", isChef: false },
+  { name: "Wissem BEN TAHER", role: "Ingénieur Elec", pole: "Élec", isChef: false },
+  { name: "Hamza BEN AHMED", role: "Technicien sup Elec", pole: "Élec", isChef: false },
+  { name: "Amine DRONGA", role: "Ingénieur Elec", pole: "Élec", isChef: false },
+  { name: "Salma HANZOULI", role: "Ingénieur Elec", pole: "Élec", isChef: false },
+  { name: "M.O. HACHLEF", role: "Ingénieur Elec", pole: "Élec", isChef: false },
+  { name: "ECHRIF Walid", role: "Admin", pole: "Admin", isChef: false, isAdmin: true },
+  { name: "ECHRIF Youssef", role: "Admin", pole: "Admin", isChef: false, isAdmin: true },
+];
+
+const genId = () => Math.random().toString(36).substr(2, 9);
+let dragData = null;
+
+// ─── Helpers API REST → MySQL (via serveur Express) ───
+async function loadTasks(name) {
+  try {
+    const r = await fetch('/api/tasks/' + encodeURIComponent(name));
+    if (!r.ok) return [];
+    return await r.json();
+  } catch { return []; }
+}
+async function saveTasks(name, tasks) {
+  try {
+    await fetch('/api/tasks/' + encodeURIComponent(name), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tasks),
+    });
+  } catch (e) { console.error(e); }
+}
+async function loadPwd(name) {
+  try {
+    const r = await fetch('/api/pwd/' + encodeURIComponent(name));
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d.password || null;
+  } catch { return null; }
+}
+async function savePwd(name, pwd) {
+  try {
+    await fetch('/api/pwd/' + encodeURIComponent(name), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd }),
+    });
+  } catch (e) { console.error(e); }
+}
+async function loadEmployees() {
+  try {
+    const r = await fetch('/api/employees');
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+async function saveEmployees(list) {
+  try {
+    await fetch('/api/employees', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(list),
+    });
+  } catch (e) { console.error(e); }
+}
+
+// ─── Helpers API IA ───────────────────────────────────────────
+async function aiAgent(messages, userName, userRole, isAdmin, isChef) {
+  const r = await fetch('/api/ai/agent', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages, userName, userRole, isAdmin, isChef }),
+  });
+  if (!r.ok) throw new Error((await r.json()).error || 'Erreur IA');
+  return await r.json(); // { reply, actions }
+}
+async function aiBriefing(userName) {
+  const r = await fetch('/api/ai/briefing/' + encodeURIComponent(userName));
+  if (!r.ok) return null;
+  return (await r.json()).briefing;
+}
+async function aiWorkload() {
+  const r = await fetch('/api/ai/workload');
+  if (!r.ok) throw new Error((await r.json()).error || 'Erreur IA');
+  return (await r.json()).analysis;
+}
+async function aiPrioritize(ownerName) {
+  const r = await fetch('/api/ai/prioritize/' + encodeURIComponent(ownerName), { method: 'POST' });
+  if (!r.ok) throw new Error((await r.json()).error || 'Erreur IA');
+  return await r.json();
+}
+async function aiWeeklyReport() {
+  const r = await fetch('/api/ai/weekly-report', { method: 'POST' });
+  if (!r.ok) throw new Error((await r.json()).error || 'Erreur IA');
+  return await r.json();
+}
+
+
+
+function exportToExcel(allTasks, empList) {
+  const BOM = "\uFEFF";
+  const SEP = ";";
+  const colLabel = { backlog: "Backlog", todo: "À faire", in_progress: "En cours", review: "En revue", done: "Terminé" };
+  const prioLabel = { high: "Haute", medium: "Moyenne", low: "Basse" };
+  const headers = ["Collaborateur", "Pôle", "Rôle", "Titre", "Projet", "Description", "Priorité", "Colonne", "Échéance", "H. estimées", "H. réalisées", "Dépassement", "Timer", "TJM (€/j)", "Coût MO (€)", "CA livrable (€)"];
+  const rows = [];
+  Object.entries(allTasks).forEach(([ownerName, tasks]) => {
+    const emp = empList.find((e) => e.name === ownerName);
+    const tjm = emp ? (parseFloat(emp.tjm) || 0) : 0;
+    tasks.forEach((t) => {
+      const secs = t.timerSeconds || 0;
+      const est = t.estimatedHours ? parseFloat(t.estimatedHours) : 0;
+      const actH = secs / 3600;
+      const over = est > 0 && actH > est;
+      const coutMO = tjm > 0 ? (actH / 8 * tjm).toFixed(2) : "";
+      rows.push([
+        ownerName,
+        emp ? emp.pole : "",
+        emp ? emp.role : "",
+        t.title || "",
+        t.project || "",
+        t.description || "",
+        prioLabel[t.priority] || t.priority || "",
+        colLabel[t.column] || t.column || "",
+        t.deadline || "",
+        est > 0 ? est.toFixed(1) : "",
+        actH > 0 ? actH.toFixed(2) : "",
+        over ? ("+" + (actH - est).toFixed(1) + "h") : "",
+        t.timerRunning ? "En cours" : "",
+        tjm > 0 ? tjm.toFixed(2) : "",
+        coutMO,
+        t.revenueAmount > 0 ? parseFloat(t.revenueAmount).toFixed(2) : "",
+      ]);
+    });
+  });
+  const escape = (v) => '"' + String(v).replace(/"/g, '""') + '"';
+  const csv = BOM + [headers.map(escape).join(SEP), ...rows.map((r) => r.map(escape).join(SEP))].join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "kanban-export-" + new Date().toISOString().slice(0, 10) + ".csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+const iBase = { width: "100%", padding: "11px 14px", background: DARK, border: "1px solid " + BRD, borderRadius: 8, color: TXT, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
+const lBase = { color: TXT2, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, display: "block", marginBottom: 6 };
+
+function fmtTime(s) { const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60; return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(sec).padStart(2, "0"); }
+function fmtH(s) { return (s / 3600).toFixed(1); }
+function liveSeconds(t) { const b = t.timerSeconds || 0; if (!t.timerRunning || !t.timerStartedAt) return b; return b + Math.floor((Date.now() - t.timerStartedAt) / 1000); }
+
+function Logo({ size }) {
+  return <img src={LOGO_SRC} alt="SOZAIS" style={{ height: size || 36, objectFit: "contain" }} />;
+}
+
+// ─── DailyBriefingBanner ─────────────────────────────────────
+function DailyBriefingBanner({ briefing, onClose }) {
+  if (!briefing) return null;
+  return (
+    <div style={{ margin: '12px 20px 0', padding: '14px 18px', background: 'linear-gradient(135deg, ' + PURPLE + '22, ' + BLUE + '11)', border: '1px solid ' + PURPLE + '44', borderLeft: '4px solid ' + PURPLE, borderRadius: 12, position: 'relative' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <span style={{ fontSize: 20, flexShrink: 0 }}>🤖</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ color: PURPLE, fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Briefing IA du matin — {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+          <div style={{ color: TXT2, fontSize: 12, lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{briefing}</div>
+        </div>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: TXT3, fontSize: 16, cursor: 'pointer', flexShrink: 0 }}>✕</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Composant : Action Card IA ───────────────────────────────
+function ActionCard({ action }) {
+  const icons = { create_task: '✅', update_task: '✏️', move_task: '🔀', reassign_task: '👤', delete_task: '🗑️', bulk_create_tasks: '📋' };
+  const colors = { create_task: GREEN, update_task: BLUE, move_task: ORANGE, reassign_task: PURPLE, delete_task: RED, bulk_create_tasks: CYAN };
+  const labels = { create_task: 'Tâche créée', update_task: 'Tâche mise à jour', move_task: 'Tâche déplacée', reassign_task: 'Tâche réaffectée', delete_task: 'Tâche supprimée', bulk_create_tasks: 'Tâches créées en lot' };
+  const color = colors[action.tool] || TXT3;
+  const icon = icons[action.tool] || '⚡';
+  const label = labels[action.tool] || action.tool;
+
+  let detail = '';
+  if (action.input) {
+    if (action.input.title) detail = action.input.title;
+    else if (action.input.task_id) detail = 'ID: ' + action.input.task_id;
+    else if (action.input.tasks) detail = action.input.tasks.length + ' tâche(s)';
+    if (action.input.owner_name) detail += (detail ? ' → ' : '') + action.input.owner_name;
+    if (action.input.new_column) detail += ' [' + action.input.new_column + ']';
+  }
+
+  return (
+    <div style={{ margin: '4px 0', padding: '8px 11px', borderRadius: 9, background: color + '15', border: '1px solid ' + color + '44', borderLeft: '3px solid ' + color }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 13 }}>{icon}</span>
+        <span style={{ color: color, fontSize: 11, fontWeight: 700 }}>{label}</span>
+      </div>
+      {detail && <div style={{ color: TXT3, fontSize: 10, marginTop: 3, paddingLeft: 20 }}>{detail}</div>}
+    </div>
+  );
+}
+
+// ─── Composant : Chatbot IA (Agent) ───────────────────────────
+function AIChatPanel({ user, onClose, onAction }) {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef(null);
+
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
+
+  const send = async () => {
+    const text = input.trim();
+    if (!text || loading) return;
+    const userMsg = { role: 'user', content: text };
+    const next = [...messages, userMsg];
+    setMessages(next); setInput(""); setLoading(true);
+    try {
+      const { reply, actions } = await aiAgent(next, user.name, user.role, !!user.isAdmin, !!user.isChef);
+      const assistantMsg = { role: 'assistant', content: reply, actions: actions || [] };
+      setMessages([...next, assistantMsg]);
+      if (actions && actions.length > 0 && onAction) onAction();
+    } catch (e) {
+      setMessages([...next, { role: 'assistant', content: '⚠️ ' + e.message, actions: [] }]);
+    }
+    setLoading(false);
+  };
+
+  const suggestions = [
+    "Crée une tâche urgente pour analyser le projet CVC",
+    "Qui est surchargé dans l'équipe ?",
+    "Montre moi les tâches en retard",
+    "Priorise mes tâches selon les deadlines"
+  ];
+
+  return (
+    <div style={{ position: 'fixed', bottom: 20, right: 20, width: 400, maxHeight: '78vh', background: DARK2, border: '1px solid ' + BRD, borderRadius: 16, boxShadow: '0 24px 64px rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', zIndex: 3000 }}>
+      {/* Header */}
+      <div style={{ padding: '13px 16px', borderBottom: '1px solid ' + BRD, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: DARK3, borderRadius: '16px 16px 0 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 18 }}>🤖</span>
+          <div>
+            <div style={{ color: TXT, fontWeight: 700, fontSize: 13 }}>Agent IA SOZAIS</div>
+            <div style={{ color: GREEN, fontSize: 9, fontWeight: 600 }}>● Peut créer · modifier · déplacer des tâches</div>
+          </div>
+        </div>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: TXT3, fontSize: 18, cursor: 'pointer' }}>✕</button>
+      </div>
+
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 160 }}>
+        {messages.length === 0 && (
+          <div>
+            <div style={{ color: TXT3, fontSize: 11, textAlign: 'center', marginBottom: 12, marginTop: 8 }}>
+              Je peux <span style={{ color: GREEN }}>créer</span>, <span style={{ color: BLUE }}>modifier</span>, <span style={{ color: ORANGE }}>déplacer</span> et <span style={{ color: PURPLE }}>réaffecter</span> des tâches directement.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {suggestions.map((s) => (
+                <button key={s} onClick={() => { setInput(s); }} style={{ padding: '7px 12px', background: DARK3, border: '1px solid ' + BRD, borderRadius: 8, color: TXT2, fontSize: 11, cursor: 'pointer', textAlign: 'left' }}>💬 {s}</button>
+              ))}
+            </div>
+          </div>
+        )}
+        {messages.map((m, i) => (
+          <div key={i}>
+            <div style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
+              <div style={{ maxWidth: '88%', padding: '8px 12px', borderRadius: m.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px', background: m.role === 'user' ? BLUE : DARK3, color: TXT, fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {m.content}
+              </div>
+            </div>
+            {m.actions && m.actions.length > 0 && (
+              <div style={{ marginTop: 6, paddingLeft: 4 }}>
+                {m.actions.map((a, j) => <ActionCard key={j} action={a} />)}
+              </div>
+            )}
+          </div>
+        ))}
+        {loading && (
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <div style={{ padding: '8px 13px', borderRadius: '12px 12px 12px 2px', background: DARK3, color: TXT3, fontSize: 11, animation: 'pulse 1.5s infinite' }}>🤖 Agent en action...</div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div style={{ padding: '10px 12px', borderTop: '1px solid ' + BRD, display: 'flex', gap: 7 }}>
+        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && send()}
+          placeholder="Ex: Crée une tâche pour Ahmed sur le projet CVC..." style={{ ...iBase, flex: 1, fontSize: 12, padding: '8px 11px' }} />
+        <button onClick={send} disabled={!input.trim() || loading}
+          style={{ padding: '8px 14px', background: input.trim() && !loading ? BLUE : TXT3, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, cursor: input.trim() && !loading ? 'pointer' : 'not-allowed', fontSize: 14 }}>→</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Composant : Analyse de charge ────────────────────────────
+// ─── Composant : Analyse de charge ────────────────────────────
+function WorkloadModal({ onClose }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    aiWorkload().then(setData).catch((e) => setErr(e.message)).finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: DARK2, border: '1px solid ' + BRD, borderRadius: 16, padding: 28, width: '100%', maxWidth: 640, maxHeight: '80vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div>
+            <h2 style={{ color: TXT, fontSize: 18, fontWeight: 700, margin: 0 }}>⚡ Analyse de charge — IA</h2>
+            <div style={{ color: TXT3, fontSize: 11, marginTop: 4 }}>Analyse temps réel par Claude</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: TXT3, fontSize: 22, cursor: 'pointer' }}>✕</button>
+        </div>
+        {loading && <div style={{ color: TXT3, textAlign: 'center', padding: 48, fontSize: 13, animation: 'pulse 1.5s infinite' }}>🤖 Analyse de la charge en cours...</div>}
+        {err && <div style={{ color: RED, fontSize: 13, padding: 16, background: RED + '11', borderRadius: 8 }}>⚠️ {err}</div>}
+        {data && (
+          <div style={{ background: DARK, borderRadius: 10, padding: '18px 20px', border: '1px solid ' + BRD }}>
+            <div style={{ color: TXT, fontSize: 13, lineHeight: 1.85, whiteSpace: 'pre-wrap' }}>{data}</div>
+          </div>
+        )}
+        {data && <div style={{ marginTop: 14, color: TXT3, fontSize: 10, textAlign: 'right' }}>Généré par Claude · {new Date().toLocaleTimeString('fr-FR')}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Composant : Rapport hebdomadaire ─────────────────────────
+function ReportModal({ onClose }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [sent, setSent] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    aiWeeklyReport()
+      .then((r) => { setData(r.report); setSent(r.sent); })
+      .catch((e) => setErr(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: DARK2, border: '1px solid ' + BRD, borderRadius: 16, padding: 28, width: '100%', maxWidth: 700, maxHeight: '85vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, alignItems: 'flex-start' }}>
+          <div>
+            <h2 style={{ color: TXT, fontSize: 18, fontWeight: 700, margin: 0 }}>📊 Rapport Hebdomadaire</h2>
+            <div style={{ marginTop: 5, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {sent
+                ? <span style={{ color: GREEN, fontSize: 11, fontWeight: 600 }}>✅ Envoyé par email</span>
+                : <span style={{ color: TXT3, fontSize: 11 }}>ℹ️ Email non configuré — affichage uniquement</span>
+              }
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: TXT3, fontSize: 22, cursor: 'pointer' }}>✕</button>
+        </div>
+        {loading && <div style={{ color: TXT3, textAlign: 'center', padding: 48, fontSize: 13, animation: 'pulse 1.5s infinite' }}>🤖 Génération du rapport en cours...</div>}
+        {err && <div style={{ color: RED, fontSize: 13, padding: 16, background: RED + '11', borderRadius: 8 }}>⚠️ {err}</div>}
+        {data && (
+          <div style={{ background: DARK, borderRadius: 10, padding: '20px 24px', border: '1px solid ' + BRD }}>
+            <div style={{ color: TXT, fontSize: 13, lineHeight: 1.9, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{data}</div>
+          </div>
+        )}
+        {data && <div style={{ marginTop: 14, color: TXT3, fontSize: 10, textAlign: 'right' }}>Généré par Claude · {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Composant : Toast priorisation ──────────────────────────
+function PrioritizeToast({ name, msg, onClose }) {
+  useEffect(() => { const t = setTimeout(onClose, 7000); return () => clearTimeout(t); }, []);
+  return (
+    <div style={{ position: 'fixed', bottom: 20, left: 20, maxWidth: 360, background: DARK2, border: '1px solid ' + PURPLE + '66', borderLeft: '4px solid ' + PURPLE, borderRadius: 12, padding: '14px 16px', zIndex: 4000, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+        <div>
+          <div style={{ color: PURPLE, fontSize: 12, fontWeight: 700, marginBottom: 4 }}>🤖 Tâches priorisées — {name}</div>
+          <div style={{ color: TXT2, fontSize: 11, lineHeight: 1.5 }}>{msg}</div>
+        </div>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: TXT3, fontSize: 16, cursor: 'pointer', flexShrink: 0 }}>✕</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Composant : Import Excel ─────────────────────────────────
+function ImportExcelModal({ employees, allTasks, onImport, onClose }) {
+  const [step, setStep] = useState('upload');
+  const [sheetNames, setSheetNames] = useState([]);
+  const [selectedSheet, setSelectedSheet] = useState('');
+  const [tasks, setTasks] = useState([]);
+  const [lots, setLots] = useState([]);
+  const [lotAssign, setLotAssign] = useState({});
+  const [defaultAssign, setDefaultAssign] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const wbRef = useRef(null);
+  const fileRef = useRef(null);
+
+  const staffList = employees.filter((e) => !e.isAdmin);
+
+  // ── Parser une feuille depuis le workbook ──────────────────
+  const parseSheet = (wb, sheetName) => {
+    const ws = wb.Sheets[sheetName];
+    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
+
+    // Trouver la ligne de headers dynamiquement
+    let hdrIdx = -1;
+    const colMap = {};
+    for (let i = 0; i < Math.min(raw.length, 25); i++) {
+      const row = raw[i] || [];
+      const titleCol = row.findIndex((c) => c && String(c).toLowerCase().includes('titre du document'));
+      if (titleCol >= 0) {
+        hdrIdx = i;
+        row.forEach((c, ci) => {
+          if (!c) return;
+          const s = String(c).toLowerCase().trim();
+          if (s === 'phase')                                         colMap.phase  = ci;
+          else if (s === 'lot')                                      colMap.lot    = ci;
+          else if (s === 'type')                                     colMap.type   = ci;
+          else if (s === 'emetteur' || s === 'émetteur')             colMap.emetteur = ci;
+          else if (s === 'niveau')                                   colMap.niveau = ci;
+          else if (s.includes('n°') && (s.includes('doc') || s.includes('document'))) colMap.numDoc = ci;
+          else if (s.includes('titre du document'))                  colMap.title  = ci;
+          else if (s.includes('date') || s.includes('prévisionnelle') || s.includes('previsionnelle')) colMap.date = ci;
+          else if (s.includes('observation'))                        colMap.obs    = ci;
+          else if (s.includes('equivalent') || s.includes('équivalent') || s === '€' || s.includes('montant')) colMap.equiv  = ci;
+        });
+        break;
+      }
+    }
+
+    if (hdrIdx < 0 || colMap.title === undefined) return [];
+
+    const get = (row, key) => (colMap[key] !== undefined ? row[colMap[key]] : null);
+    const fmt = (v) => (v ? String(v).trim() : '');
+
+    const parsed = [];
+    for (let i = hdrIdx + 1; i < raw.length; i++) {
+      const row = raw[i] || [];
+      const title = fmt(get(row, 'title'));
+      if (!title) continue;
+      // Ignorer les lignes de section (< 3 valeurs non-nulles)
+      if (row.filter((v) => v !== null && v !== undefined && String(v).trim() !== '').length < 3) continue;
+
+      // Détecter la date (format ISO ou Excel serial)
+      let deadline = '';
+      const dateRaw = get(row, 'date');
+      if (dateRaw) {
+        const s = String(dateRaw);
+        const m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (m) deadline = `${m[1]}-${m[2]}-${m[3]}`;
+      }
+
+      const phase  = fmt(get(row, 'phase'));
+      const lot    = fmt(get(row, 'lot'));
+      const niveau = fmt(get(row, 'niveau'));
+      const numDoc = fmt(get(row, 'numDoc'));
+      const obs    = fmt(get(row, 'obs'));
+
+      const descParts = [];
+      if (niveau) descParts.push(`Niveau : ${niveau}`);
+      if (numDoc) descParts.push(`Réf. : ${numDoc}`);
+      if (obs)    descParts.push(obs);
+
+      const equivRaw = fmt(get(row, 'equiv'));
+      const revenueAmount = equivRaw ? (parseFloat(equivRaw.replace(/[^\d.,]/g, '').replace(',', '.')) || 0) : 0;
+
+      parsed.push({
+        id:            genId(),
+        title,
+        project:       [phase, lot].filter(Boolean).join(' — '),
+        description:   descParts.join('\n'),
+        priority:      'medium',
+        column:        'todo',
+        deadline,
+        estimatedHours: '',
+        timerSeconds:   0,
+        timerRunning:   false,
+        timerStartedAt: null,
+        createdAt:      new Date().toISOString(),
+        revenueAmount,
+        _lot:           lot,
+      });
+    }
+    return parsed;
+  };
+
+  // ── Charger un fichier ────────────────────────────────────
+  const loadFile = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      wbRef.current = wb;
+      setSheetNames(wb.SheetNames);
+      const first = wb.SheetNames[0];
+      setSelectedSheet(first);
+      applySheet(wb, first);
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const applySheet = (wb, name) => {
+    const parsed = parseSheet(wb, name);
+    setTasks(parsed);
+    const uniqueLots = [...new Set(parsed.map((t) => t._lot).filter(Boolean))];
+    setLots(uniqueLots);
+    setLotAssign(Object.fromEntries(uniqueLots.map((l) => [l, ''])));
+    setStep('preview');
+  };
+
+  const changeSheet = (name) => {
+    setSelectedSheet(name);
+    applySheet(wbRef.current, name);
+  };
+
+  // ── Compter les tâches assignées ─────────────────────────
+  const assigned = tasks.filter((t) => !!(lotAssign[t._lot] || defaultAssign)).length;
+
+  // ── Confirmer l'import ────────────────────────────────────
+  const doImport = async () => {
+    setImporting(true);
+    const byPerson = {};
+    tasks.forEach((t) => {
+      const { _lot, ...clean } = t;
+      const who = lotAssign[_lot] || defaultAssign;
+      if (!who) return;
+      if (!byPerson[who]) byPerson[who] = [];
+      byPerson[who].push(clean);
+    });
+    await onImport(byPerson);
+    setImporting(false);
+    onClose();
+  };
+
+  const lotColor = { CVC: BLUE, PLB: CYAN, CVPB: PURPLE, RSV: GREEN, TL: ORANGE };
+  const getLotColor = (l) => lotColor[l] || TXT3;
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: DARK2, border: '1px solid ' + BRD, borderRadius: 16, padding: 28, width: '100%', maxWidth: 700, maxHeight: '90vh', overflowY: 'auto' }}>
+
+        {/* ── Header ── */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
+          <div>
+            <h2 style={{ color: TXT, fontSize: 18, fontWeight: 700, margin: 0 }}>📥 Import liste de livrables → Kanban</h2>
+            <div style={{ color: TXT3, fontSize: 11, marginTop: 4 }}>Formats supportés : .xlsx · .xls — Détection automatique des colonnes</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: TXT3, fontSize: 22, cursor: 'pointer' }}>✕</button>
+        </div>
+
+        {/* ── ÉTAPE 1 : Upload ── */}
+        {step === 'upload' && (
+          <div>
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); loadFile(e.dataTransfer.files[0]); }}
+              onClick={() => fileRef.current?.click()}
+              style={{ border: '2px dashed ' + (dragOver ? BLUE : BRD), borderRadius: 12, padding: '52px 32px', textAlign: 'center', cursor: 'pointer', background: dragOver ? BLUE + '08' : DARK3, transition: 'all 0.2s' }}
+            >
+              <div style={{ fontSize: 44, marginBottom: 12 }}>📊</div>
+              <div style={{ color: TXT, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Glisser-déposer votre fichier Excel ici</div>
+              <div style={{ color: TXT3, fontSize: 12, marginBottom: 16 }}>ou cliquer pour sélectionner</div>
+              <div style={{ display: 'inline-block', padding: '8px 20px', background: BLUE + '22', border: '1px solid ' + BLUE + '55', borderRadius: 8, color: BLUE, fontSize: 12, fontWeight: 600 }}>.xlsx / .xls</div>
+              <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={(e) => loadFile(e.target.files[0])} />
+            </div>
+            <div style={{ marginTop: 16, padding: '12px 16px', background: BLUE + '11', border: '1px solid ' + BLUE + '33', borderRadius: 8 }}>
+              <div style={{ color: BLUE, fontSize: 12, fontWeight: 700, marginBottom: 4 }}>ℹ️ Colonnes détectées automatiquement</div>
+              <div style={{ color: TXT2, fontSize: 11 }}>PHASE · LOT · NIVEAU · N° DOCUMENT · Titre du document · Dates prévisionnelles · Observations</div>
+            </div>
+          </div>
+        )}
+
+        {/* ── ÉTAPE 2 : Aperçu + Attribution ── */}
+        {step === 'preview' && (
+          <div>
+            {/* Sélecteur de feuille */}
+            {sheetNames.length > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <label style={{ ...lBase, marginBottom: 0, whiteSpace: 'nowrap' }}>Feuille :</label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {sheetNames.map((n) => (
+                    <button key={n} onClick={() => changeSheet(n)}
+                      style={{ padding: '5px 14px', background: selectedSheet === n ? BLUE + '22' : DARK3, border: '1px solid ' + (selectedSheet === n ? BLUE : BRD), borderRadius: 7, color: selectedSheet === n ? BLUE : TXT2, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Stats */}
+            <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+              {[
+                { l: 'Tâches détectées', v: tasks.length, c: BLUE },
+                { l: 'Lots distincts',   v: lots.length,  c: PURPLE },
+                { l: 'Prêtes à importer', v: assigned,    c: GREEN },
+              ].map((s) => (
+                <div key={s.l} style={{ flex: 1, padding: '10px 14px', background: DARK3, borderRadius: 10, borderLeft: '3px solid ' + s.c }}>
+                  <div style={{ color: TXT3, fontSize: 9, fontWeight: 700, textTransform: 'uppercase' }}>{s.l}</div>
+                  <div style={{ color: TXT, fontSize: 22, fontWeight: 800, marginTop: 2 }}>{s.v}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Assignation globale */}
+            <div style={{ marginBottom: 16, padding: '14px 16px', background: DARK3, borderRadius: 10, border: '1px solid ' + BRD }}>
+              <label style={lBase}>Assigner toutes les tâches à un seul ingénieur (optionnel)</label>
+              <select value={defaultAssign} onChange={(e) => setDefaultAssign(e.target.value)} style={iBase}>
+                <option value="">— Ou choisir par lot ci-dessous —</option>
+                {staffList.map((e) => <option key={e.name} value={e.name}>{e.name} ({e.role})</option>)}
+              </select>
+            </div>
+
+            {/* Assignation par lot */}
+            {lots.length > 0 && (
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ color: TXT3, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 10 }}>Attribution par lot</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  {lots.map((lot) => {
+                    const cnt = tasks.filter((t) => t._lot === lot).length;
+                    const c = getLotColor(lot);
+                    return (
+                      <div key={lot} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: DARK3, borderRadius: 9, border: '1px solid ' + BRD }}>
+                        <span style={{ fontSize: 10, padding: '3px 12px', borderRadius: 99, background: c + '22', color: c, fontWeight: 800, minWidth: 56, textAlign: 'center' }}>{lot}</span>
+                        <span style={{ color: TXT3, fontSize: 11, flex: 1 }}>{cnt} tâche{cnt > 1 ? 's' : ''}</span>
+                        <select
+                          value={lotAssign[lot] || ''}
+                          onChange={(e) => setLotAssign((prev) => ({ ...prev, [lot]: e.target.value }))}
+                          style={{ ...iBase, width: 'auto', minWidth: 220, padding: '6px 10px', fontSize: 12 }}>
+                          <option value="">— Choisir un ingénieur —</option>
+                          {staffList.map((e) => <option key={e.name} value={e.name}>{e.name} — {e.role}</option>)}
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Aperçu du tableau */}
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ color: TXT3, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+                Aperçu des {tasks.length} tâches
+              </div>
+              <div style={{ maxHeight: 230, overflowY: 'auto', borderRadius: 9, border: '1px solid ' + BRD }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ background: DARK3, position: 'sticky', top: 0 }}>
+                      {['LOT', 'Titre', 'Niveau / Réf.', 'Échéance', 'Assigné à'].map((h) => (
+                        <th key={h} style={{ padding: '7px 10px', color: TXT3, fontWeight: 700, textAlign: 'left', borderBottom: '1px solid ' + BRD, whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tasks.map((t, i) => {
+                      const who = lotAssign[t._lot] || defaultAssign;
+                      const c = getLotColor(t._lot);
+                      const overdue = t.deadline && new Date(t.deadline) < new Date();
+                      return (
+                        <tr key={t.id} style={{ background: i % 2 === 0 ? DARK : DARK3, borderBottom: '1px solid ' + BRD + '33' }}>
+                          <td style={{ padding: '6px 10px' }}>
+                            <span style={{ color: c, fontWeight: 700, fontSize: 10, padding: '2px 8px', background: c + '22', borderRadius: 99 }}>{t._lot}</span>
+                          </td>
+                          <td style={{ padding: '6px 10px', color: TXT, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.title}>{t.title}</td>
+                          <td style={{ padding: '6px 10px', color: TXT3, fontSize: 10 }}>{t.description.split('\n')[0] || '—'}</td>
+                          <td style={{ padding: '6px 10px', color: overdue ? ORANGE : TXT3, fontWeight: overdue ? 600 : 400 }}>
+                            {t.deadline ? (overdue ? '⚠️ ' : '') + t.deadline : '—'}
+                          </td>
+                          <td style={{ padding: '6px 10px', color: who ? GREEN : TXT3, fontWeight: who ? 600 : 400 }}>
+                            {who ? who.split(' ')[0] + ' ' + (who.split(' ')[1] || '') : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Boutons */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+              <button onClick={() => { setStep('upload'); setTasks([]); }}
+                style={{ padding: '9px 18px', background: DARK, border: '1px solid ' + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, cursor: 'pointer' }}>
+                ← Autre fichier
+              </button>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                {assigned === 0 && <span style={{ color: ORANGE, fontSize: 11, fontWeight: 600 }}>⚠️ Aucune tâche assignée</span>}
+                {assigned > 0 && assigned < tasks.length && (
+                  <span style={{ color: TXT3, fontSize: 11 }}>{tasks.length - assigned} tâche{tasks.length - assigned > 1 ? 's' : ''} non assignée{tasks.length - assigned > 1 ? 's' : ''} (ignorée{tasks.length - assigned > 1 ? 's' : ''})</span>
+                )}
+                <button onClick={doImport} disabled={importing || assigned === 0}
+                  style={{ padding: '10px 26px', background: assigned > 0 && !importing ? GREEN : TXT3, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, cursor: assigned > 0 && !importing ? 'pointer' : 'not-allowed', fontSize: 13 }}>
+                  {importing ? '⏳ Import en cours...' : `✅ Importer ${assigned} tâche${assigned > 1 ? 's' : ''}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Login ───
+function LoginScreen({ onLogin, employees }) {
+  const [step, setStep] = useState("select");
+  const [sel, setSel] = useState(null);
+  const [pwd, setPwd] = useState("");
+  const [nPwd, setNPwd] = useState("");
+  const [cPwd, setCPwd] = useState("");
+  const [err, setErr] = useState("");
+  const [search, setSearch] = useState("");
+  const [pf, setPf] = useState("all");
+  const [busy, setBusy] = useState(false);
+
+  const filtered = employees.filter((e) => {
+    const matchPole = pf === "all" || (pf === "fluide" && e.pole === "Fluide") || (pf === "elec" && e.pole === "Élec") || (pf === "admin" && e.isAdmin);
+    return matchPole && e.name.toLowerCase().includes(search.toLowerCase());
+  });
+
+  const checkPwd = async () => {
+    setBusy(true); setErr("");
+    const stored = await loadPwd(sel.name);
+    if (pwd !== (stored || DEFAULT_PASSWORD)) { setErr("Mot de passe incorrect"); setBusy(false); return; }
+    if (!stored) { setStep("change"); setNPwd(""); setCPwd(""); setBusy(false); return; }
+    setBusy(false); onLogin(sel);
+  };
+
+  const changePwd = async () => {
+    setErr("");
+    if (nPwd.length < 6) { setErr("6 caractères minimum"); return; }
+    if (nPwd !== cPwd) { setErr("Les mots de passe ne correspondent pas"); return; }
+    if (nPwd === DEFAULT_PASSWORD) { setErr("Choisissez un autre mot de passe"); return; }
+    setBusy(true); await savePwd(sel.name, nPwd); setBusy(false); onLogin(sel);
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: DARK, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit','Segoe UI',sans-serif" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+      <style>{"@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}"}</style>
+      <div style={{ width: "100%", maxWidth: 460, padding: 24, animation: "fadeUp 0.4s ease" }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ marginBottom: 10 }}><Logo size={60} /></div>
+          <h1 style={{ color: TXT, fontSize: 22, fontWeight: 800, margin: 0 }}>Kanban Équipe</h1>
+          <p style={{ color: TXT3, fontSize: 13, marginTop: 4 }}>
+            {step === "select" && "Sélectionnez votre nom pour vous connecter"}
+            {step === "password" && ("Connexion — " + (sel && sel.name))}
+            {step === "change" && "Première connexion : créez votre mot de passe"}
+          </p>
+        </div>
+
+        {step === "select" && (
+          <div>
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="🔍 Rechercher..." style={{ ...iBase, marginBottom: 10 }} />
+            <div style={{ display: "flex", gap: 5, marginBottom: 14 }}>
+              {[{ id: "all", l: "Tous" }, { id: "fluide", l: "Fluide" }, { id: "elec", l: "Élec" }, { id: "admin", l: "Admin" }].map((f) => (
+                <button key={f.id} onClick={() => setPf(f.id)} style={{ flex: 1, padding: "7px 0", background: pf === f.id ? BLUE + "22" : DARK2, border: "1px solid " + (pf === f.id ? BLUE + "66" : BRD), borderRadius: 7, color: pf === f.id ? BLUE : TXT3, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{f.l}</button>
+              ))}
+            </div>
+            <div style={{ maxHeight: 380, overflowY: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
+              {filtered.map((emp) => (
+                <button key={emp.name} onClick={() => { setSel(emp); setStep("password"); setPwd(""); setErr(""); }}
+                  style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 9, cursor: "pointer", textAlign: "left", width: "100%" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = DARK4; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = DARK2; }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 99, background: emp.isAdmin ? PURPLE + "44" : emp.isChef ? (emp.pole === "Fluide" ? BLUE : RED) : DARK3, border: "2px solid " + (emp.isAdmin ? PURPLE + "66" : (emp.pole === "Fluide" ? BLUE : RED) + "44"), display: "flex", alignItems: "center", justifyContent: "center", color: emp.isChef || emp.isAdmin ? "#fff" : TXT2, fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
+                    {emp.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: TXT, fontSize: 13, fontWeight: 600 }}>{emp.name}</div>
+                    <div style={{ color: TXT3, fontSize: 10 }}>{emp.role}</div>
+                  </div>
+                  {emp.isAdmin && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: PURPLE + "22", color: PURPLE, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>}
+                  {emp.isChef && !emp.isAdmin && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: ORANGE + "22", color: ORANGE, fontWeight: 700, textTransform: "uppercase" }}>Chef</span>}
+                  {!emp.isAdmin && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: (emp.pole === "Fluide" ? BLUE : RED) + "22", color: emp.pole === "Fluide" ? BLUE : RED, fontWeight: 600 }}>{emp.pole}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === "password" && (
+          <div style={{ animation: "fadeUp 0.3s ease" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: DARK2, border: "1px solid " + BRD, borderRadius: 10, marginBottom: 20 }}>
+              <div style={{ width: 42, height: 42, borderRadius: 99, background: sel.isAdmin ? PURPLE + "44" : sel.isChef ? (sel.pole === "Fluide" ? BLUE : RED) : DARK3, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontWeight: 800 }}>
+                {sel.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+              </div>
+              <div><div style={{ color: TXT, fontSize: 15, fontWeight: 700 }}>{sel.name}</div><div style={{ color: TXT3, fontSize: 11 }}>{sel.role}</div></div>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={lBase}>Mot de passe</label>
+              <input type="password" value={pwd} onChange={(e) => { setPwd(e.target.value); setErr(""); }} onKeyDown={(e) => e.key === "Enter" && checkPwd()} placeholder="Mot de passe" autoFocus style={{ ...iBase, borderColor: err ? RED : BRD, animation: err ? "shake 0.3s" : "none" }} />
+            </div>
+            {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>⚠️ {err}</div>}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => { setStep("select"); setErr(""); }} style={{ flex: 1, padding: "11px 0", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, cursor: "pointer" }}>← Retour</button>
+              <button onClick={checkPwd} disabled={busy || !pwd} style={{ flex: 2, padding: "11px 0", background: !pwd ? TXT3 : BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: pwd ? "pointer" : "not-allowed" }}>Se connecter</button>
+            </div>
+            <div style={{ marginTop: 16, padding: "10px 14px", background: BLUE + "11", border: "1px solid " + BLUE + "33", borderRadius: 8 }}>
+              <div style={{ color: BLUE, fontSize: 11, fontWeight: 600 }}>ℹ️ Première connexion ?</div>
+              <div style={{ color: TXT2, fontSize: 11, marginTop: 3 }}>Mot de passe initial : <span style={{ color: TXT, fontWeight: 700, fontFamily: "monospace", background: DARK, padding: "1px 6px", borderRadius: 4 }}>{DEFAULT_PASSWORD}</span></div>
+            </div>
+          </div>
+        )}
+
+        {step === "change" && (
+          <div style={{ animation: "fadeUp 0.3s ease" }}>
+            <div style={{ padding: "12px 16px", background: ORANGE + "15", border: "1px solid " + ORANGE + "44", borderRadius: 10, marginBottom: 20, display: "flex", gap: 10 }}>
+              <span style={{ fontSize: 20 }}>🔐</span>
+              <div><div style={{ color: ORANGE, fontSize: 13, fontWeight: 700 }}>Changement obligatoire</div><div style={{ color: TXT2, fontSize: 11, marginTop: 3 }}>6 caractères minimum</div></div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 16 }}>
+              <div><label style={lBase}>Nouveau</label><input type="password" value={nPwd} onChange={(e) => { setNPwd(e.target.value); setErr(""); }} autoFocus style={iBase} /></div>
+              <div><label style={lBase}>Confirmer</label><input type="password" value={cPwd} onChange={(e) => { setCPwd(e.target.value); setErr(""); }} onKeyDown={(e) => e.key === "Enter" && changePwd()} style={{ ...iBase, borderColor: cPwd && cPwd !== nPwd ? RED : cPwd && cPwd === nPwd ? GREEN : BRD }} /></div>
+            </div>
+            {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>⚠️ {err}</div>}
+            <button onClick={changePwd} disabled={busy || !nPwd || !cPwd} style={{ width: "100%", padding: "12px 0", background: nPwd && cPwd && nPwd === cPwd ? GREEN : TXT3, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: nPwd && cPwd ? "pointer" : "not-allowed" }}>Valider →</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal ───
+function Modal({ task, onSave, onClose, onDelete, poleMembers }) {
+  const [f, setF] = useState({
+    title: "", project: "", description: "", priority: "medium",
+    column: "todo", deadline: "", estimatedHours: "",
+    timerSeconds: 0, timerRunning: false, timerStartedAt: null,
+    assignedTo: "", ...task
+  });
+
+  const save = () => {
+    if (!f.title.trim()) return;
+    onSave({ ...f, id: f.id || genId(), createdAt: f.createdAt || new Date().toISOString() });
+  };
+
+  const secs = liveSeconds(f);
+  const est = f.estimatedHours ? parseFloat(f.estimatedHours) : 0;
+  const actH = secs / 3600;
+  const over = est > 0 && actH > est;
+  const pct = est > 0 ? Math.round((actH / est) * 100) : 0;
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: DARK2, border: "1px solid " + BRD, borderRadius: 16, padding: 28, width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
+          <h2 style={{ color: TXT, fontSize: 18, fontWeight: 700, margin: 0 }}>{task && task.id ? "Modifier" : "Nouvelle tâche"}</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: TXT3, fontSize: 22, cursor: "pointer" }}>✕</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div><label style={lBase}>Titre *</label><input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="Ex: Étude CVC bâtiment B" style={iBase} /></div>
+          <div><label style={lBase}>Projet / Affaire</label><input value={f.project} onChange={(e) => setF({ ...f, project: e.target.value })} placeholder="Ex: Hôpital Tunis Nord" style={iBase} /></div>
+          <div><label style={lBase}>Description</label><textarea value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} rows={2} style={{ ...iBase, resize: "vertical" }} /></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div>
+              <label style={lBase}>Priorité</label>
+              <div style={{ display: "flex", gap: 4 }}>
+                {PRIOS.map((p) => (
+                  <button key={p.id} onClick={() => setF({ ...f, priority: p.id })} style={{ flex: 1, padding: "7px 2px", background: f.priority === p.id ? p.color + "22" : DARK, border: "2px solid " + (f.priority === p.id ? p.color : BRD), borderRadius: 6, color: f.priority === p.id ? p.color : TXT3, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{p.icon} {p.label}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label style={lBase}>Colonne</label>
+              <select value={f.column} onChange={(e) => setF({ ...f, column: e.target.value })} style={iBase}>
+                {COLS.map((c) => <option key={c.id} value={c.id}>{c.icon} {c.title}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div><label style={lBase}>Échéance</label><input type="date" value={f.deadline} onChange={(e) => setF({ ...f, deadline: e.target.value })} style={iBase} /></div>
+            <div><label style={lBase}>Heures estimées</label><input type="number" value={f.estimatedHours} onChange={(e) => setF({ ...f, estimatedHours: e.target.value })} min="0" step="0.5" style={iBase} /></div>
+          </div>
+          {poleMembers && poleMembers.length > 0 && (
+            <div>
+              <label style={lBase}>Réaffecter à</label>
+              <select value={f.assignedTo || ""} onChange={(e) => setF({ ...f, assignedTo: e.target.value })} style={iBase}>
+                <option value="">— Garder l'affectation actuelle —</option>
+                {poleMembers.map((m) => <option key={m.name} value={m.name}>{m.name} — {m.role}</option>)}
+              </select>
+              {f.assignedTo && (
+                <div style={{ marginTop: 6, padding: "8px 12px", background: ORANGE + "15", border: "1px solid " + ORANGE + "44", borderRadius: 8, color: ORANGE, fontSize: 11, fontWeight: 600 }}>
+                  ⚠️ La tâche sera déplacée vers le tableau de {f.assignedTo}
+                </div>
+              )}
+            </div>
+          )}
+          {task && task.id && secs > 0 && (
+            <div style={{ padding: "14px 16px", background: DARK, borderRadius: 10, border: "1px solid " + BRD }}>
+              <div style={{ color: TXT3, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>⏱ Temps passé</div>
+              <div style={{ color: TXT, fontSize: 26, fontWeight: 800, fontFamily: "monospace", letterSpacing: 2 }}>{fmtTime(secs)}</div>
+              <div style={{ color: TXT3, fontSize: 11, marginTop: 4 }}>{fmtH(secs)}h réalisées{est > 0 ? (" sur " + est + "h estimées") : ""}</div>
+              {est > 0 && (
+                <div>
+                  <div style={{ width: "100%", height: 6, background: DARK2, borderRadius: 99, overflow: "hidden", marginTop: 8 }}>
+                    <div style={{ width: Math.min(pct, 100) + "%", height: "100%", borderRadius: 99, background: over ? RED : pct > 80 ? ORANGE : GREEN }} />
+                  </div>
+                  <div style={{ color: over ? RED : pct > 80 ? ORANGE : GREEN, fontSize: 11, fontWeight: 600, marginTop: 4 }}>
+                    {over ? ("⚠️ Dépassement +" + (actH - est).toFixed(1) + "h (+" + (pct - 100) + "%)") : (pct + "% — reste " + (est - actH).toFixed(1) + "h")}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
+          {task && task.id && onDelete && (
+            <button onClick={() => onDelete(task.id)} style={{ padding: "9px 18px", background: RED + "22", border: "1px solid " + RED + "44", borderRadius: 8, color: RED, fontWeight: 600, cursor: "pointer", marginRight: "auto" }}>Supprimer</button>
+          )}
+          <button onClick={onClose} style={{ padding: "9px 18px", background: DARK, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, cursor: "pointer" }}>Annuler</button>
+          <button onClick={save} style={{ padding: "9px 22px", background: BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 600, cursor: "pointer" }}>{task && task.id ? "OK" : "Créer"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Card ───
+function Card({ task, onClick, owner, onTimerToggle, onDuplicate, onReassignDirect, poleMembers, tick }) {
+  const p = PRIOS.find((x) => x.id === task.priority);
+  const secs = liveSeconds(task);
+  const est = task.estimatedHours ? parseFloat(task.estimatedHours) : 0;
+  const actH = secs / 3600;
+  const over = est > 0 && actH > est;
+  const pct = est > 0 ? Math.min(Math.round((actH / est) * 100), 999) : 0;
+  const od = task.deadline && new Date(task.deadline) < new Date() && task.column !== "done";
+
+  return (
+    <div
+      draggable
+      onDragStart={(e) => { dragData = { taskId: task.id, owner }; e.currentTarget.style.opacity = "0.4"; }}
+      onDragEnd={(e) => { e.currentTarget.style.opacity = "1"; dragData = null; }}
+      style={{ background: DARK3, border: "1px solid " + (task.timerRunning ? CYAN + "66" : BRD), borderLeft: "3px solid " + (task.timerRunning ? CYAN : (p ? p.color : TXT3)), borderRadius: 10, padding: "11px 13px", cursor: "grab", position: "relative" }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = DARK4; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = DARK3; }}
+    >
+      {task.timerRunning && <div style={{ position: "absolute", top: 6, right: 8, width: 7, height: 7, borderRadius: 99, background: CYAN, animation: "pulse 1.5s infinite" }} />}
+      <div onClick={() => onClick(task)} style={{ cursor: "pointer" }}>
+        {task.project && <div style={{ fontSize: 9, fontWeight: 700, color: BLUE, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 5 }}>{task.project}</div>}
+        <div style={{ color: TXT, fontSize: 13, fontWeight: 600, lineHeight: 1.4, marginBottom: 6 }}>{task.title}</div>
+      </div>
+      {poleMembers && poleMembers.length > 0 && (
+        <div style={{ marginBottom: 7 }} onClick={(e) => e.stopPropagation()}>
+          <select
+            defaultValue=""
+            onChange={(e) => { if (e.target.value) { onReassignDirect(task, e.target.value); e.target.value = ""; } }}
+            style={{ width: "100%", padding: "4px 8px", background: DARK, border: "1px solid " + BRD, borderRadius: 6, color: TXT3, fontSize: 10, cursor: "pointer", outline: "none" }}
+          >
+            <option value="">👤 Réaffecter…</option>
+            {poleMembers.map((m) => <option key={m.name} value={m.name}>{m.name}</option>)}
+          </select>
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", marginBottom: 6 }}>
+        <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 99, background: (p ? p.color : TXT3) + "22", color: p ? p.color : TXT3, fontWeight: 600 }}>{p ? p.icon : ""} {p ? p.label : ""}</span>
+        {task.deadline && <span style={{ fontSize: 9, color: od ? RED : TXT3, fontWeight: od ? 700 : 400 }}>{od ? "⚠️" : "📅"} {new Date(task.deadline).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}</span>}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <button onClick={(e) => { e.stopPropagation(); onDuplicate(task); }}
+          style={{ width: 28, height: 28, borderRadius: 99, background: PURPLE + "22", border: "2px solid " + PURPLE + "55", color: PURPLE, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+          title="Dupliquer">⧉</button>
+        <button onClick={(e) => { e.stopPropagation(); onTimerToggle(task.id); }}
+          style={{ width: 28, height: 28, borderRadius: 99, background: task.timerRunning ? RED + "22" : GREEN + "22", border: "2px solid " + (task.timerRunning ? RED + "66" : GREEN + "66"), color: task.timerRunning ? RED : GREEN, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+          title={task.timerRunning ? "Pause" : "Démarrer"}>{task.timerRunning ? "⏸" : "▶"}</button>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 12, fontFamily: "monospace", color: task.timerRunning ? CYAN : TXT2, fontWeight: 700, letterSpacing: 1 }}>{fmtTime(secs)}</span>
+            {est > 0 && <span style={{ fontSize: 9, color: over ? RED : pct > 80 ? ORANGE : TXT3 }}>{fmtH(secs)}/{est}h</span>}
+          </div>
+          {est > 0 && <div style={{ width: "100%", height: 3, background: DARK, borderRadius: 99, overflow: "hidden", marginTop: 3 }}><div style={{ width: Math.min(pct, 100) + "%", height: "100%", borderRadius: 99, background: over ? RED : pct > 80 ? ORANGE : GREEN, transition: "width 0.3s" }} /></div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Column ───
+function KCol({ col, tasks, owner, onAdd, onEdit, onDrop, ro, onTimerToggle, onDuplicate, tick }) {
+  const [ov, setOv] = useState(false);
+  const ct = tasks.filter((t) => t.column === col.id);
+  return (
+    <div style={{ flex: 1, minWidth: 210, maxWidth: 270, display: "flex", flexDirection: "column" }}
+      onDragOver={(e) => { e.preventDefault(); setOv(true); }}
+      onDragLeave={() => setOv(false)}
+      onDrop={(e) => { e.preventDefault(); setOv(false); if (dragData && dragData.owner === owner) onDrop(dragData.taskId, col.id); dragData = null; }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginBottom: 8, borderBottom: "2px solid " + col.color }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 14 }}>{col.icon}</span>
+          <span style={{ color: TXT, fontSize: 12, fontWeight: 700 }}>{col.title}</span>
+          <span style={{ background: col.color + "33", color: col.color, fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 99 }}>{ct.length}</span>
+        </div>
+        {!ro && col.id !== "done" && <button onClick={() => onAdd(col.id)} style={{ background: "none", border: "none", color: TXT3, fontSize: 18, cursor: "pointer" }}>+</button>}
+      </div>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7, padding: 2, borderRadius: 8, minHeight: 80, background: ov ? col.color + "11" : "transparent", border: ov ? "1px dashed " + col.color + "55" : "1px dashed transparent" }}>
+        {ct.map((t) => (
+          <Card key={t.id} task={t} onClick={ro ? () => {} : onEdit} owner={owner} onTimerToggle={ro ? () => {} : onTimerToggle} onDuplicate={ro ? () => {} : onDuplicate} tick={tick} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Board ───
+function Board({ name, tasks, onUpdate, ro, showName, onToggleTimer, tick, poleMembers, onReassign, onPrioritize, prioritizing }) {
+  const [modal, setModal] = useState(null);
+
+  const del = (id) => { onUpdate(name, tasks.filter((t) => t.id !== id)); setModal(null); };
+  const drop = (tid, nc) => { onUpdate(name, tasks.map((t) => t.id === tid ? { ...t, column: nc } : t)); };
+  const dup = (t) => {
+    const copy = { ...t, id: genId(), title: t.title + " (copie)", timerSeconds: 0, timerRunning: false, timerStartedAt: null, createdAt: new Date().toISOString() };
+    onUpdate(name, [...tasks, copy]);
+  };
+
+  const save = (t) => {
+    const target = t.assignedTo && t.assignedTo !== name ? t.assignedTo : null;
+    const { assignedTo, ...rest } = t;
+    const clean = { ...rest, id: rest.id || genId(), createdAt: rest.createdAt || new Date().toISOString() };
+    if (target && onReassign) {
+      onReassign(name, target, clean);
+    } else {
+      const ex = tasks.find((x) => x.id === clean.id);
+      onUpdate(name, ex ? tasks.map((x) => x.id === clean.id ? clean : x) : [...tasks, clean]);
+    }
+    setModal(null);
+  };
+
+  const reassignDirect = (task, toName) => {
+    if (onReassign) onReassign(name, toName, { ...task, assignedTo: undefined });
+  };
+
+  const emptyTask = { title: "", project: "", description: "", priority: "medium", deadline: "", estimatedHours: "", timerSeconds: 0, timerRunning: false, timerStartedAt: null, assignedTo: "" };
+
+  return (
+    <div>
+      {showName && (
+        <div style={{ padding: "10px 16px", marginBottom: 8, borderRadius: 10, background: DARK2, border: "1px solid " + BRD, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ width: 32, height: 32, borderRadius: 99, background: BLUE + "22", display: "flex", alignItems: "center", justifyContent: "center", color: BLUE, fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{name.split(" ").map((n) => n[0]).join("").slice(0, 2)}</div>
+          <span style={{ color: TXT, fontWeight: 700, fontSize: 14 }}>{name}</span>
+          <span style={{ color: TXT3, fontSize: 12 }}>— {tasks.length} tâche{tasks.length !== 1 ? "s" : ""}</span>
+          {tasks.some((t) => t.timerRunning) && <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 99, background: CYAN + "22", color: CYAN, fontWeight: 700, animation: "pulse 1.5s infinite" }}>⏱ En cours</span>}
+          {onPrioritize && (
+            <button
+              onClick={() => onPrioritize(name)}
+              disabled={prioritizing === name}
+              style={{ marginLeft: "auto", padding: "5px 12px", background: prioritizing === name ? TXT3 : PURPLE + "22", border: "1px solid " + (prioritizing === name ? TXT3 : PURPLE + "66"), borderRadius: 7, color: prioritizing === name ? TXT3 : PURPLE, fontSize: 11, fontWeight: 700, cursor: prioritizing === name ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+              {prioritizing === name ? "⏳ Priorisation..." : "🤖 Prioriser"}
+            </button>
+          )}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
+        {COLS.map((c) => (
+          <KCol key={c.id} col={c} tasks={tasks} owner={name}
+            onAdd={(cid) => setModal({ ...emptyTask, column: cid })}
+            onEdit={(t) => setModal({ ...t, assignedTo: "" })}
+            onDrop={drop} ro={ro}
+            onTimerToggle={(tid) => onToggleTimer(name, tid)}
+            onDuplicate={dup}
+            onReassignDirect={reassignDirect}
+            poleMembers={poleMembers}
+            tick={tick}
+          />
+        ))}
+      </div>
+      {modal && (
+        <Modal
+          task={modal.id ? modal : modal}
+          onSave={save}
+          onClose={() => setModal(null)}
+          onDelete={modal.id ? del : undefined}
+          poleMembers={modal.id ? poleMembers : null}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Settings ───
+function SettingsModal({ user, onClose }) {
+  const [cur, setCur] = useState(""); const [np, setNp] = useState(""); const [cp, setCp] = useState("");
+  const [msg, setMsg] = useState(""); const [err, setErr] = useState("");
+  const go = async () => {
+    setErr(""); setMsg("");
+    const stored = await loadPwd(user.name);
+    if (cur !== (stored || DEFAULT_PASSWORD)) { setErr("Incorrect"); return; }
+    if (np.length < 6) { setErr("6 car. min"); return; }
+    if (np !== cp) { setErr("Ne correspond pas"); return; }
+    await savePwd(user.name, np);
+    setMsg("✓ Modifié !"); setCur(""); setNp(""); setCp("");
+  };
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: DARK2, border: "1px solid " + BRD, borderRadius: 16, padding: 28, width: "100%", maxWidth: 400 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
+          <h2 style={{ color: TXT, fontSize: 18, fontWeight: 700, margin: 0 }}>🔐 Mot de passe</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: TXT3, fontSize: 22, cursor: "pointer" }}>✕</button>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div><label style={lBase}>Actuel</label><input type="password" value={cur} onChange={(e) => setCur(e.target.value)} style={iBase} /></div>
+          <div><label style={lBase}>Nouveau</label><input type="password" value={np} onChange={(e) => setNp(e.target.value)} style={iBase} /></div>
+          <div><label style={lBase}>Confirmer</label><input type="password" value={cp} onChange={(e) => setCp(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()} style={iBase} /></div>
+        </div>
+        {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginTop: 10 }}>⚠️ {err}</div>}
+        {msg && <div style={{ color: GREEN, fontSize: 12, fontWeight: 600, marginTop: 10 }}>{msg}</div>}
+        <button onClick={go} style={{ width: "100%", marginTop: 18, padding: "11px 0", background: BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Modifier</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── FixedCostsModal (admin only) ─────────────────────────────
+function FixedCostsModal({ onClose }) {
+  const [costs, setCosts] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved]   = useState(false);
+
+  useEffect(() => {
+    fetch('/api/fixed-costs').then((r) => r.json()).then(setCosts).catch(() => setCosts([]));
+  }, []);
+
+  const update = (cat, val) => setCosts(costs.map((c) => c.category === cat ? { ...c, amount_monthly: val } : c));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await fetch('/api/fixed-costs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(costs),
+      });
+      setSaved(true);
+      setTimeout(onClose, 900);
+    } catch (e) { console.error(e); }
+    setSaving(false);
+  };
+
+  const total = costs ? costs.reduce((s, c) => s + (parseFloat(c.amount_monthly) || 0), 0) : 0;
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: DARK2, border: '1px solid ' + BRD, borderRadius: 16, padding: 28, width: '100%', maxWidth: 460 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+          <h2 style={{ color: TXT, fontSize: 18, fontWeight: 700, margin: 0 }}>⚙️ Frais fixes mensuels</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: TXT3, fontSize: 22, cursor: 'pointer' }}>✕</button>
+        </div>
+
+        {!costs ? (
+          <div style={{ color: TXT2, textAlign: 'center', padding: 24 }}>Chargement…</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {costs.map((c) => (
+              <div key={c.category} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: DARK3, borderRadius: 8, border: '1px solid ' + BRD }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: TXT, fontSize: 13, fontWeight: 600 }}>{c.label}</div>
+                  <div style={{ color: TXT3, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 }}>{c.category.replace('_', ' ')}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input
+                    type="number" min="0" step="100"
+                    value={c.amount_monthly || ""}
+                    onChange={(e) => update(c.category, e.target.value)}
+                    placeholder="0"
+                    style={{ width: 110, padding: '6px 10px', background: DARK, border: '1px solid ' + BRD, borderRadius: 7, color: TXT, fontSize: 13, outline: 'none', textAlign: 'right' }}
+                  />
+                  <span style={{ color: TXT3, fontSize: 12 }}>€/mois</span>
+                </div>
+              </div>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '8px 14px', background: DARK3, borderRadius: 8, border: '1px solid ' + GREEN + '44' }}>
+              <span style={{ color: TXT2, fontSize: 12, marginRight: 12 }}>Total mensuel</span>
+              <span style={{ color: GREEN, fontSize: 18, fontWeight: 800 }}>{total.toLocaleString('fr-FR')} €</span>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '9px 18px', background: DARK, border: '1px solid ' + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
+          <button onClick={save} disabled={saving || !costs} style={{ padding: '9px 22px', background: saved ? GREEN : BLUE, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
+            {saved ? '✅ Enregistré' : saving ? 'Sauvegarde…' : '💾 Enregistrer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ProfitabilityModal (admin only) ──────────────────────────
+function ProfitabilityModal({ onClose }) {
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(null); // { project, revenue_forfait, revenue_mode }
+  const [saving, setSaving]   = useState(false);
+
+  const reload = () => {
+    setLoading(true);
+    fetch('/api/profitability').then((r) => r.json()).then((d) => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+  };
+  useEffect(() => reload(), []);
+
+  const startEdit = (p) => setEditing({ project: p.project, revenue_forfait: p.ca_forfait, revenue_mode: p.revenue_mode });
+
+  const saveProject = async () => {
+    setSaving(true);
+    await fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editing.project, revenue_forfait: parseFloat(editing.revenue_forfait) || 0, revenue_mode: editing.revenue_mode }),
+    });
+    setSaving(false);
+    setEditing(null);
+    reload();
+  };
+
+  const fmt = (v) => v != null ? v.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' €' : '—';
+  const fmtPct = (v) => v != null ? v.toFixed(1) + ' %' : '—';
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: DARK2, border: '1px solid ' + BRD, borderRadius: 16, padding: 28, width: '100%', maxWidth: 900, maxHeight: '88vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+          <h2 style={{ color: TXT, fontSize: 18, fontWeight: 700, margin: 0 }}>💰 Rentabilité par projet</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: TXT3, fontSize: 22, cursor: 'pointer' }}>✕</button>
+        </div>
+
+        {loading ? (
+          <div style={{ color: TXT2, textAlign: 'center', padding: 40 }}>Calcul en cours…</div>
+        ) : !data ? (
+          <div style={{ color: RED, textAlign: 'center', padding: 40 }}>Erreur de chargement.</div>
+        ) : (
+          <>
+            {/* Résumé frais fixes */}
+            <div style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
+              {(data.fixed_costs || []).map((c) => (
+                <div key={c.category} style={{ padding: '8px 14px', background: DARK3, borderRadius: 8, border: '1px solid ' + BRD, minWidth: 120 }}>
+                  <div style={{ color: TXT3, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>{c.label}</div>
+                  <div style={{ color: ORANGE, fontSize: 14, fontWeight: 700, marginTop: 2 }}>{(parseFloat(c.amount_monthly) || 0).toLocaleString('fr-FR')} €/mois</div>
+                </div>
+              ))}
+              <div style={{ padding: '8px 14px', background: DARK3, borderRadius: 8, border: '1px solid ' + RED + '55', minWidth: 120 }}>
+                <div style={{ color: TXT3, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Total frais fixes</div>
+                <div style={{ color: RED, fontSize: 14, fontWeight: 800, marginTop: 2 }}>{(data.total_fixed_monthly || 0).toLocaleString('fr-FR')} €/mois</div>
+              </div>
+            </div>
+
+            {/* Table des projets */}
+            {data.projects.length === 0 ? (
+              <div style={{ color: TXT3, textAlign: 'center', padding: 32, fontSize: 13 }}>
+                Aucun projet avec des tâches trackées.<br/>
+                <span style={{ color: TXT3, fontSize: 11 }}>Importez des livrables et activez le timer pour voir la rentabilité.</span>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid ' + BRD }}>
+                      {['Projet', 'Heures', 'Coût MO', 'CA (retenu)', 'Mode', 'Marge', 'Marge %', 'Tâches', ''].map((h) => (
+                        <th key={h} style={{ padding: '8px 10px', color: TXT3, fontWeight: 700, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5, textAlign: h === 'Heures' || h === 'Tâches' ? 'center' : 'left' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.projects.map((p) => {
+                      const positive = p.marge_brute >= 0;
+                      return (
+                        <tr key={p.project} style={{ borderBottom: '1px solid ' + BRD + '55' }}>
+                          <td style={{ padding: '10px 10px', color: TXT, fontWeight: 600, maxWidth: 200 }}>
+                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.project}</div>
+                            <div style={{ color: TXT3, fontSize: 10 }}>{p.nb_collaborateurs} collaborateur{p.nb_collaborateurs > 1 ? 's' : ''}</div>
+                          </td>
+                          <td style={{ padding: '10px 10px', color: TXT2, textAlign: 'center' }}>{p.heures.toFixed(1)}h</td>
+                          <td style={{ padding: '10px 10px', color: ORANGE }}>{fmt(p.cout_mo)}</td>
+                          <td style={{ padding: '10px 10px', color: TXT }}>{fmt(p.ca_retenu)}</td>
+                          <td style={{ padding: '10px 10px' }}>
+                            <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 99, background: p.revenue_mode === 'livrables' ? CYAN + '22' : BLUE + '22', color: p.revenue_mode === 'livrables' ? CYAN : BLUE, fontWeight: 700, textTransform: 'uppercase' }}>
+                              {p.revenue_mode === 'livrables' ? 'Livrables' : 'Forfait'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 10px', color: positive ? GREEN : RED, fontWeight: 700 }}>{fmt(p.marge_brute)}</td>
+                          <td style={{ padding: '10px 10px', color: positive ? GREEN : RED }}>{fmtPct(p.marge_pct)}</td>
+                          <td style={{ padding: '10px 10px', color: TXT3, textAlign: 'center' }}>{p.nb_taches}</td>
+                          <td style={{ padding: '10px 6px' }}>
+                            <button onClick={() => startEdit(p)} style={{ padding: '4px 10px', background: DARK3, border: '1px solid ' + BRD, borderRadius: 6, color: TXT2, fontSize: 10, cursor: 'pointer' }}>✏️ CA</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ borderTop: '2px solid ' + BRD }}>
+                      <td style={{ padding: '10px 10px', color: TXT, fontWeight: 800, fontSize: 13 }}>Total</td>
+                      <td style={{ padding: '10px 10px', color: TXT2, textAlign: 'center', fontWeight: 700 }}>{data.projects.reduce((s, p) => s + p.heures, 0).toFixed(1)}h</td>
+                      <td style={{ padding: '10px 10px', color: ORANGE, fontWeight: 700 }}>{fmt(data.projects.reduce((s, p) => s + p.cout_mo, 0))}</td>
+                      <td style={{ padding: '10px 10px', color: TXT, fontWeight: 700 }}>{fmt(data.projects.reduce((s, p) => s + p.ca_retenu, 0))}</td>
+                      <td /><td /><td />
+                      <td style={{ padding: '10px 10px', color: TXT3, textAlign: 'center', fontWeight: 700 }}>{data.projects.reduce((s, p) => s + p.nb_taches, 0)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Modale d'édition CA d'un projet */}
+        {editing && (
+          <div onClick={() => setEditing(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: DARK2, border: '1px solid ' + BRD, borderRadius: 14, padding: 24, width: 380 }}>
+              <div style={{ color: TXT, fontWeight: 700, fontSize: 15, marginBottom: 16 }}>✏️ CA — {editing.project.length > 40 ? editing.project.slice(0, 40) + '…' : editing.project}</div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={lBase}>Mode de facturation</label>
+                <select value={editing.revenue_mode} onChange={(e) => setEditing({ ...editing, revenue_mode: e.target.value })} style={iBase}>
+                  <option value="forfait">Forfait (montant fixe)</option>
+                  <option value="livrables">Livrables (somme Equivalent €)</option>
+                </select>
+              </div>
+              {editing.revenue_mode === 'forfait' && (
+                <div style={{ marginBottom: 14 }}>
+                  <label style={lBase}>Montant forfait (€)</label>
+                  <input type="number" min="0" step="100" value={editing.revenue_forfait} onChange={(e) => setEditing({ ...editing, revenue_forfait: e.target.value })} placeholder="Ex: 50000" style={iBase} />
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button onClick={() => setEditing(null)} style={{ padding: '8px 16px', background: DARK, border: '1px solid ' + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
+                <button onClick={saveProject} disabled={saving} style={{ padding: '8px 18px', background: BLUE, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 600, cursor: 'pointer' }}>{saving ? 'Sauvegarde…' : '💾 Enregistrer'}</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── EmployeesModal (admin only) ───
+function EmployeesModal({ employees, onSave, onClose }) {
+  const POLES = ["Fluide", "Élec"];
+  const [list, setList] = useState(employees.filter((e) => !e.isAdmin));
+  const [form, setForm] = useState({ name: "", role: "", pole: "Fluide", isChef: false, tjm: "" });
+  const [err, setErr] = useState("");
+
+  const add = () => {
+    setErr("");
+    if (!form.name.trim()) { setErr("Nom requis"); return; }
+    if (!form.role.trim()) { setErr("Rôle requis"); return; }
+    if (list.find((e) => e.name.toLowerCase() === form.name.trim().toLowerCase())) { setErr("Ce nom existe déjà"); return; }
+    setList([...list, { name: form.name.trim(), role: form.role.trim(), pole: form.pole, isChef: form.isChef, isAdmin: false, tjm: parseFloat(form.tjm) || 0 }]);
+    setForm({ name: "", role: "", pole: "Fluide", isChef: false, tjm: "" });
+  };
+
+  const remove = (name) => setList(list.filter((e) => e.name !== name));
+
+  const save = () => {
+    const admins = employees.filter((e) => e.isAdmin);
+    onSave([...list, ...admins]);
+  };
+
+  const byPole = (p) => list.filter((e) => e.pole === p);
+  const updateTjm = (name, val) => setList(list.map((e) => e.name === name ? { ...e, tjm: parseFloat(val) || 0 } : e));
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: DARK2, border: "1px solid " + BRD, borderRadius: 16, padding: 28, width: "100%", maxWidth: 600, maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
+          <h2 style={{ color: TXT, fontSize: 18, fontWeight: 700, margin: 0 }}>👥 Gestion des collaborateurs</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: TXT3, fontSize: 22, cursor: "pointer" }}>✕</button>
+        </div>
+
+        {/* Liste par pôle */}
+        {POLES.map((pole) => (
+          <div key={pole} style={{ marginBottom: 18 }}>
+            <div style={{ color: pole === "Fluide" ? BLUE : RED, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+              {pole === "Fluide" ? "💧" : "⚡"} Pôle {pole} — {byPole(pole).length} membre{byPole(pole).length !== 1 ? "s" : ""}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {byPole(pole).map((emp) => (
+                <div key={emp.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: DARK3, borderRadius: 8, border: "1px solid " + BRD }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 99, background: emp.isChef ? (pole === "Fluide" ? BLUE : RED) + "33" : DARK4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: emp.isChef ? (pole === "Fluide" ? BLUE : RED) : TXT2, flexShrink: 0 }}>
+                    {emp.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: TXT, fontSize: 12, fontWeight: 600 }}>{emp.name}</div>
+                    <div style={{ color: TXT3, fontSize: 10 }}>{emp.role}{emp.isChef ? " — Chef" : ""}</div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ color: TXT3, fontSize: 10 }}>TJM€</span>
+                    <input
+                      type="number" min="0" step="50"
+                      value={emp.tjm || ""}
+                      onChange={(e) => updateTjm(emp.name, e.target.value)}
+                      placeholder="0"
+                      style={{ width: 72, padding: "3px 7px", background: DARK, border: "1px solid " + BRD, borderRadius: 6, color: TXT, fontSize: 11, outline: "none", textAlign: "right" }}
+                    />
+                  </div>
+                  <button onClick={() => remove(emp.name)} style={{ background: RED + "22", border: "1px solid " + RED + "44", borderRadius: 6, color: RED, fontSize: 11, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>✕</button>
+                </div>
+              ))}
+              {byPole(pole).length === 0 && <div style={{ color: TXT3, fontSize: 12, padding: "8px 12px" }}>Aucun membre dans ce pôle.</div>}
+            </div>
+          </div>
+        ))}
+
+        {/* Formulaire d'ajout */}
+        <div style={{ padding: "16px", background: DARK, borderRadius: 10, border: "1px solid " + BRD, marginTop: 8 }}>
+          <div style={{ color: GREEN, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>➕ Ajouter un collaborateur</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+            <div><label style={lBase}>Nom complet</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ex: Ahmed TRABELSI" style={iBase} /></div>
+            <div><label style={lBase}>Rôle / Poste</label><input value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} placeholder="Ex: Ingénieur fluide" style={iBase} /></div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            <div>
+              <label style={lBase}>Pôle</label>
+              <select value={form.pole} onChange={(e) => setForm({ ...form, pole: e.target.value })} style={iBase}>
+                {POLES.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lBase}>TJM (€/jour)</label>
+              <input type="number" min="0" step="50" value={form.tjm} onChange={(e) => setForm({ ...form, tjm: e.target.value })} placeholder="Ex: 400" style={iBase} />
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 2 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: TXT2, fontSize: 13, fontWeight: 600 }}>
+                <input type="checkbox" checked={form.isChef} onChange={(e) => setForm({ ...form, isChef: e.target.checked })} style={{ width: 16, height: 16, accentColor: ORANGE }} />
+                Chef de pôle
+              </label>
+            </div>
+          </div>
+          {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginTop: 8 }}>⚠️ {err}</div>}
+          <button onClick={add} style={{ width: "100%", marginTop: 12, padding: "9px 0", background: GREEN, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Ajouter</button>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 20, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "9px 18px", background: DARK, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, cursor: "pointer" }}>Annuler</button>
+          <button onClick={save} style={{ padding: "9px 22px", background: BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 600, cursor: "pointer" }}>💾 Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main App ───
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [all, setAll] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [admin, setAdmin] = useState(false);
+  const [af, setAf] = useState("all");
+  const [settings, setSettings] = useState(false);
+  const [empModal, setEmpModal] = useState(false);
+  const [tick, setTick] = useState(0);
+  const [empList, setEmpList] = useState(DEFAULT_EMPLOYEES);
+  const allRef = useRef(all);
+  allRef.current = all;
+  // ─── États Import Excel ───────────────────────────────────
+  const [importModal, setImportModal] = useState(false);
+  // ─── États Rentabilité ────────────────────────────────────
+  const [profitabilityOpen, setProfitabilityOpen] = useState(false);
+  const [fixedCostsOpen, setFixedCostsOpen]       = useState(false);
+  // ─── États IA ─────────────────────────────────────────────
+  const [chatOpen, setChatOpen] = useState(false);
+  const [workloadOpen, setWorkloadOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [prioritizing, setPrioritizing] = useState(null);
+  const [prioritizeMsg, setPrioritizeMsg] = useState(null);
+  const [briefing, setBriefing] = useState(null);
+  const [showBriefing, setShowBriefing] = useState(true);
+  const [inactivityPaused, setInactivityPaused] = useState(false);
+  const lastActivityRef = useRef(Date.now());
+  const INACTIVITY_MS = 5 * 60 * 1000; // 5 minutes
+
+  // Charger la liste des collaborateurs depuis le storage
+  useEffect(() => {
+    (async () => {
+      const stored = await loadEmployees();
+      if (stored && stored.length > 0) setEmpList(stored);
+    })();
+  }, []);
+
+  useEffect(() => { const id = setInterval(() => setTick((t) => t + 1), 1000); return () => clearInterval(id); }, []);
+
+  // ─── Pause automatique après 5 min d'inactivité ──────────
+  useEffect(() => {
+    const onActivity = () => { lastActivityRef.current = Date.now(); };
+    window.addEventListener("mousemove", onActivity);
+    window.addEventListener("keydown",   onActivity);
+    window.addEventListener("click",     onActivity);
+    window.addEventListener("scroll",    onActivity);
+
+    const id = setInterval(() => {
+      if (Date.now() - lastActivityRef.current < INACTIVITY_MS) return;
+      const current = allRef.current;
+      const hasRunning = Object.values(current).some((tasks) => tasks.some((t) => t.timerRunning));
+      if (!hasRunning) return;
+      const now = Date.now();
+      setAll((prev) => {
+        const next = {};
+        Object.entries(prev).forEach(([name, tasks]) => {
+          const updated = tasks.map((t) => {
+            if (!t.timerRunning) return t;
+            const elapsed = t.timerStartedAt ? Math.floor((now - t.timerStartedAt) / 1000) : 0;
+            return { ...t, timerRunning: false, timerStartedAt: null, timerSeconds: (t.timerSeconds || 0) + elapsed };
+          });
+          saveTasks(name, updated);
+          next[name] = updated;
+        });
+        return next;
+      });
+      setInactivityPaused(true);
+      setTimeout(() => setInactivityPaused(false), 6000);
+    }, 30000); // vérifie toutes les 30 secondes
+
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("mousemove", onActivity);
+      window.removeEventListener("keydown",   onActivity);
+      window.removeEventListener("click",     onActivity);
+      window.removeEventListener("scroll",    onActivity);
+    };
+  }, []);
+  useEffect(() => {
+    if (tick % 10 !== 0 || tick === 0) return;
+    Object.entries(allRef.current).forEach(([n, t]) => { if (t.some((x) => x.timerRunning)) saveTasks(n, t); });
+  }, [tick]);
+
+  // ─── refetchAll : recharger toutes les tâches (après actions IA) ──
+  const refetchAll = useCallback(async () => {
+    if (!user) return;
+    if (user.isAdmin) {
+      const ms = empList.filter((e) => !e.isAdmin);
+      const ld = {};
+      for (const m of ms) ld[m.name] = await loadTasks(m.name);
+      setAll(ld);
+    } else if (user.isChef) {
+      const ms = empList.filter((e) => e.pole === user.pole);
+      const ld = {};
+      for (const m of ms) ld[m.name] = await loadTasks(m.name);
+      setAll(ld);
+    } else {
+      setAll({ [user.name]: await loadTasks(user.name) });
+    }
+  }, [user, empList]);
+
+  // ─── Charger le briefing IA au login ───────────────────────
+  useEffect(() => {
+    if (!user) return;
+    setShowBriefing(true);
+    aiBriefing(user.name).then((b) => { if (b) setBriefing(b); }).catch(() => {});
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      setLoading(true);
+      if (user.isAdmin) {
+        const ms = empList.filter((e) => !e.isAdmin);
+        const ld = {};
+        for (const m of ms) ld[m.name] = await loadTasks(m.name);
+        setAll(ld);
+      } else if (user.isChef) {
+        const ms = empList.filter((e) => e.pole === user.pole);
+        const ld = {};
+        for (const m of ms) ld[m.name] = await loadTasks(m.name);
+        setAll(ld);
+      } else {
+        setAll({ [user.name]: await loadTasks(user.name) });
+      }
+      setLoading(false);
+    })();
+  }, [user, empList]);
+
+  const upd = useCallback((n, tasks) => {
+    setAll((p) => { saveTasks(n, tasks); return { ...p, [n]: tasks }; });
+  }, []);
+
+  const reassign = useCallback((fromName, toName, task) => {
+    setAll((prev) => {
+      const fromTasks = (prev[fromName] || []).filter((t) => t.id !== task.id);
+      const toTasks = [...(prev[toName] || []), task];
+      saveTasks(fromName, fromTasks);
+      saveTasks(toName, toTasks);
+      return { ...prev, [fromName]: fromTasks, [toName]: toTasks };
+    });
+  }, []);
+
+  const toggleTimer = useCallback((empName, taskId) => {
+    setAll((prev) => {
+      const tasks = prev[empName] || [];
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task) return prev;
+      const isStarting = !task.timerRunning;
+      const now = Date.now();
+      const updated = tasks.map((t) => {
+        if (t.id === taskId) {
+          if (isStarting) return { ...t, timerRunning: true, timerStartedAt: now };
+          const elapsed = t.timerStartedAt ? Math.floor((now - t.timerStartedAt) / 1000) : 0;
+          return { ...t, timerRunning: false, timerStartedAt: null, timerSeconds: (t.timerSeconds || 0) + elapsed };
+        }
+        if (isStarting && t.timerRunning) {
+          const elapsed = t.timerStartedAt ? Math.floor((now - t.timerStartedAt) / 1000) : 0;
+          return { ...t, timerRunning: false, timerStartedAt: null, timerSeconds: (t.timerSeconds || 0) + elapsed };
+        }
+        return t;
+      });
+      saveTasks(empName, updated);
+      return { ...prev, [empName]: updated };
+    });
+  }, []);
+
+  const logout = () => {
+    const now = Date.now();
+    Object.entries(all).forEach(([n, tasks]) => {
+      const stopped = tasks.map((t) => {
+        if (t.timerRunning) {
+          const elapsed = t.timerStartedAt ? Math.floor((now - t.timerStartedAt) / 1000) : 0;
+          return { ...t, timerRunning: false, timerStartedAt: null, timerSeconds: (t.timerSeconds || 0) + elapsed };
+        }
+        return t;
+      });
+      saveTasks(n, stopped);
+    });
+    setUser(null); setAll({}); setAdmin(false);
+  };
+
+  const handleSaveEmployees = async (newList) => {
+    await saveEmployees(newList);
+    setEmpList(newList);
+    setEmpModal(false);
+  };
+
+  // ─── Fonction : Import Excel ──────────────────────────────
+  const handleImport = useCallback(async (byPerson) => {
+    setAll((prev) => {
+      const next = { ...prev };
+      Object.entries(byPerson).forEach(([name, newTasks]) => {
+        const existing = next[name] || [];
+        const merged = [...existing, ...newTasks];
+        saveTasks(name, merged);
+        next[name] = merged;
+      });
+      return next;
+    });
+  }, []);
+
+  // ─── Fonction IA : priorisation ───────────────────────────
+  const handlePrioritize = useCallback(async (ownerName) => {
+    setPrioritizing(ownerName);
+    try {
+      const result = await aiPrioritize(ownerName);
+      if (result.order && result.order.length > 0) {
+        setAll((prev) => {
+          const tasks   = prev[ownerName] || [];
+          const ordered = result.order.map((id) => tasks.find((t) => t.id === id)).filter(Boolean);
+          const rest    = tasks.filter((t) => !result.order.includes(t.id));
+          const newTasks = [...ordered, ...rest];
+          saveTasks(ownerName, newTasks);
+          return { ...prev, [ownerName]: newTasks };
+        });
+      }
+      if (result.reasoning) setPrioritizeMsg({ name: ownerName, msg: result.reasoning });
+    } catch (e) {
+      console.error("Prioritize error:", e);
+    }
+    setPrioritizing(null);
+  }, []);
+
+  // Build the tasks to export depending on user role
+  const getExportData = () => {
+    if (user.isAdmin) return all;
+    if (user.isChef) return all;
+    return { [user.name]: all[user.name] || [] };
+  };
+
+  if (!user) return <LoginScreen onLogin={setUser} employees={empList} />;
+
+  const my = all[user.name] || [];
+  const canSeeTeam = user.isChef || user.isAdmin;
+
+  const pm = user.isAdmin
+    ? empList.filter((e) => !e.isAdmin)
+    : empList.filter((e) => e.pole === user.pole && !e.isChef);
+
+  const fm = af === "all" ? pm : pm.filter((m) => {
+    const t = all[m.name] || [];
+    if (af === "overdue") return t.some((x) => x.deadline && new Date(x.deadline) < new Date() && x.column !== "done");
+    if (af === "high") return t.some((x) => x.priority === "high" && x.column !== "done");
+    if (af === "timer") return t.some((x) => x.timerRunning);
+    return true;
+  });
+
+  const apt = pm.flatMap((m) => all[m.name] || []);
+  const tot = apt.length;
+  const dn = apt.filter((t) => t.column === "done").length;
+  const activeTimers = apt.filter((t) => t.timerRunning).length;
+
+  return (
+    <div style={{ minHeight: "100vh", background: DARK, fontFamily: "'Outfit','Segoe UI',sans-serif", display: "flex", flexDirection: "column" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+      <style>{"*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:" + BRD + ";border-radius:99px}select option{background:" + DARK + ";color:" + TXT + "}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}"}</style>
+
+      <div style={{ padding: "12px 24px", borderBottom: "1px solid " + BRD, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <Logo size={32} />
+          <div style={{ width: 1, height: 24, background: BRD }} />
+          <div>
+            <div style={{ color: TXT, fontSize: 14, fontWeight: 700 }}>{user.name}</div>
+            <div style={{ color: TXT3, fontSize: 11 }}>{user.role}</div>
+          </div>
+          {user.isAdmin && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: PURPLE + "22", color: PURPLE, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>}
+          {my.some((t) => t.timerRunning) && <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 99, background: CYAN + "22", color: CYAN, fontWeight: 700, animation: "pulse 1.5s infinite" }}>⏱ Timer actif</span>}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {canSeeTeam && (
+            <button onClick={() => setAdmin(!admin)} style={{ padding: "8px 14px", background: admin ? ORANGE + "22" : DARK2, border: "1px solid " + (admin ? ORANGE : BRD), borderRadius: 8, color: admin ? ORANGE : TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
+              {admin ? "👤 Mon tableau" : user.isAdmin ? "👥 Vue globale" : "👥 Vue équipe"}
+            </button>
+          )}
+          <button onClick={() => exportToExcel(getExportData(), empList)} title="Exporter en Excel" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: GREEN, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📊 Export</button>
+          {(user.isAdmin || user.isChef) && (
+            <button onClick={() => setImportModal(true)} title="Importer une liste de livrables Excel" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + CYAN + "66", borderRadius: 8, color: CYAN, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📥 Import</button>
+          )}
+          {user.isAdmin && (
+            <button onClick={() => setEmpModal(true)} title="Gérer les collaborateurs" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: CYAN, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>👥 Équipe</button>
+          )}
+          {user.isAdmin && (
+            <>
+              <button onClick={() => setProfitabilityOpen(true)} title="Tableau de rentabilité" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + GREEN + "66", borderRadius: 8, color: GREEN, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>💰 Rentabilité</button>
+              <button onClick={() => setFixedCostsOpen(true)} title="Frais fixes mensuels" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + ORANGE + "44", borderRadius: 8, color: ORANGE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚙️ Frais fixes</button>
+            </>
+          )}
+          {(user.isAdmin || user.isChef) && (
+            <>
+              <button onClick={() => setWorkloadOpen(true)} title="Analyse de charge IA" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + PURPLE + "66", borderRadius: 8, color: PURPLE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚡ Charge IA</button>
+              {user.isAdmin && <button onClick={() => setReportOpen(true)} title="Rapport hebdomadaire IA" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + ORANGE + "66", borderRadius: 8, color: ORANGE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📊 Rapport IA</button>}
+            </>
+          )}
+          <button onClick={() => setChatOpen((v) => !v)} title="Agent IA — Peut créer et gérer les tâches" style={{ padding: "8px 14px", background: chatOpen ? BLUE + "33" : DARK2, border: "2px solid " + (chatOpen ? BLUE : BLUE + "55"), borderRadius: 8, color: chatOpen ? BLUE : BLUE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🤖 Agent IA</button>
+          <button onClick={() => setSettings(true)} style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>🔐</button>
+          <button onClick={logout} style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>Déconnexion</button>
+        </div>
+      </div>
+
+      {showBriefing && briefing && <DailyBriefingBanner briefing={briefing} onClose={() => setShowBriefing(false)} />}
+      {loading
+        ? <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ color: TXT2 }}>Chargement...</div></div>
+        : admin && canSeeTeam
+          ? (
+            <div style={{ flex: 1, overflow: "auto", padding: 20 }}>
+              <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+                {[{ l: "Total", v: tot, c: BLUE }, { l: "Terminées", v: dn, c: GREEN }, { l: "Timers actifs", v: activeTimers, c: CYAN }, { l: "Progression", v: tot > 0 ? Math.round((dn / tot) * 100) + "%" : "—", c: PURPLE }].map((s) => (
+                  <div key={s.l} style={{ padding: "12px 18px", background: DARK2, border: "1px solid " + BRD, borderRadius: 10, borderLeft: "3px solid " + s.c, minWidth: 120 }}>
+                    <div style={{ color: TXT3, fontSize: 9, fontWeight: 600, textTransform: "uppercase" }}>{s.l}</div>
+                    <div style={{ color: TXT, fontSize: 20, fontWeight: 800, marginTop: 3 }}>{s.v}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+                {[{ id: "all", l: "Tous" }, { id: "timer", l: "⏱ Timer actif" }, { id: "overdue", l: "⚠️ En retard" }, { id: "high", l: "🔴 Prio haute" }].map((f) => (
+                  <button key={f.id} onClick={() => setAf(f.id)} style={{ padding: "6px 14px", background: af === f.id ? BLUE + "22" : DARK2, border: "1px solid " + (af === f.id ? BLUE + "66" : BRD), borderRadius: 6, color: af === f.id ? BLUE : TXT3, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{f.l}</button>
+                ))}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                {fm.map((m) => (
+                  <Board key={m.name} name={m.name} tasks={all[m.name] || []} onUpdate={upd} ro={false} showName={true} onToggleTimer={toggleTimer} tick={tick} poleMembers={fm.filter((x) => x.name !== m.name)} onReassign={reassign} onPrioritize={handlePrioritize} prioritizing={prioritizing} />
+                ))}
+                {fm.length === 0 && <div style={{ textAlign: "center", padding: 40, color: TXT3 }}>Aucun résultat.</div>}
+              </div>
+            </div>
+          )
+          : (
+            <div style={{ flex: 1, overflow: "auto", padding: 20 }}>
+              <Board name={user.name} tasks={my} onUpdate={upd} ro={false} showName={false} onToggleTimer={toggleTimer} tick={tick} poleMembers={null} onReassign={null} />
+            </div>
+          )
+      }
+
+      {settings && <SettingsModal user={user} onClose={() => setSettings(false)} />}
+      {empModal && user.isAdmin && <EmployeesModal employees={empList} onSave={handleSaveEmployees} onClose={() => setEmpModal(false)} />}
+      {profitabilityOpen && user.isAdmin && <ProfitabilityModal onClose={() => setProfitabilityOpen(false)} />}
+      {fixedCostsOpen && user.isAdmin && <FixedCostsModal onClose={() => setFixedCostsOpen(false)} />}
+      {importModal && (user.isAdmin || user.isChef) && <ImportExcelModal employees={empList} allTasks={all} onImport={handleImport} onClose={() => setImportModal(false)} />}
+      {workloadOpen && <WorkloadModal onClose={() => setWorkloadOpen(false)} />}
+      {reportOpen && <ReportModal onClose={() => setReportOpen(false)} />}
+      {chatOpen && <AIChatPanel user={user} onClose={() => setChatOpen(false)} onAction={refetchAll} />}
+      {prioritizeMsg && <PrioritizeToast name={prioritizeMsg.name} msg={prioritizeMsg.msg} onClose={() => setPrioritizeMsg(null)} />}
+      {inactivityPaused && (
+        <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", background: DARK2, border: "1px solid " + ORANGE + "66", borderLeft: "4px solid " + ORANGE, borderRadius: 12, padding: "12px 20px", zIndex: 4000, boxShadow: "0 8px 32px rgba(0,0,0,0.5)", display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 18 }}>⏸</span>
+          <div>
+            <div style={{ color: ORANGE, fontSize: 12, fontWeight: 700 }}>Timer mis en pause</div>
+            <div style={{ color: TXT2, fontSize: 11 }}>Inactivité détectée depuis 5 minutes</div>
+          </div>
+        </div>
+      )}}
+    </div>
+  );
+}
+
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
