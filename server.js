@@ -346,6 +346,7 @@ const AGENT_TOOLS = [
 
 // ─── Exécuteur d'outils ───────────────────────────────────────
 async function execTool(name, input) {
+  input = input || {};   // sécurité : LLaMA peut passer null au lieu de {}
   switch (name) {
 
     case "get_team_data": {
@@ -512,13 +513,25 @@ app.post("/api/ai/agent", async (req, res) => {
     while (iterations < 10) {
       iterations++;
 
-      const response = await groq.chat.completions.create({
-        model:       "llama-3.3-70b-versatile",
-        max_tokens:  2048,
-        messages:    convMessages,
-        tools:       AGENT_TOOLS,
-        tool_choice: "auto",
-      });
+      let response;
+      try {
+        response = await groq.chat.completions.create({
+          model:       "llama-3.3-70b-versatile",
+          max_tokens:  2048,
+          messages:    convMessages,
+          tools:       AGENT_TOOLS,
+          tool_choice: "auto",
+        });
+      } catch (groqErr) {
+        // LLaMA a généré un appel d'outil malformé (tool_use_failed)
+        // On retourne ce qu'on a déjà comme réponse plutôt que de planter
+        console.error("Groq API error:", groqErr.message);
+        const lastReply = convMessages.filter(m => m.role === "assistant" && m.content).pop();
+        return res.json({
+          reply: lastReply?.content || "Je n'ai pas pu terminer cette action. Veuillez reformuler votre demande.",
+          actions
+        });
+      }
 
       const choice = response.choices[0];
       const msg    = choice.message;
@@ -536,8 +549,12 @@ app.post("/api/ai/agent", async (req, res) => {
         // Exécuter chaque outil et ajouter les résultats
         for (const tc of msg.tool_calls) {
           let input;
-          try { input = JSON.parse(tc.function.arguments); }
-          catch { input = {}; }
+          try {
+            input = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
+          } catch {
+            input = {};
+          }
+          if (!input || typeof input !== "object") input = {};
 
           console.log(`🤖 Tool: ${tc.function.name}`, JSON.stringify(input).slice(0, 120));
           let result;
@@ -578,7 +595,7 @@ app.get("/api/ai/briefing/:userName", async (req, res) => {
     const dayOfWeek  = new Date().toLocaleDateString("fr-FR", { weekday: "long" });
 
     const [tasks] = await pool.query(
-      "SELECT * FROM tasks WHERE owner_name = ? ORDER BY deadline ASC NULLS LAST",
+      "SELECT * FROM tasks WHERE owner_name = ? ORDER BY ISNULL(deadline), deadline ASC",
       [userName]
     );
 
