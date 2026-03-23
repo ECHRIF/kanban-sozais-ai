@@ -781,6 +781,21 @@ function LoginScreen({ onLogin, employees }) {
   const [search, setSearch] = useState("");
   const [pf, setPf] = useState("all");
   const [busy, setBusy] = useState(false);
+  const [resetDone, setResetDone] = useState(false);
+
+  const forgotPassword = async () => {
+    if (!sel) return;
+    setBusy(true);
+    try {
+      await fetch(`/api/pwd/${encodeURIComponent(sel.name)}`, { method: "DELETE" });
+      setResetDone(true);
+      setPwd("");
+      setErr("");
+    } catch (e) {
+      setErr("Erreur réseau, réessayez.");
+    }
+    setBusy(false);
+  };
 
   const filtered = employees.filter((e) => {
     const matchPole = pf === "all" || (pf === "fluide" && e.pole === "Fluide") || (pf === "elec" && e.pole === "Élec") || (pf === "admin" && e.isAdmin);
@@ -828,7 +843,7 @@ function LoginScreen({ onLogin, employees }) {
             </div>
             <div style={{ maxHeight: 380, overflowY: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
               {filtered.map((emp) => (
-                <button key={emp.name} onClick={() => { setSel(emp); setStep("password"); setPwd(""); setErr(""); }}
+                <button key={emp.name} onClick={() => { setSel(emp); setStep("password"); setPwd(""); setErr(""); setResetDone(false); }}
                   style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 9, cursor: "pointer", textAlign: "left", width: "100%" }}
                   onMouseEnter={(e) => { e.currentTarget.style.background = DARK4; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = DARK2; }}>
@@ -865,10 +880,23 @@ function LoginScreen({ onLogin, employees }) {
               <button onClick={() => { setStep("select"); setErr(""); }} style={{ flex: 1, padding: "11px 0", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, cursor: "pointer" }}>← Retour</button>
               <button onClick={checkPwd} disabled={busy || !pwd} style={{ flex: 2, padding: "11px 0", background: !pwd ? TXT3 : BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: pwd ? "pointer" : "not-allowed" }}>Se connecter</button>
             </div>
-            <div style={{ marginTop: 16, padding: "10px 14px", background: BLUE + "11", border: "1px solid " + BLUE + "33", borderRadius: 8 }}>
-              <div style={{ color: BLUE, fontSize: 11, fontWeight: 600 }}>ℹ️ Première connexion ?</div>
-              <div style={{ color: TXT2, fontSize: 11, marginTop: 3 }}>Mot de passe initial : <span style={{ color: TXT, fontWeight: 700, fontFamily: "monospace", background: DARK, padding: "1px 6px", borderRadius: 4 }}>{DEFAULT_PASSWORD}</span></div>
-            </div>
+            {!resetDone ? (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ padding: "10px 14px", background: BLUE + "11", border: "1px solid " + BLUE + "33", borderRadius: 8, marginBottom: 10 }}>
+                  <div style={{ color: BLUE, fontSize: 11, fontWeight: 600 }}>ℹ️ Première connexion ?</div>
+                  <div style={{ color: TXT2, fontSize: 11, marginTop: 3 }}>Mot de passe initial : <span style={{ color: TXT, fontWeight: 700, fontFamily: "monospace", background: DARK, padding: "1px 6px", borderRadius: 4 }}>{DEFAULT_PASSWORD}</span></div>
+                </div>
+                <button onClick={forgotPassword} disabled={busy} style={{ width: "100%", padding: "9px 0", background: "transparent", border: "1px solid " + ORANGE + "44", borderRadius: 8, color: ORANGE, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                  🔑 Mot de passe oublié ? Réinitialiser mon compte
+                </button>
+              </div>
+            ) : (
+              <div style={{ marginTop: 16, padding: "12px 14px", background: GREEN + "15", border: "1px solid " + GREEN + "44", borderRadius: 8 }}>
+                <div style={{ color: GREEN, fontSize: 12, fontWeight: 700, marginBottom: 4 }}>✅ Mot de passe réinitialisé !</div>
+                <div style={{ color: TXT2, fontSize: 11 }}>Entrez le mot de passe provisoire : <span style={{ color: TXT, fontWeight: 700, fontFamily: "monospace", background: DARK, padding: "1px 6px", borderRadius: 4 }}>{DEFAULT_PASSWORD}</span></div>
+                <div style={{ color: TXT3, fontSize: 10, marginTop: 4 }}>Vous serez ensuite invité à créer un nouveau mot de passe.</div>
+              </div>
+            )}
           </div>
         )}
 
