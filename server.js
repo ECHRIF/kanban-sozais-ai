@@ -977,5 +977,5 @@ app.get("*", (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`\n🚀 Kanban SOZAIS AI-First — http://localhost:${PORT}`);
-  console.log(`   IA : ${anthropic ? "✅ Claude actif" : "❌ Clé ANTHROPIC_API_KEY manquante"}\n`);
+  console.log(`   IA : ${groq ? "✅ Groq (LLaMA 3.3-70b) actif" : "❌ Clé GROQ_API_KEY manquante"}\n`);
 });
