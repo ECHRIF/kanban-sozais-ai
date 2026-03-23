@@ -1,7 +1,7 @@
 {
   "name": "kanban-sozais-ai",
   "version": "2.0.0",
-  "description": "Kanban Équipe SOZAIS — Architecture IA-first avec Claude tool_use + MySQL",
+  "description": "Kanban Équipe SOZAIS — Architecture IA-first avec Groq LLaMA tool_use + MySQL",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,7 +12,7 @@
     "mysql2": "^3.6.5",
     "dotenv": "^16.3.1",
     "cors": "^2.8.5",
-    "@anthropic-ai/sdk": "^0.27.0",
+    "groq-sdk": "^0.9.0",
     "nodemailer": "^6.9.14",
     "node-cron": "^3.0.3"
   },

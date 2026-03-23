@@ -1,7 +1,7 @@
 // ============================================================
 // Kanban SOZAIS — AI-First Edition
-// Stack : Node.js + Express + MySQL + Claude (Anthropic)
-// Architecture : Claude tool_use en cœur — l'IA agit directement
+// Stack : Node.js + Express + MySQL + Groq (LLaMA 3.3-70b)
+// Architecture : Groq tool_use en cœur — l'IA agit directement
 // sur la base de données (créer, modifier, déplacer, réaffecter)
 // ============================================================
 require("dotenv").config();
@@ -9,7 +9,7 @@ const express    = require("express");
 const mysql      = require("mysql2/promise");
 const cors       = require("cors");
 const path       = require("path");
-const Anthropic  = require("@anthropic-ai/sdk");
+const Groq       = require("groq-sdk");
 const nodemailer = require("nodemailer");
 const cron       = require("node-cron");
 
@@ -164,9 +164,9 @@ const pool = mysql.createPool({
   }
 })();
 
-// ─── Client Anthropic ─────────────────────────────────────────
-const anthropic = process.env.ANTHROPIC_API_KEY
-  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+// ─── Client Groq ──────────────────────────────────────────────
+const groq = process.env.GROQ_API_KEY
+  ? new Groq({ apiKey: process.env.GROQ_API_KEY })
   : null;
 
 // ─── Mailer ───────────────────────────────────────────────────
@@ -180,8 +180,8 @@ const mailer = (process.env.EMAIL_USER && process.env.EMAIL_PASS)
   : null;
 
 function requireAI(res) {
-  if (!anthropic) {
-    res.status(503).json({ error: "Clé ANTHROPIC_API_KEY manquante dans .env" });
+  if (!groq) {
+    res.status(503).json({ error: "Clé GROQ_API_KEY manquante dans .env" });
     return false;
   }
   return true;
@@ -210,111 +210,132 @@ async function getAllData() {
 const genId = () => Math.random().toString(36).substr(2, 9);
 
 // ============================================================
-// ─── OUTILS IA (Claude tool_use) ─────────────────────────────
+// ─── OUTILS IA (Groq / OpenAI tool_use format) ───────────────
 // ============================================================
 const AGENT_TOOLS = [
   {
-    name: "get_team_data",
-    description: "Récupère toutes les données en temps réel : tâches, statuts, deadlines, timers de tous les collaborateurs. Toujours utiliser avant d'analyser ou de prendre des décisions.",
-    input_schema: {
-      type: "object",
-      properties: {
-        filter: { type: "string", description: "Optionnel: 'Fluide', 'Élec', ou nom d'un collaborateur" }
+    type: "function",
+    function: {
+      name: "get_team_data",
+      description: "Récupère toutes les données en temps réel : tâches, statuts, deadlines, timers de tous les collaborateurs. Toujours utiliser avant d'analyser ou de prendre des décisions.",
+      parameters: {
+        type: "object",
+        properties: {
+          filter: { type: "string", description: "Optionnel: 'Fluide', 'Élec', ou nom d'un collaborateur" }
+        }
       }
     }
   },
   {
-    name: "create_task",
-    description: "Crée une nouvelle tâche dans le Kanban pour un collaborateur. Utiliser quand l'utilisateur demande de créer ou ajouter une tâche.",
-    input_schema: {
-      type: "object",
-      required: ["owner_name", "title", "priority"],
-      properties: {
-        owner_name:      { type: "string", description: "Nom exact du collaborateur (doit exister dans l'équipe)" },
-        title:           { type: "string", description: "Titre de la tâche" },
-        project:         { type: "string", description: "Nom du projet/affaire (ex: Hôpital Tunis Nord)" },
-        description:     { type: "string", description: "Description détaillée" },
-        priority:        { type: "string", enum: ["high", "medium", "low"] },
-        column:          { type: "string", enum: ["backlog", "todo", "in_progress", "review", "done"], description: "Colonne initiale (défaut: todo)" },
-        deadline:        { type: "string", description: "Échéance au format YYYY-MM-DD" },
-        estimated_hours: { type: "number", description: "Heures estimées pour cette tâche" }
+    type: "function",
+    function: {
+      name: "create_task",
+      description: "Crée une nouvelle tâche dans le Kanban pour un collaborateur. Utiliser quand l'utilisateur demande de créer ou ajouter une tâche.",
+      parameters: {
+        type: "object",
+        required: ["owner_name", "title", "priority"],
+        properties: {
+          owner_name:      { type: "string", description: "Nom exact du collaborateur (doit exister dans l'équipe)" },
+          title:           { type: "string", description: "Titre de la tâche" },
+          project:         { type: "string", description: "Nom du projet/affaire (ex: Hôpital Tunis Nord)" },
+          description:     { type: "string", description: "Description détaillée" },
+          priority:        { type: "string", enum: ["high", "medium", "low"] },
+          column:          { type: "string", enum: ["backlog", "todo", "in_progress", "review", "done"], description: "Colonne initiale (défaut: todo)" },
+          deadline:        { type: "string", description: "Échéance au format YYYY-MM-DD" },
+          estimated_hours: { type: "number", description: "Heures estimées pour cette tâche" }
+        }
       }
     }
   },
   {
-    name: "update_task",
-    description: "Modifie une tâche existante. Seuls les champs fournis sont modifiés.",
-    input_schema: {
-      type: "object",
-      required: ["task_id"],
-      properties: {
-        task_id:         { type: "string", description: "ID de la tâche à modifier" },
-        title:           { type: "string" },
-        project:         { type: "string" },
-        description:     { type: "string" },
-        priority:        { type: "string", enum: ["high", "medium", "low"] },
-        column:          { type: "string", enum: ["backlog", "todo", "in_progress", "review", "done"] },
-        deadline:        { type: "string", description: "Format YYYY-MM-DD" },
-        estimated_hours: { type: "number" }
+    type: "function",
+    function: {
+      name: "update_task",
+      description: "Modifie une tâche existante. Seuls les champs fournis sont modifiés.",
+      parameters: {
+        type: "object",
+        required: ["task_id"],
+        properties: {
+          task_id:         { type: "string", description: "ID de la tâche à modifier" },
+          title:           { type: "string" },
+          project:         { type: "string" },
+          description:     { type: "string" },
+          priority:        { type: "string", enum: ["high", "medium", "low"] },
+          column:          { type: "string", enum: ["backlog", "todo", "in_progress", "review", "done"] },
+          deadline:        { type: "string", description: "Format YYYY-MM-DD" },
+          estimated_hours: { type: "number" }
+        }
       }
     }
   },
   {
-    name: "move_task",
-    description: "Déplace une tâche vers une autre colonne du Kanban.",
-    input_schema: {
-      type: "object",
-      required: ["task_id", "column"],
-      properties: {
-        task_id: { type: "string" },
-        column:  { type: "string", enum: ["backlog", "todo", "in_progress", "review", "done"] }
+    type: "function",
+    function: {
+      name: "move_task",
+      description: "Déplace une tâche vers une autre colonne du Kanban.",
+      parameters: {
+        type: "object",
+        required: ["task_id", "column"],
+        properties: {
+          task_id: { type: "string" },
+          column:  { type: "string", enum: ["backlog", "todo", "in_progress", "review", "done"] }
+        }
       }
     }
   },
   {
-    name: "reassign_task",
-    description: "Réaffecte une tâche d'un collaborateur à un autre. La tâche disparaît du tableau source et apparaît dans le tableau cible.",
-    input_schema: {
-      type: "object",
-      required: ["task_id", "new_owner"],
-      properties: {
-        task_id:   { type: "string" },
-        new_owner: { type: "string", description: "Nom exact du nouveau collaborateur" }
+    type: "function",
+    function: {
+      name: "reassign_task",
+      description: "Réaffecte une tâche d'un collaborateur à un autre. La tâche disparaît du tableau source et apparaît dans le tableau cible.",
+      parameters: {
+        type: "object",
+        required: ["task_id", "new_owner"],
+        properties: {
+          task_id:   { type: "string" },
+          new_owner: { type: "string", description: "Nom exact du nouveau collaborateur" }
+        }
       }
     }
   },
   {
-    name: "delete_task",
-    description: "Supprime définitivement une tâche. Demander confirmation à l'utilisateur avant de supprimer.",
-    input_schema: {
-      type: "object",
-      required: ["task_id"],
-      properties: {
-        task_id: { type: "string" }
+    type: "function",
+    function: {
+      name: "delete_task",
+      description: "Supprime définitivement une tâche. Demander confirmation à l'utilisateur avant de supprimer.",
+      parameters: {
+        type: "object",
+        required: ["task_id"],
+        properties: {
+          task_id: { type: "string" }
+        }
       }
     }
   },
   {
-    name: "bulk_create_tasks",
-    description: "Crée plusieurs tâches en une seule opération. Utile pour importer une liste ou créer un lot de tâches.",
-    input_schema: {
-      type: "object",
-      required: ["tasks"],
-      properties: {
-        tasks: {
-          type: "array",
-          items: {
-            type: "object",
-            required: ["owner_name", "title", "priority"],
-            properties: {
-              owner_name:      { type: "string" },
-              title:           { type: "string" },
-              project:         { type: "string" },
-              description:     { type: "string" },
-              priority:        { type: "string", enum: ["high", "medium", "low"] },
-              column:          { type: "string", enum: ["backlog", "todo", "in_progress", "review", "done"] },
-              deadline:        { type: "string" },
-              estimated_hours: { type: "number" }
+    type: "function",
+    function: {
+      name: "bulk_create_tasks",
+      description: "Crée plusieurs tâches en une seule opération. Utile pour importer une liste ou créer un lot de tâches.",
+      parameters: {
+        type: "object",
+        required: ["tasks"],
+        properties: {
+          tasks: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["owner_name", "title", "priority"],
+              properties: {
+                owner_name:      { type: "string" },
+                title:           { type: "string" },
+                project:         { type: "string" },
+                description:     { type: "string" },
+                priority:        { type: "string", enum: ["high", "medium", "low"] },
+                column:          { type: "string", enum: ["backlog", "todo", "in_progress", "review", "done"] },
+                deadline:        { type: "string" },
+                estimated_hours: { type: "number" }
+              }
             }
           }
         }
@@ -481,49 +502,60 @@ app.post("/api/ai/agent", async (req, res) => {
     const systemPrompt = buildAgentSystemPrompt(userName, userRole || "", !!isAdmin, !!isChef);
 
     const actions = [];
-    let convMessages = messages.map(m => ({
-      role: m.role,
-      content: typeof m.content === "string" ? m.content : m.content
-    }));
+    // Groq : le system prompt est un message {role:"system"} en début de tableau
+    let convMessages = [
+      { role: "system", content: systemPrompt },
+      ...messages.map(m => ({ role: m.role, content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) }))
+    ];
 
     let iterations = 0;
     while (iterations < 10) {
       iterations++;
 
-      const response = await anthropic.messages.create({
-        model:      "claude-opus-4-6",
-        max_tokens: 2048,
-        system:     systemPrompt,
-        tools:      AGENT_TOOLS,
-        messages:   convMessages,
+      const response = await groq.chat.completions.create({
+        model:       "llama-3.3-70b-versatile",
+        max_tokens:  2048,
+        messages:    convMessages,
+        tools:       AGENT_TOOLS,
+        tool_choice: "auto",
       });
 
-      if (response.stop_reason === "end_turn") {
-        const text = response.content.find(b => b.type === "text")?.text || "";
-        return res.json({ reply: text, actions });
+      const choice = response.choices[0];
+      const msg    = choice.message;
+
+      // Pas d'appel d'outil → réponse finale
+      if (choice.finish_reason === "stop" || !msg.tool_calls || msg.tool_calls.length === 0) {
+        return res.json({ reply: msg.content || "", actions });
       }
 
-      if (response.stop_reason === "tool_use") {
-        convMessages.push({ role: "assistant", content: response.content });
+      // Appels d'outils
+      if (choice.finish_reason === "tool_calls") {
+        // Ajouter la réponse de l'assistant (avec ses tool_calls) à l'historique
+        convMessages.push({ role: "assistant", content: msg.content || null, tool_calls: msg.tool_calls });
 
-        const toolResults = [];
-        for (const block of response.content) {
-          if (block.type !== "tool_use") continue;
-          console.log(`🤖 Tool: ${block.name}`, JSON.stringify(block.input).slice(0, 120));
+        // Exécuter chaque outil et ajouter les résultats
+        for (const tc of msg.tool_calls) {
+          let input;
+          try { input = JSON.parse(tc.function.arguments); }
+          catch { input = {}; }
+
+          console.log(`🤖 Tool: ${tc.function.name}`, JSON.stringify(input).slice(0, 120));
           let result;
           try {
-            result = await execTool(block.name, block.input);
+            result = await execTool(tc.function.name, input);
           } catch (err) {
             result = { error: err.message };
           }
           console.log(`   → ${JSON.stringify(result).slice(0, 100)}`);
+
           // Ne logger que les actions qui modifient les données
-          if (block.name !== "get_team_data") {
-            actions.push({ tool: block.name, input: block.input, result });
+          if (tc.function.name !== "get_team_data") {
+            actions.push({ tool: tc.function.name, input, result });
           }
-          toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(result) });
+
+          // Format Groq pour les résultats d'outils
+          convMessages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(result) });
         }
-        convMessages.push({ role: "user", content: toolResults });
       }
     }
 
@@ -567,8 +599,8 @@ app.get("/api/ai/briefing/:userName", async (req, res) => {
       (highPrio.length ? `🔴 Haute priorité non terminées (${highPrio.length}): ${highPrio.map(t => `"${t.title}"`).join(", ")}\n` : "") +
       `À faire (${todo.length} tâches restantes)`;
 
-    const response = await anthropic.messages.create({
-      model:      "claude-opus-4-6",
+    const response = await groq.chat.completions.create({
+      model:      "llama-3.3-70b-versatile",
       max_tokens: 500,
       messages: [{
         role:    "user",
@@ -584,7 +616,7 @@ app.get("/api/ai/briefing/:userName", async (req, res) => {
       }]
     });
 
-    res.json({ briefing: response.content[0].text, stats: { total: tasks.length, done: done.length, overdue: overdue.length, dueToday: dueToday.length, inProgress: inProg.length } });
+    res.json({ briefing: response.choices[0].message.content, stats: { total: tasks.length, done: done.length, overdue: overdue.length, dueToday: dueToday.length, inProgress: inProg.length } });
   } catch (err) {
     console.error("GET /api/ai/briefing", err);
     res.status(500).json({ error: err.message });
@@ -612,8 +644,8 @@ app.get("/api/ai/workload", async (req, res) => {
       );
     }).join("\n");
 
-    const response = await anthropic.messages.create({
-      model:      "claude-opus-4-6",
+    const response = await groq.chat.completions.create({
+      model:      "llama-3.3-70b-versatile",
       max_tokens: 1500,
       messages: [{
         role:    "user",
@@ -626,7 +658,7 @@ app.get("/api/ai/workload", async (req, res) => {
                  `Sois direct et actionnable. En français.`,
       }],
     });
-    res.json({ analysis: response.content[0].text });
+    res.json({ analysis: response.choices[0].message.content });
   } catch (err) {
     console.error("GET /api/ai/workload", err);
     res.status(500).json({ error: err.message });
@@ -652,8 +684,8 @@ app.post("/api/ai/prioritize/:ownerName", async (req, res) => {
       ` | fait:${(t.timer_seconds / 3600).toFixed(1)}h`
     ).join("\n");
 
-    const response = await anthropic.messages.create({
-      model:      "claude-opus-4-6",
+    const response = await groq.chat.completions.create({
+      model:      "llama-3.3-70b-versatile",
       max_tokens: 800,
       messages: [{
         role:    "user",
@@ -664,7 +696,7 @@ app.post("/api/ai/prioritize/:ownerName", async (req, res) => {
       }],
     });
 
-    const text      = response.content[0].text.trim();
+    const text      = response.choices[0].message.content.trim();
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     let result;
     try {
@@ -698,8 +730,8 @@ async function generateAndSendReport() {
     );
   }).join("\n");
 
-  const response = await anthropic.messages.create({
-    model:      "claude-opus-4-6",
+  const response = await groq.chat.completions.create({
+    model:      "llama-3.3-70b-versatile",
     max_tokens: 2000,
     messages: [{
       role:    "user",
@@ -715,7 +747,7 @@ async function generateAndSendReport() {
     }],
   });
 
-  const reportText = response.content[0].text;
+  const reportText = response.choices[0].message.content;
   if (mailer && process.env.REPORT_EMAIL) {
     await mailer.sendMail({
       from:    process.env.EMAIL_USER,
@@ -740,7 +772,7 @@ app.post("/api/ai/weekly-report", async (req, res) => {
 });
 
 cron.schedule("0 18 * * 5", async () => {
-  if (!anthropic) return;
+  if (!groq) return;
   console.log("🤖 Rapport hebdo automatique...");
   try { await generateAndSendReport(); console.log("✅ Rapport envoyé."); }
   catch (err) { console.error("❌ Rapport:", err.message); }
