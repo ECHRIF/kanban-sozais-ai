@@ -1409,6 +1409,24 @@ function EmployeesModal({ employees, onSave, onClose }) {
   const [list, setList] = useState(employees.filter((e) => !e.isAdmin));
   const [form, setForm] = useState({ name: "", role: "", pole: "Fluide", isChef: false, tjm: "" });
   const [err, setErr] = useState("");
+  const [resetMsg, setResetMsg] = useState("");
+  const adminList = employees.filter((e) => e.isAdmin);
+
+  const resetPassword = async (name) => {
+    if (!window.confirm(`Réinitialiser le mot de passe de "${name}" ? Il devra se reconnecter avec "kanban2026".`)) return;
+    try {
+      const r = await fetch(`/api/pwd/${encodeURIComponent(name)}`, { method: "DELETE" });
+      const data = await r.json();
+      if (data.ok) {
+        setResetMsg(`✅ Mot de passe de "${name}" réinitialisé. Mot de passe provisoire : kanban2026`);
+        setTimeout(() => setResetMsg(""), 5000);
+      } else {
+        setResetMsg(`❌ Erreur : ${data.error}`);
+      }
+    } catch (e) {
+      setResetMsg(`❌ Erreur réseau`);
+    }
+  };
 
   const add = () => {
     setErr("");
@@ -1463,6 +1481,7 @@ function EmployeesModal({ employees, onSave, onClose }) {
                       style={{ width: 72, padding: "3px 7px", background: DARK, border: "1px solid " + BRD, borderRadius: 6, color: TXT, fontSize: 11, outline: "none", textAlign: "right" }}
                     />
                   </div>
+                  <button onClick={() => resetPassword(emp.name)} title="Réinitialiser le mot de passe" style={{ background: ORANGE + "22", border: "1px solid " + ORANGE + "44", borderRadius: 6, color: ORANGE, fontSize: 11, fontWeight: 700, padding: "4px 8px", cursor: "pointer" }}>🔑</button>
                   <button onClick={() => remove(emp.name)} style={{ background: RED + "22", border: "1px solid " + RED + "44", borderRadius: 6, color: RED, fontSize: 11, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>✕</button>
                 </div>
               ))}
@@ -1470,6 +1489,36 @@ function EmployeesModal({ employees, onSave, onClose }) {
             </div>
           </div>
         ))}
+
+        {/* Admins — reset uniquement */}
+        {adminList.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ color: ORANGE, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+              🛡️ Administrateurs — {adminList.length}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {adminList.map((emp) => (
+                <div key={emp.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: DARK3, borderRadius: 8, border: "1px solid " + ORANGE + "44" }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 99, background: ORANGE + "33", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: ORANGE, flexShrink: 0 }}>
+                    {emp.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: TXT, fontSize: 12, fontWeight: 600 }}>{emp.name}</div>
+                    <div style={{ color: TXT3, fontSize: 10 }}>Admin</div>
+                  </div>
+                  <button onClick={() => resetPassword(emp.name)} title="Réinitialiser le mot de passe" style={{ background: ORANGE + "22", border: "1px solid " + ORANGE + "44", borderRadius: 6, color: ORANGE, fontSize: 11, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>🔑 Reset</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Message de confirmation reset */}
+        {resetMsg && (
+          <div style={{ padding: "10px 14px", background: resetMsg.startsWith("✅") ? GREEN + "22" : RED + "22", border: "1px solid " + (resetMsg.startsWith("✅") ? GREEN : RED) + "44", borderRadius: 8, color: resetMsg.startsWith("✅") ? GREEN : RED, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
+            {resetMsg}
+          </div>
+        )}
 
         {/* Formulaire d'ajout */}
         <div style={{ padding: "16px", background: DARK, borderRadius: 10, border: "1px solid " + BRD, marginTop: 8 }}>

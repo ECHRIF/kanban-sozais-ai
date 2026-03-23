@@ -857,6 +857,15 @@ app.post("/api/pwd/:name", async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ─── Réinitialisation mot de passe (admin) ───────────────────
+// DELETE /api/pwd/:name
+app.delete("/api/pwd/:name", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM passwords WHERE name = ?", [req.params.name]);
+    res.json({ ok: true, message: `Mot de passe réinitialisé pour "${req.params.name}". Prochain login : kanban2026.` });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ─── API : Employés ───────────────────────────────────────────
 app.get("/api/employees", async (req, res) => {
   try {
