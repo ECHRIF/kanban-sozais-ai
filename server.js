@@ -110,6 +110,32 @@ const pool = mysql.createPool({
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS kpi_criteria (
+        id       INT UNSIGNED   AUTO_INCREMENT NOT NULL,
+        label    VARCHAR(300)   NOT NULL,
+        category VARCHAR(100)   NOT NULL DEFAULT '',
+        active   TINYINT(1)     DEFAULT 1,
+        position INT            DEFAULT 0,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_label (label)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS kpi_evaluations (
+        id               VARCHAR(20)    NOT NULL,
+        evaluator_name   VARCHAR(200)   NOT NULL,
+        evaluated_name   VARCHAR(200)   NOT NULL,
+        period           VARCHAR(30)    NOT NULL,
+        scores           JSON           NOT NULL,
+        overall_comment  TEXT           NULL,
+        created_at       DATETIME       DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_evaluated (evaluated_name),
+        INDEX idx_period    (period)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
     // ─── Données initiales employees ──────────────────────────
     const employeesData = [
       ['Souha ARFAOUI',    'Cheffe Pôle Fluide',      'Fluide', 1, 0],
@@ -156,6 +182,40 @@ const pool = mysql.createPool({
        ('charges_sociales', 'Charges sociales patronales', 0),
        ('frais_generaux', 'Autres frais généraux', 0)`
     );
+
+    // ─── KPI critères par défaut (24) ─────────────────────────
+    const kpiData = [
+      ['Qualité des livrables',                  'Qualité du travail',            1],
+      ['Respect des normes et standards',         'Qualité du travail',            2],
+      ["Taux d'erreurs / non-conformités",        'Qualité du travail',            3],
+      ['Précision des calculs et plans',          'Qualité du travail',            4],
+      ['Respect des deadlines',                   'Délais & Productivité',         5],
+      ['Taux de complétion des tâches',           'Délais & Productivité',         6],
+      ['Écart heures estimées / réelles',         'Délais & Productivité',         7],
+      ['Volume de livrables produits',            'Délais & Productivité',         8],
+      ['Capacité à travailler sans supervision',  'Autonomie & Initiative',        9],
+      ['Force de proposition / proactivité',      'Autonomie & Initiative',       10],
+      ['Résolution autonome des problèmes',       'Autonomie & Initiative',       11],
+      ["Prise d'initiative sur les améliorations",'Autonomie & Initiative',       12],
+      ["Esprit d'équipe / solidarité",            'Collaboration',                13],
+      ['Qualité de la communication interne',     'Collaboration',                14],
+      ['Réactivité aux retours et demandes',      'Collaboration',                15],
+      ['Partage des connaissances',               'Collaboration',                16],
+      ['Montée en compétences techniques',        'Développement professionnel',  17],
+      ['Participation aux formations',            'Développement professionnel',  18],
+      ['Implication dans la vie du bureau',       'Développement professionnel',  19],
+      ['Polyvalence / adaptabilité',              'Développement professionnel',  20],
+      ["Gestion de planning de l'équipe",         'Management / Chef de projet',  21],
+      ['Capacité à anticiper les risques',        'Management / Chef de projet',  22],
+      ['Qualité du reporting client',             'Management / Chef de projet',  23],
+      ['Satisfaction client',                     'Management / Chef de projet',  24],
+    ];
+    for (const [label, category, position] of kpiData) {
+      await conn.query(
+        'INSERT IGNORE INTO kpi_criteria (label, category, position) VALUES (?, ?, ?)',
+        [label, category, position]
+      );
+    }
 
     console.log("✅ Tables & données initiales OK");
     conn.release();
@@ -994,6 +1054,84 @@ app.get("/api/profitability", async (req, res) => {
     console.error("GET /api/profitability", err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ─── API : KPI Critères ───────────────────────────────────────
+app.get("/api/kpi/criteria", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM kpi_criteria ORDER BY position, id");
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/kpi/criteria", async (req, res) => {
+  try {
+    const { label, category } = req.body;
+    if (!label || !label.trim()) return res.status(400).json({ error: "Label requis" });
+    const [r] = await pool.query(
+      "INSERT INTO kpi_criteria (label, category, position) VALUES (?, ?, (SELECT COALESCE(MAX(position),0)+1 FROM kpi_criteria k2))",
+      [label.trim(), category || "Personnalisé"]
+    );
+    res.json({ ok: true, id: r.insertId });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete("/api/kpi/criteria/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM kpi_criteria WHERE id = ?", [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch("/api/kpi/criteria/:id", async (req, res) => {
+  try {
+    const { active } = req.body;
+    await pool.query("UPDATE kpi_criteria SET active = ? WHERE id = ?", [active ? 1 : 0, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── API : KPI Évaluations ────────────────────────────────────
+app.get("/api/kpi/evaluations/:name", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT * FROM kpi_evaluations WHERE evaluated_name = ? ORDER BY created_at DESC",
+      [req.params.name]
+    );
+    res.json(rows.map(r => ({ ...r, scores: typeof r.scores === 'string' ? JSON.parse(r.scores) : r.scores })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/api/kpi/summary", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      "SELECT evaluated_name, scores, period, created_at FROM kpi_evaluations ORDER BY created_at DESC"
+    );
+    // Dernier score par personne
+    const latest = {};
+    for (const r of rows) {
+      if (!latest[r.evaluated_name]) {
+        const scores = typeof r.scores === 'string' ? JSON.parse(r.scores) : r.scores;
+        const vals = Object.values(scores).filter(v => v > 0);
+        const avg = vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+        latest[r.evaluated_name] = { period: r.period, avg: Math.round(avg * 10) / 10, count: vals.length };
+      }
+    }
+    res.json(latest);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/kpi/evaluate", async (req, res) => {
+  try {
+    const { evaluator_name, evaluated_name, period, scores, overall_comment } = req.body;
+    if (!evaluator_name || !evaluated_name || !period) return res.status(400).json({ error: "Champs requis manquants" });
+    const id = Math.random().toString(36).substr(2, 9);
+    await pool.query(
+      "INSERT INTO kpi_evaluations (id, evaluator_name, evaluated_name, period, scores, overall_comment) VALUES (?, ?, ?, ?, ?, ?)",
+      [id, evaluator_name, evaluated_name, period, JSON.stringify(scores || {}), overall_comment || ""]
+    );
+    res.json({ ok: true, id });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─── Fallback → index.html ────────────────────────────────────
