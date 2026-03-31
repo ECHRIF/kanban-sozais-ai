@@ -1586,6 +1586,331 @@ function EmployeesModal({ employees, onSave, onClose }) {
   );
 }
 
+// ─── KPI : Étoiles de notation ───────────────────────────────
+function StarRating({ value, onChange, readonly }) {
+  const labels = ["", "Insuffisant", "À améliorer", "Satisfaisant", "Bien", "Excellent"];
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+      {[1,2,3,4,5].map(s => (
+        <span key={s} onClick={() => !readonly && onChange(s === value ? 0 : s)}
+          title={labels[s]}
+          style={{ fontSize: 20, cursor: readonly ? "default" : "pointer", color: s <= value ? "#FFB347" : "#334477",
+            transition: "color 0.15s", userSelect: "none" }}>★</span>
+      ))}
+      {value > 0 && <span style={{ color: "#FFB347", fontSize: 11, fontWeight: 700, marginLeft: 4 }}>{labels[value]}</span>}
+    </div>
+  );
+}
+
+// ─── KPI : Modal Évaluation ───────────────────────────────────
+function KPIEvalModal({ evaluator, evaluated, criteria, onClose, onSaved }) {
+  const [scores, setScores] = useState({});
+  const [comment, setComment] = useState("");
+  const [period, setPeriod] = useState(() => {
+    const d = new Date(); const q = Math.ceil((d.getMonth()+1)/3);
+    return `${d.getFullYear()}-T${q}`;
+  });
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const activeCriteria = criteria.filter(c => c.active);
+  const categories = [...new Set(activeCriteria.map(c => c.category))];
+  const filled = Object.values(scores).filter(v => v > 0).length;
+  const avg = filled ? (Object.values(scores).filter(v=>v>0).reduce((a,b)=>a+b,0)/filled).toFixed(1) : "—";
+
+  const save = async () => {
+    setSaving(true);
+    await fetch("/api/kpi/evaluate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ evaluator_name: evaluator.name, evaluated_name: evaluated.name, period, scores, overall_comment: comment })
+    });
+    setSaving(false); setDone(true);
+    setTimeout(() => { onSaved(); onClose(); }, 1500);
+  };
+
+  if (done) return (
+    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000 }}>
+      <div style={{ background:DARK2,border:"1px solid "+GREEN,borderRadius:16,padding:40,textAlign:"center" }}>
+        <div style={{ fontSize:48,marginBottom:12 }}>✅</div>
+        <div style={{ color:GREEN,fontSize:16,fontWeight:700 }}>Évaluation enregistrée !</div>
+        <div style={{ color:TXT3,fontSize:12,marginTop:6 }}>Moyenne : {avg}/5</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000 }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:DARK2,border:"1px solid "+BRD,borderRadius:16,padding:28,width:"100%",maxWidth:680,maxHeight:"90vh",overflowY:"auto" }}>
+        {/* Header */}
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
+          <div>
+            <h2 style={{ color:TXT,fontSize:18,fontWeight:700,margin:0 }}>📋 Évaluation KPI</h2>
+            <div style={{ color:PURPLE,fontSize:13,marginTop:3,fontWeight:600 }}>{evaluated.name} — {evaluated.role}</div>
+          </div>
+          <button onClick={onClose} style={{ background:"none",border:"none",color:TXT3,fontSize:22,cursor:"pointer" }}>✕</button>
+        </div>
+        {/* Période */}
+        <div style={{ display:"flex",gap:10,alignItems:"center",marginBottom:20,padding:"10px 14px",background:DARK3,borderRadius:8 }}>
+          <span style={{ color:TXT2,fontSize:12,fontWeight:600 }}>Période :</span>
+          {["2025-T1","2025-T2","2025-T3","2025-T4","2026-T1","2026-T2"].map(p=>(
+            <button key={p} onClick={()=>setPeriod(p)} style={{ padding:"4px 10px",background:period===p?PURPLE+"33":DARK2,border:"1px solid "+(period===p?PURPLE:BRD),borderRadius:6,color:period===p?PURPLE:TXT3,fontSize:11,fontWeight:600,cursor:"pointer" }}>{p}</button>
+          ))}
+        </div>
+        {/* Critères par catégorie */}
+        {categories.map(cat => (
+          <div key={cat} style={{ marginBottom:20 }}>
+            <div style={{ color:CYAN,fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:10,borderBottom:"1px solid "+BRD,paddingBottom:6 }}>{cat}</div>
+            {activeCriteria.filter(c=>c.category===cat).map(c => (
+              <div key={c.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 4px",borderBottom:"1px solid "+DARK3 }}>
+                <span style={{ color:TXT,fontSize:12,flex:1 }}>{c.label}</span>
+                <StarRating value={scores[c.id]||0} onChange={v=>setScores(p=>({...p,[c.id]:v}))} />
+              </div>
+            ))}
+          </div>
+        ))}
+        {/* Commentaire */}
+        <div style={{ marginBottom:16 }}>
+          <label style={{ color:TXT3,fontSize:11,fontWeight:600,display:"block",marginBottom:6 }}>Commentaire général (optionnel)</label>
+          <textarea value={comment} onChange={e=>setComment(e.target.value)} rows={3} placeholder="Points forts, axes d'amélioration..."
+            style={{ width:"100%",background:DARK3,border:"1px solid "+BRD,borderRadius:8,color:TXT,padding:"8px 12px",fontSize:12,resize:"vertical",fontFamily:"inherit" }} />
+        </div>
+        {/* Footer */}
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+          <div style={{ color:TXT3,fontSize:12 }}>
+            <span style={{ color:CYAN,fontWeight:700 }}>{filled}/{activeCriteria.length}</span> critères notés
+            {filled>0 && <span style={{ color:ORANGE,fontWeight:700,marginLeft:12 }}>Moy : {avg}/5</span>}
+          </div>
+          <button onClick={save} disabled={saving||filled===0} style={{ padding:"10px 28px",background:filled>0?PURPLE:TXT3,border:"none",borderRadius:8,color:"#fff",fontWeight:700,cursor:filled>0?"pointer":"not-allowed",fontSize:13 }}>
+            {saving?"⏳ Enregistrement...":"💾 Enregistrer"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── KPI : Modal Résultats ────────────────────────────────────
+function KPIResultsModal({ employee, criteria, onClose }) {
+  const [evals, setEvals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selEval, setSelEval] = useState(null);
+
+  useEffect(() => {
+    fetch(`/api/kpi/evaluations/${encodeURIComponent(employee.name)}`)
+      .then(r=>r.json()).then(d=>{ setEvals(d); if(d.length) setSelEval(d[0]); setLoading(false); })
+      .catch(()=>setLoading(false));
+  }, [employee.name]);
+
+  const catColors = { "Qualité du travail":CYAN, "Délais & Productivité":ORANGE, "Autonomie & Initiative":GREEN, "Collaboration":BLUE, "Développement professionnel":PURPLE, "Management / Chef de projet":RED };
+
+  const renderScores = (ev) => {
+    if (!ev) return null;
+    const cats = [...new Set(criteria.filter(c=>c.active).map(c=>c.category))];
+    return cats.map(cat => {
+      const catCriteria = criteria.filter(c=>c.active&&c.category===cat);
+      const scores = catCriteria.map(c=>ev.scores[c.id]||0).filter(v=>v>0);
+      const avg = scores.length ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : "—";
+      return (
+        <div key={cat} style={{ marginBottom:16 }}>
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+            <span style={{ color:catColors[cat]||CYAN,fontSize:11,fontWeight:700,textTransform:"uppercase" }}>{cat}</span>
+            <span style={{ color:catColors[cat]||CYAN,fontSize:12,fontWeight:700 }}>{avg}{avg!=="—"?"/5":""}</span>
+          </div>
+          {catCriteria.map(c => (
+            <div key={c.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 4px",borderBottom:"1px solid "+DARK3 }}>
+              <span style={{ color:TXT2,fontSize:11,flex:1 }}>{c.label}</span>
+              <StarRating value={ev.scores[c.id]||0} onChange={()=>{}} readonly />
+            </div>
+          ))}
+        </div>
+      );
+    });
+  };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000 }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:DARK2,border:"1px solid "+BRD,borderRadius:16,padding:28,width:"100%",maxWidth:720,maxHeight:"90vh",overflowY:"auto" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
+          <div>
+            <h2 style={{ color:TXT,fontSize:18,fontWeight:700,margin:0 }}>📊 Historique KPI — {employee.name}</h2>
+            <div style={{ color:TXT3,fontSize:12,marginTop:3 }}>{evals.length} évaluation{evals.length>1?"s":""} enregistrée{evals.length>1?"s":""}</div>
+          </div>
+          <button onClick={onClose} style={{ background:"none",border:"none",color:TXT3,fontSize:22,cursor:"pointer" }}>✕</button>
+        </div>
+        {loading && <div style={{ color:TXT3,textAlign:"center",padding:40 }}>Chargement...</div>}
+        {!loading && !evals.length && <div style={{ color:TXT3,textAlign:"center",padding:40 }}>Aucune évaluation pour ce membre.</div>}
+        {!loading && evals.length > 0 && (
+          <div style={{ display:"flex",gap:16 }}>
+            {/* Liste des périodes */}
+            <div style={{ width:120,flexShrink:0 }}>
+              <div style={{ color:TXT3,fontSize:10,fontWeight:700,marginBottom:8,textTransform:"uppercase" }}>Périodes</div>
+              {evals.map(ev => {
+                const vals = Object.values(ev.scores).filter(v=>v>0);
+                const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : "—";
+                return (
+                  <button key={ev.id} onClick={()=>setSelEval(ev)}
+                    style={{ width:"100%",padding:"8px 10px",marginBottom:4,background:selEval?.id===ev.id?PURPLE+"33":DARK3,border:"1px solid "+(selEval?.id===ev.id?PURPLE:BRD),borderRadius:8,textAlign:"left",cursor:"pointer" }}>
+                    <div style={{ color:TXT,fontSize:11,fontWeight:700 }}>{ev.period}</div>
+                    <div style={{ color:ORANGE,fontSize:11,fontWeight:600 }}>★ {avg}/5</div>
+                    <div style={{ color:TXT3,fontSize:9 }}>{ev.evaluator_name.split(" ")[1]||ev.evaluator_name}</div>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Détail */}
+            <div style={{ flex:1 }}>
+              {selEval && renderScores(selEval)}
+              {selEval?.overall_comment && (
+                <div style={{ marginTop:12,padding:"10px 14px",background:DARK3,borderRadius:8,color:TXT2,fontSize:12,fontStyle:"italic" }}>
+                  💬 {selEval.overall_comment}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── KPI : Modal Gestion des critères (admin) ─────────────────
+function KPIManageModal({ criteria, onClose, onRefresh }) {
+  const [list, setList] = useState(criteria);
+  const [newLabel, setNewLabel] = useState("");
+  const [newCat, setNewCat] = useState("Personnalisé");
+  const [saving, setSaving] = useState(false);
+
+  const categories = [...new Set(criteria.map(c=>c.category))];
+
+  const toggleActive = async (c) => {
+    const updated = list.map(x=>x.id===c.id?{...x,active:x.active?0:1}:x);
+    setList(updated);
+    await fetch(`/api/kpi/criteria/${c.id}`,{ method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({active:!c.active}) });
+  };
+
+  const deleteCriteria = async (c) => {
+    if(!window.confirm(`Supprimer "${c.label}" ?`)) return;
+    setList(l=>l.filter(x=>x.id!==c.id));
+    await fetch(`/api/kpi/criteria/${c.id}`,{ method:"DELETE" });
+  };
+
+  const addCriteria = async () => {
+    if(!newLabel.trim()) return;
+    setSaving(true);
+    const r = await fetch("/api/kpi/criteria",{ method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({label:newLabel.trim(),category:newCat}) });
+    const d = await r.json();
+    if(d.ok) { setList(l=>[...l,{id:d.id,label:newLabel.trim(),category:newCat,active:1,position:l.length+1}]); setNewLabel(""); }
+    setSaving(false);
+  };
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000 }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:DARK2,border:"1px solid "+BRD,borderRadius:16,padding:28,width:"100%",maxWidth:620,maxHeight:"90vh",overflowY:"auto" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
+          <h2 style={{ color:TXT,fontSize:18,fontWeight:700,margin:0 }}>⚙️ Gérer les critères KPI</h2>
+          <button onClick={()=>{onRefresh();onClose();}} style={{ background:"none",border:"none",color:TXT3,fontSize:22,cursor:"pointer" }}>✕</button>
+        </div>
+        {/* Ajouter un critère */}
+        <div style={{ padding:"14px 16px",background:DARK3,borderRadius:10,marginBottom:20 }}>
+          <div style={{ color:GREEN,fontSize:12,fontWeight:700,marginBottom:10 }}>➕ Ajouter un critère</div>
+          <div style={{ display:"flex",gap:8,marginBottom:8 }}>
+            <input value={newLabel} onChange={e=>setNewLabel(e.target.value)} placeholder="Intitulé du critère..."
+              onKeyDown={e=>e.key==="Enter"&&addCriteria()}
+              style={{ flex:1,background:DARK,border:"1px solid "+BRD,borderRadius:7,color:TXT,padding:"7px 10px",fontSize:12 }} />
+          </div>
+          <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+            <select value={newCat} onChange={e=>setNewCat(e.target.value)}
+              style={{ flex:1,background:DARK,border:"1px solid "+BRD,borderRadius:7,color:TXT,padding:"7px 10px",fontSize:12 }}>
+              {[...categories,"Personnalisé"].map(c=><option key={c} value={c}>{c}</option>)}
+            </select>
+            <button onClick={addCriteria} disabled={saving||!newLabel.trim()} style={{ padding:"7px 18px",background:newLabel.trim()?GREEN:TXT3,border:"none",borderRadius:7,color:"#fff",fontWeight:700,cursor:newLabel.trim()?"pointer":"not-allowed",fontSize:12 }}>Ajouter</button>
+          </div>
+        </div>
+        {/* Liste */}
+        {[...new Set(list.map(c=>c.category))].map(cat=>(
+          <div key={cat} style={{ marginBottom:16 }}>
+            <div style={{ color:CYAN,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:8,borderBottom:"1px solid "+BRD,paddingBottom:4 }}>{cat}</div>
+            {list.filter(c=>c.category===cat).map(c=>(
+              <div key={c.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"7px 4px",borderBottom:"1px solid "+DARK3 }}>
+                <span style={{ flex:1,color:c.active?TXT:TXT3,fontSize:12,textDecoration:c.active?"none":"line-through" }}>{c.label}</span>
+                <button onClick={()=>toggleActive(c)} style={{ padding:"3px 10px",background:c.active?GREEN+"22":DARK3,border:"1px solid "+(c.active?GREEN:BRD),borderRadius:5,color:c.active?GREEN:TXT3,fontSize:10,fontWeight:700,cursor:"pointer" }}>
+                  {c.active?"✓ Actif":"Désactivé"}
+                </button>
+                <button onClick={()=>deleteCriteria(c)} title="Supprimer" style={{ padding:"3px 8px",background:RED+"11",border:"1px solid "+RED+"44",borderRadius:5,color:RED,fontSize:11,cursor:"pointer" }}>✕</button>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── KPI : Sélecteur d'employé ────────────────────────────────
+function KPIPickerModal({ employees, evaluator, criteria, onClose }) {
+  const [kpiTarget, setKpiTarget] = useState(null);
+  const [kpiView, setKpiView]     = useState(null);
+  const [summary, setSummary]     = useState({});
+  const [manage, setManage]       = useState(false);
+  const [localCriteria, setLocalCriteria] = useState(criteria);
+
+  useEffect(()=>{
+    fetch("/api/kpi/summary").then(r=>r.json()).then(setSummary).catch(()=>{});
+  },[]);
+
+  const refreshCriteria = () => {
+    fetch("/api/kpi/criteria").then(r=>r.json()).then(setLocalCriteria).catch(()=>{});
+  };
+
+  const members = employees.filter(e=>!e.isAdmin && (evaluator.isAdmin || e.pole===evaluator.pole));
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500 }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:DARK2,border:"1px solid "+BRD,borderRadius:16,padding:28,width:"100%",maxWidth:600,maxHeight:"90vh",overflowY:"auto" }}>
+        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
+          <div>
+            <h2 style={{ color:TXT,fontSize:18,fontWeight:700,margin:0 }}>📋 Évaluations KPI</h2>
+            <div style={{ color:TXT3,fontSize:12,marginTop:3 }}>Sélectionnez un membre à évaluer</div>
+          </div>
+          <div style={{ display:"flex",gap:8 }}>
+            {evaluator.isAdmin && (
+              <button onClick={()=>setManage(true)} title="Gérer les critères" style={{ padding:"6px 12px",background:DARK3,border:"1px solid "+BRD,borderRadius:7,color:TXT2,fontSize:11,fontWeight:600,cursor:"pointer" }}>⚙️ Critères</button>
+            )}
+            <button onClick={onClose} style={{ background:"none",border:"none",color:TXT3,fontSize:22,cursor:"pointer" }}>✕</button>
+          </div>
+        </div>
+        <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
+          {members.map(emp=>{
+            const s = summary[emp.name];
+            return (
+              <div key={emp.name} style={{ display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:DARK3,border:"1px solid "+BRD,borderRadius:10 }}>
+                <div style={{ width:36,height:36,borderRadius:99,background:emp.isChef?(emp.pole==="Fluide"?BLUE:RED):DARK,border:"2px solid "+(emp.pole==="Fluide"?BLUE:RED)+"44",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:12,fontWeight:800 }}>
+                  {emp.name.split(" ").map(n=>n[0]).join("").slice(0,2)}
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ color:TXT,fontSize:13,fontWeight:600 }}>{emp.name}</div>
+                  <div style={{ color:TXT3,fontSize:10 }}>{emp.role} — {emp.pole}</div>
+                </div>
+                {s && (
+                  <div style={{ textAlign:"right" }}>
+                    <div style={{ color:ORANGE,fontSize:12,fontWeight:700 }}>★ {s.avg}/5</div>
+                    <div style={{ color:TXT3,fontSize:9 }}>{s.period}</div>
+                  </div>
+                )}
+                <button onClick={()=>setKpiView(emp)} style={{ padding:"5px 10px",background:PURPLE+"22",border:"1px solid "+PURPLE+"44",borderRadius:6,color:PURPLE,fontSize:11,fontWeight:600,cursor:"pointer" }}>Voir</button>
+                <button onClick={()=>setKpiTarget(emp)} style={{ padding:"5px 10px",background:CYAN+"22",border:"1px solid "+CYAN+"44",borderRadius:6,color:CYAN,fontSize:11,fontWeight:600,cursor:"pointer" }}>Évaluer</button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {kpiTarget && <KPIEvalModal evaluator={evaluator} evaluated={kpiTarget} criteria={localCriteria} onClose={()=>setKpiTarget(null)} onSaved={()=>{ setKpiTarget(null); fetch("/api/kpi/summary").then(r=>r.json()).then(setSummary).catch(()=>{}); }} />}
+      {kpiView   && <KPIResultsModal employee={kpiView} criteria={localCriteria} onClose={()=>setKpiView(null)} />}
+      {manage    && <KPIManageModal criteria={localCriteria} onClose={()=>setManage(false)} onRefresh={refreshCriteria} />}
+    </div>
+  );
+}
+
 // ─── Main App ───
 function App() {
   const [user, setUser] = useState(null);
@@ -1603,6 +1928,9 @@ function App() {
   const [importModal, setImportModal] = useState(false);
   // ─── États Rentabilité ────────────────────────────────────
   const [profitabilityOpen, setProfitabilityOpen] = useState(false);
+  const [kpiOpen, setKpiOpen] = useState(false);
+  const [kpiCriteria, setKpiCriteria] = useState([]);
+  useEffect(() => { fetch("/api/kpi/criteria").then(r=>r.json()).then(setKpiCriteria).catch(()=>{}); }, []);
   const [fixedCostsOpen, setFixedCostsOpen]       = useState(false);
   // ─── États IA ─────────────────────────────────────────────
   const [chatOpen, setChatOpen] = useState(false);
@@ -1881,6 +2209,9 @@ function App() {
               {user.isAdmin && <button onClick={() => setReportOpen(true)} title="Rapport hebdomadaire IA" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + ORANGE + "66", borderRadius: 8, color: ORANGE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📊 Rapport IA</button>}
             </>
           )}
+          {((user.isAdmin || user.isChef) && (
+            <button onClick={() => setKpiOpen(true)} title="Évaluations KPI des membres" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + PURPLE + "66", borderRadius: 8, color: PURPLE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📋 KPI</button>
+          )}
           <button onClick={() => setChatOpen((v) => !v)} title="Agent IA — Peut créer et gérer les tâches" style={{ padding: "8px 14px", background: chatOpen ? BLUE + "33" : DARK2, border: "2px solid " + (chatOpen ? BLUE : BLUE + "55"), borderRadius: 8, color: chatOpen ? BLUE : BLUE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🤖 Agent IA</button>
           <button onClick={() => setSettings(true)} style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>🔐</button>
           <button onClick={logout} style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>Déconnexion</button>
@@ -1924,6 +2255,7 @@ function App() {
       {settings && <SettingsModal user={user} onClose={() => setSettings(false)} />}
       {empModal && user.isAdmin && <EmployeesModal employees={empList} onSave={handleSaveEmployees} onClose={() => setEmpModal(false)} />}
       {profitabilityOpen && user.isAdmin && <ProfitabilityModal onClose={() => setProfitabilityOpen(false)} />}
+      {kpiOpen && (user.isAdmin || user.isChef) && <KPIPickerModal employees={empList} evaluator={user} criteria={kpiCriteria} onClose={() => setKpiOpen(false)} />}
       {fixedCostsOpen && user.isAdmin && <FixedCostsModal onClose={() => setFixedCostsOpen(false)} />}
       {importModal && (user.isAdmin || user.isChef) && <ImportExcelModal employees={empList} allTasks={all} onImport={handleImport} onClose={() => setImportModal(false)} />}
       {workloadOpen && <WorkloadModal onClose={() => setWorkloadOpen(false)} />}
