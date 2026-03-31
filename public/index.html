@@ -2209,7 +2209,7 @@ function App() {
               {user.isAdmin && <button onClick={() => setReportOpen(true)} title="Rapport hebdomadaire IA" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + ORANGE + "66", borderRadius: 8, color: ORANGE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📊 Rapport IA</button>}
             </>
           )}
-          {((user.isAdmin || user.isChef) && (
+          {(user.isAdmin || user.isChef) && (
             <button onClick={() => setKpiOpen(true)} title="Évaluations KPI des membres" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + PURPLE + "66", borderRadius: 8, color: PURPLE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📋 KPI</button>
           )}
           <button onClick={() => setChatOpen((v) => !v)} title="Agent IA — Peut créer et gérer les tâches" style={{ padding: "8px 14px", background: chatOpen ? BLUE + "33" : DARK2, border: "2px solid " + (chatOpen ? BLUE : BLUE + "55"), borderRadius: 8, color: chatOpen ? BLUE : BLUE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🤖 Agent IA</button>
