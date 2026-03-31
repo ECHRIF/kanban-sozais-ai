@@ -1,4 +1,4 @@
-// ============================================================
+// ============================================================ 
 // Kanban SOZAIS — AI-First Edition
 // Stack : Node.js + Express + MySQL + Groq (LLaMA 3.3-70b)
 // Architecture : Groq tool_use en cœur — l'IA agit directement
