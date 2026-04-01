@@ -527,11 +527,22 @@ async function execTool(name, input) {
 }
 
 // ─── Prompt système de l'agent IA ────────────────────────────
-function buildAgentSystemPrompt(userName, userRole, isAdmin, isChef) {
+function buildAgentSystemPrompt(userName, userRole, isAdmin, isChef, agentName, agentStyle) {
   const today = new Date().toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const name = agentName || "SOZAIS IA";
+  const style = agentStyle || "professionnel";
+  const styleMap = {
+    "professionnel": "Adopte un ton professionnel, structuré et précis.",
+    "décontracté": "Adopte un ton décontracté et convivial, tout en restant efficace.",
+    "coach motivant": "Adopte un ton de coach : encourage, motive, célèbre les succès de l'équipe.",
+    "direct et concis": "Sois ultra-concis : pas de blabla, aller droit au but, réponses courtes.",
+    "humouristique": "Ajoute une touche d'humour bienveillant dans tes réponses, tout en restant utile."
+  };
+  const styleInstr = styleMap[style] || "Adopte un ton professionnel.";
   return (
-    `Tu es l'assistant IA de l'application Kanban SOZAIS — un outil de gestion de tâches pour une équipe d'ingénierie.\n` +
-    `Aujourd'hui : ${today}. Utilisateur connecté : ${userName} (${userRole}${isAdmin ? ", Admin" : isChef ? ", Chef" : ""}).\n\n` +
+    `Tu t'appelles ${name} — l'assistant IA de l'application Kanban SOZAIS.\n` +
+    `Aujourd'hui : ${today}. Utilisateur connecté : ${userName} (${userRole}${isAdmin ? ", Admin" : isChef ? ", Chef" : ""}).\n` +
+    `STYLE : ${styleInstr}\n\n` +
     `TES CAPACITÉS :\n` +
     `- Tu peux CRÉER des tâches directement dans le Kanban (create_task, bulk_create_tasks)\n` +
     `- Tu peux MODIFIER des tâches (update_task)\n` +
@@ -540,7 +551,7 @@ function buildAgentSystemPrompt(userName, userRole, isAdmin, isChef) {
     `- Tu peux SUPPRIMER des tâches (delete_task — demander confirmation d'abord)\n` +
     `- Tu peux ANALYSER la charge, les retards, et faire des recommandations (get_team_data)\n\n` +
     `RÈGLES IMPORTANTES :\n` +
-    `- Réponds TOUJOURS en français, de façon concise et professionnelle\n` +
+    `- Réponds TOUJOURS en français\n` +
     `- Avant d'analyser ou recommander, UTILISE get_team_data pour avoir des données fraîches\n` +
     `- Quand tu crées/modifies/déplaces une tâche, CONFIRME clairement ce que tu as fait\n` +
     `- Si un nom de collaborateur est ambigu, propose les options possibles\n` +
@@ -559,8 +570,8 @@ function buildAgentSystemPrompt(userName, userRole, isAdmin, isChef) {
 app.post("/api/ai/agent", async (req, res) => {
   if (!requireAI(res)) return;
   try {
-    const { messages, userName, userRole, isAdmin, isChef } = req.body;
-    const systemPrompt = buildAgentSystemPrompt(userName, userRole || "", !!isAdmin, !!isChef);
+    const { messages, userName, userRole, isAdmin, isChef, agentName, agentStyle } = req.body;
+    const systemPrompt = buildAgentSystemPrompt(userName, userRole || "", !!isAdmin, !!isChef, agentName, agentStyle);
 
     const actions = [];
     // Groq : le system prompt est un message {role:"system"} en début de tableau
