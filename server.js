@@ -401,10 +401,17 @@ const AGENT_TOOLS = [
         }
       }
     }
+  }},
+  {
+    type:"function",function:{name:"search_tasks",description:"Recherche des tâches par mot-clé, projet, collaborateur, priorité, colonne ou retard.",parameters:{type:"object",properties:{keyword:{type:"string"},project:{type:"string"},owner:{type:"string"},priority:{type:"string",enum:["high","medium","low"]},column:{type:"string",enum:["backlog","todo","in_progress","review","done"]},overdue_only:{type:"boolean"}}}}
+  },
+  {
+    type:"function",function:{name:"get_kpi_summary",description:"Récupère les résultats KPI : scores, évaluateurs, périodes.",parameters:{type:"object",properties:{evaluated_name:{type:"string"},period:{type:"string"}}}}
   }
-];
+]
+;
 
-// ─── Exécuteur d'outils ───────────────────────────────────────
+// ─── Exécuteur d'outilseur d'outils ───────────────────────────────────────
 async function execTool(name, input) {
   input = input || {};   // sécurité : LLaMA peut passer null au lieu de {}
   switch (name) {
@@ -438,7 +445,7 @@ async function execTool(name, input) {
           }))
         };
       });
-      return { ok: true, team: data, today };
+      const _sm={totalTasks:data.reduce((a,e)=>a+e.stats.total,0),totalOverdue:data.reduce((a,e)=>a+e.stats.overdue,0),totalInProgress:data.reduce((a,e)=>a+e.stats.inProgress,0),totalDone:data.reduce((a,e)=>a+e.stats.done,0),mostLoaded:[...data].sort((a,b)=>b.stats.inProgress-a.stats.inProgress)[0]?.name,mostOverdue:[...data].sort((a,b)=>b.stats.overdue-a.stats.overdue)[0]?.name}; return { ok: true, team: data, today, summary: _sm };
     }
 
     case "create_task": {
@@ -521,6 +528,33 @@ async function execTool(name, input) {
       return { ok: true, action: "bulk_create_tasks", created, errors, count: created.length };
     }
 
+    case "search_tasks": {
+      const {byOwner:bO,employees:emps}=await getAllData();
+      const tod=new Date().toISOString().split("T")[0];
+      let allT=[];
+      for(const e of emps) for(const t of(bO[e.name]||[])) allT.push({...t,_own:e.name});
+      let res=allT;
+      if(input.keyword){const kw=input.keyword.toLowerCase();res=res.filter(t=>(t.title||"").toLowerCase().includes(kw)||(t.description||"").toLowerCase().includes(kw));}
+      if(input.project){const p=input.project.toLowerCase();res=res.filter(t=>(t.project||"").toLowerCase().includes(p));}
+      if(input.owner){const o=input.owner.toLowerCase();res=res.filter(t=>t._own.toLowerCase().includes(o));}
+      if(input.priority) res=res.filter(t=>t.priority===input.priority);
+      if(input.column)   res=res.filter(t=>(t.column_id||t.column)===input.column);
+      if(input.overdue_only) res=res.filter(t=>t.deadline&&t.deadline<tod&&(t.column_id||t.column)!=="done");
+      return {ok:true,count:res.length,tasks:res.slice(0,30).map(t=>({id:t.id,title:t.title,project:t.project,owner:t._own,priority:t.priority,column:t.column_id||t.column,deadline:t.deadline||null,isOverdue:!!(t.deadline&&t.deadline<tod&&(t.column_id||t.column)!=="done"),estimatedHours:t.estimated_hours}))};
+    }
+
+    case "get_kpi_summary": {
+      let q2="SELECT e.evaluated_name,e.evaluator_name,e.period,e.overall_comment,e.created_at,AVG(s.score) as avg_score,COUNT(s.id) as nb FROM kpi_evaluations e JOIN kpi_scores s ON s.evaluation_id=e.id WHERE 1=1";
+      const ps=[];
+      if(input.evaluated_name){q2+=" AND e.evaluated_name LIKE ?";ps.push("%"+input.evaluated_name+"%");}
+      if(input.period){q2+=" AND e.period=?";ps.push(input.period);}
+      q2+=" GROUP BY e.id ORDER BY e.created_at DESC LIMIT 50";
+      const [rws]=await pool.query(q2,ps);
+      const byP={};
+      for(const r of rws){if(!byP[r.evaluated_name])byP[r.evaluated_name]=[];byP[r.evaluated_name].push({evaluator:r.evaluator_name,period:r.period,avgScore:Math.round(parseFloat(r.avg_score)*10)/10,nbCriteria:r.nb,comment:r.overall_comment||"",date:r.created_at});}
+      return {ok:true,evaluations:byP,total:rws.length};
+    }
+
     default:
       return { error: `Outil inconnu: "${name}"` };
   }
@@ -588,7 +622,8 @@ app.post("/api/ai/agent", async (req, res) => {
       try {
         response = await groq.chat.completions.create({
           model:       "llama-3.3-70b-versatile",
-          max_tokens:  2048,
+          max_tokens:  4096,
+          temperature: 0,
           messages:    convMessages,
           tools:       AGENT_TOOLS,
           tool_choice: "auto",
