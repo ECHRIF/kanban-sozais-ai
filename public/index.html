@@ -1652,9 +1652,16 @@ function KPIEvalModal({ evaluator, evaluated, criteria, onClose, onSaved }) {
         {/* Période */}
         <div style={{ display:"flex",gap:10,alignItems:"center",marginBottom:20,padding:"10px 14px",background:DARK3,borderRadius:8 }}>
           <span style={{ color:TXT2,fontSize:12,fontWeight:600 }}>Période :</span>
-          {["2025-T1","2025-T2","2025-T3","2025-T4","2026-T1","2026-T2"].map(p=>(
-            <button key={p} onClick={()=>setPeriod(p)} style={{ padding:"4px 10px",background:period===p?PURPLE+"33":DARK2,border:"1px solid "+(period===p?PURPLE:BRD),borderRadius:6,color:period===p?PURPLE:TXT3,fontSize:11,fontWeight:600,cursor:"pointer" }}>{p}</button>
-          ))}
+          {(()=>{
+            const d=new Date(), yr=d.getFullYear(), q=Math.ceil((d.getMonth()+1)/3);
+            const list=[];
+            for(let y=2025;y<yr;y++) list.push(String(y));
+            for(let cq=q;cq<=4;cq++) list.push(`${yr}-T${cq}`);
+            for(let cq=1;cq<=2;cq++) list.push(`${yr+1}-T${cq}`);
+            return list.map(p=>(
+              <button key={p} onClick={()=>setPeriod(p)} style={{ padding:"4px 10px",background:period===p?PURPLE+"33":DARK2,border:"1px solid "+(period===p?PURPLE:BRD),borderRadius:6,color:period===p?PURPLE:TXT3,fontSize:11,fontWeight:600,cursor:"pointer" }}>{p}</button>
+            ));
+          })()}
         </div>
         {/* Critères par catégorie */}
         {categories.map(cat => (
