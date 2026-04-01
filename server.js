@@ -401,7 +401,7 @@ const AGENT_TOOLS = [
         }
       }
     }
-  }},
+  },
   {
     type:"function",function:{name:"search_tasks",description:"Recherche des tâches par mot-clé, projet, collaborateur, priorité, colonne ou retard.",parameters:{type:"object",properties:{keyword:{type:"string"},project:{type:"string"},owner:{type:"string"},priority:{type:"string",enum:["high","medium","low"]},column:{type:"string",enum:["backlog","todo","in_progress","review","done"]},overdue_only:{type:"boolean"}}}}
   },
