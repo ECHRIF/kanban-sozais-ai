@@ -88,83 +88,77 @@ const DEFAULT_EMPLOYEES = [
 const genId = () => Math.random().toString(36).substr(2, 9);
 let dragData = null;
 
+// ─── Auth : token JWT ──────────────────────────────────
+function getToken() { return sessionStorage.getItem('_kbt') || ''; }
+function setToken(t) { if (t) sessionStorage.setItem('_kbt', t); else sessionStorage.removeItem('_kbt'); }
+
+// authFetch : ajoute automatiquement le header Authorization
+async function authFetch(url, opts = {}) {
+  const token = getToken();
+  return fetch(url, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}), ...(token ? { Authorization: 'Bearer ' + token } : {}) }
+  });
+}
+
 // ─── Helpers API REST → MySQL (via serveur Express) ───
 async function loadTasks(name) {
   try {
-    const r = await fetch('/api/tasks/' + encodeURIComponent(name));
+    const r = await authFetch('/api/tasks/' + encodeURIComponent(name));
     if (!r.ok) return [];
     return await r.json();
   } catch { return []; }
 }
 async function saveTasks(name, tasks) {
   try {
-    await fetch('/api/tasks/' + encodeURIComponent(name), {
+    await authFetch('/api/tasks/' + encodeURIComponent(name), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(tasks),
-    });
-  } catch (e) { console.error(e); }
-}
-async function loadPwd(name) {
-  try {
-    const r = await fetch('/api/pwd/' + encodeURIComponent(name));
-    if (!r.ok) return null;
-    const d = await r.json();
-    return d.password || null;
-  } catch { return null; }
-}
-async function savePwd(name, pwd) {
-  try {
-    await fetch('/api/pwd/' + encodeURIComponent(name), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: pwd }),
     });
   } catch (e) { console.error(e); }
 }
 async function loadEmployees() {
   try {
-    const r = await fetch('/api/employees');
+    const r = await authFetch('/api/employees');
     if (!r.ok) return null;
     return await r.json();
   } catch { return null; }
 }
 async function saveEmployees(list) {
   try {
-    await fetch('/api/employees', {
+    await authFetch('/api/employees', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(list),
     });
   } catch (e) { console.error(e); }
 }
 
 // ─── Helpers API IA ───────────────────────────────────────────
-async function aiAgent(messages, userName, userRole, isAdmin, isChef, agentName, agentStyle) {
-  const r = await fetch('/api/ai/agent', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, userName, userRole, isAdmin, isChef, agentName, agentStyle }),
+async function aiAgent(messages, agentName, agentStyle) {
+  const r = await authFetch('/api/ai/agent', {
+    method: 'POST',
+    body: JSON.stringify({ messages, agentName, agentStyle }),
   });
   if (!r.ok) throw new Error((await r.json()).error || 'Erreur IA');
   return await r.json(); // { reply, actions }
 }
 async function aiBriefing(userName) {
-  const r = await fetch('/api/ai/briefing/' + encodeURIComponent(userName));
+  const r = await authFetch('/api/ai/briefing/' + encodeURIComponent(userName));
   if (!r.ok) return null;
   return (await r.json()).briefing;
 }
 async function aiWorkload() {
-  const r = await fetch('/api/ai/workload');
+  const r = await authFetch('/api/ai/workload');
   if (!r.ok) throw new Error((await r.json()).error || 'Erreur IA');
   return (await r.json()).analysis;
 }
 async function aiPrioritize(ownerName) {
-  const r = await fetch('/api/ai/prioritize/' + encodeURIComponent(ownerName), { method: 'POST' });
+  const r = await authFetch('/api/ai/prioritize/' + encodeURIComponent(ownerName), { method: 'POST' });
   if (!r.ok) throw new Error((await r.json()).error || 'Erreur IA');
   return await r.json();
 }
 async function aiWeeklyReport() {
-  const r = await fetch('/api/ai/weekly-report', { method: 'POST' });
+  const r = await authFetch('/api/ai/weekly-report', { method: 'POST' });
   if (!r.ok) throw new Error((await r.json()).error || 'Erreur IA');
   return await r.json();
 }
@@ -304,7 +298,7 @@ function AIChatPanel({ user, onClose, onAction }) {
     const next = [...messages, userMsg];
     setMessages(next); setInput(""); setLoading(true);
     try {
-      const { reply, actions } = await aiAgent(next, user.name, user.role, !!user.isAdmin, !!user.isChef, agentName, agentStyle);
+      const { reply, actions } = await aiAgent(next, agentName, agentStyle);
       const assistantMsg = { role: 'assistant', content: reply, actions: actions || [] };
       setMessages([...next, assistantMsg]);
       if (actions && actions.length > 0 && onAction) onAction();
@@ -830,23 +824,26 @@ function LoginScreen({ onLogin, employees }) {
   const [pwd, setPwd] = useState("");
   const [nPwd, setNPwd] = useState("");
   const [cPwd, setCPwd] = useState("");
+  const [email, setEmail] = useState("");
   const [err, setErr] = useState("");
   const [search, setSearch] = useState("");
   const [pf, setPf] = useState("all");
   const [busy, setBusy] = useState(false);
-  const [resetDone, setResetDone] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  // token JWT temporaire (reçu après login, utilisé pour change-password et set-email)
+  const [tempToken, setTempToken] = useState(null);
 
   const forgotPassword = async () => {
     if (!sel) return;
     setBusy(true);
     try {
-      await fetch(`/api/pwd/${encodeURIComponent(sel.name)}`, { method: "DELETE" });
-      setResetDone(true);
-      setPwd("");
-      setErr("");
-    } catch (e) {
-      setErr("Erreur réseau, réessayez.");
-    }
+      await fetch('/api/auth/forgot-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: sel.name }),
+      });
+      setResetSent(true);
+      setPwd(""); setErr("");
+    } catch { setErr("Erreur réseau, réessayez."); }
     setBusy(false);
   };
 
@@ -857,10 +854,23 @@ function LoginScreen({ onLogin, employees }) {
 
   const checkPwd = async () => {
     setBusy(true); setErr("");
-    const stored = await loadPwd(sel.name);
-    if (pwd !== (stored || DEFAULT_PASSWORD)) { setErr("Mot de passe incorrect"); setBusy(false); return; }
-    if (!stored) { setStep("change"); setNPwd(""); setCPwd(""); setBusy(false); return; }
-    setBusy(false); onLogin(sel);
+    try {
+      const r = await fetch('/api/auth/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: sel.name, password: pwd }),
+      });
+      const data = await r.json();
+      if (!r.ok) { setErr(data.error || "Mot de passe incorrect"); setBusy(false); return; }
+      setTempToken(data.token);
+      if (data.firstLogin) {
+        // Première connexion → changer le mot de passe obligatoire
+        setStep("change"); setNPwd(""); setCPwd("");
+      } else {
+        setToken(data.token);
+        onLogin(data.user);
+      }
+    } catch { setErr("Erreur réseau, réessayez."); }
+    setBusy(false);
   };
 
   const changePwd = async () => {
@@ -868,7 +878,33 @@ function LoginScreen({ onLogin, employees }) {
     if (nPwd.length < 6) { setErr("6 caractères minimum"); return; }
     if (nPwd !== cPwd) { setErr("Les mots de passe ne correspondent pas"); return; }
     if (nPwd === DEFAULT_PASSWORD) { setErr("Choisissez un autre mot de passe"); return; }
-    setBusy(true); await savePwd(sel.name, nPwd); setBusy(false); onLogin(sel);
+    setBusy(true);
+    try {
+      const r = await fetch('/api/auth/change-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tempToken },
+        body: JSON.stringify({ newPassword: nPwd }),
+      });
+      if (!r.ok) { setErr((await r.json()).error || "Erreur"); setBusy(false); return; }
+      // Vérifier si l'utilisateur n'a pas encore d'email → étape email
+      if (!sel.email) { setStep("email"); setEmail(""); }
+      else { setToken(tempToken); onLogin({ ...sel }); }
+    } catch { setErr("Erreur réseau"); }
+    setBusy(false);
+  };
+
+  const saveEmail = async () => {
+    setErr("");
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setErr("Email invalide"); return; }
+    setBusy(true);
+    try {
+      await fetch('/api/auth/set-email', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tempToken },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      setToken(tempToken);
+      onLogin({ ...sel, email: email.trim() });
+    } catch { setErr("Erreur réseau"); }
+    setBusy(false);
   };
 
   return (
@@ -883,6 +919,7 @@ function LoginScreen({ onLogin, employees }) {
             {step === "select" && "Sélectionnez votre nom pour vous connecter"}
             {step === "password" && ("Connexion — " + (sel && sel.name))}
             {step === "change" && "Première connexion : créez votre mot de passe"}
+            {step === "email" && "Ajoutez votre adresse email (récupération de compte)"}
           </p>
         </div>
 
@@ -934,21 +971,20 @@ function LoginScreen({ onLogin, employees }) {
               <button onClick={() => { setStep("select"); setErr(""); }} style={{ flex: 1, padding: "11px 0", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, cursor: "pointer" }}>← Retour</button>
               <button onClick={checkPwd} disabled={busy || !pwd} style={{ flex: 2, padding: "11px 0", background: !pwd ? TXT3 : BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: pwd ? "pointer" : "not-allowed" }}>Se connecter</button>
             </div>
-            {!resetDone ? (
+            {!resetSent ? (
               <div style={{ marginTop: 16 }}>
                 <div style={{ padding: "10px 14px", background: BLUE + "11", border: "1px solid " + BLUE + "33", borderRadius: 8, marginBottom: 10 }}>
                   <div style={{ color: BLUE, fontSize: 11, fontWeight: 600 }}>ℹ️ Première connexion ?</div>
                   <div style={{ color: TXT2, fontSize: 11, marginTop: 3 }}>Mot de passe initial : <span style={{ color: TXT, fontWeight: 700, fontFamily: "monospace", background: DARK, padding: "1px 6px", borderRadius: 4 }}>{DEFAULT_PASSWORD}</span></div>
                 </div>
                 <button onClick={forgotPassword} disabled={busy} style={{ width: "100%", padding: "9px 0", background: "transparent", border: "1px solid " + ORANGE + "44", borderRadius: 8, color: ORANGE, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                  🔑 Mot de passe oublié ? Réinitialiser mon compte
+                  🔑 Mot de passe oublié ? Recevoir un lien par email
                 </button>
               </div>
             ) : (
               <div style={{ marginTop: 16, padding: "12px 14px", background: GREEN + "15", border: "1px solid " + GREEN + "44", borderRadius: 8 }}>
-                <div style={{ color: GREEN, fontSize: 12, fontWeight: 700, marginBottom: 4 }}>✅ Mot de passe réinitialisé !</div>
-                <div style={{ color: TXT2, fontSize: 11 }}>Entrez le mot de passe provisoire : <span style={{ color: TXT, fontWeight: 700, fontFamily: "monospace", background: DARK, padding: "1px 6px", borderRadius: 4 }}>{DEFAULT_PASSWORD}</span></div>
-                <div style={{ color: TXT3, fontSize: 10, marginTop: 4 }}>Vous serez ensuite invité à créer un nouveau mot de passe.</div>
+                <div style={{ color: GREEN, fontSize: 12, fontWeight: 700, marginBottom: 4 }}>✉️ Lien envoyé !</div>
+                <div style={{ color: TXT2, fontSize: 11 }}>Si un email est associé à votre compte, vous recevrez un lien de réinitialisation.</div>
               </div>
             )}
           </div>
@@ -966,6 +1002,25 @@ function LoginScreen({ onLogin, employees }) {
             </div>
             {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>⚠️ {err}</div>}
             <button onClick={changePwd} disabled={busy || !nPwd || !cPwd} style={{ width: "100%", padding: "12px 0", background: nPwd && cPwd && nPwd === cPwd ? GREEN : TXT3, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: nPwd && cPwd ? "pointer" : "not-allowed" }}>Valider →</button>
+          </div>
+        )}
+
+        {step === "email" && (
+          <div style={{ animation: "fadeUp 0.3s ease" }}>
+            <div style={{ padding: "12px 16px", background: BLUE + "15", border: "1px solid " + BLUE + "44", borderRadius: 10, marginBottom: 20, display: "flex", gap: 10 }}>
+              <span style={{ fontSize: 20 }}>✉️</span>
+              <div>
+                <div style={{ color: BLUE, fontSize: 13, fontWeight: 700 }}>Ajoutez votre email</div>
+                <div style={{ color: TXT2, fontSize: 11, marginTop: 3 }}>Permettra de réinitialiser votre mot de passe en cas d'oubli.</div>
+              </div>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={lBase}>Adresse email</label>
+              <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setErr(""); }} onKeyDown={(e) => e.key === "Enter" && saveEmail()} placeholder="prenom.nom@sozais.com" autoFocus style={iBase} />
+            </div>
+            {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>⚠️ {err}</div>}
+            <button onClick={saveEmail} disabled={busy || !email} style={{ width: "100%", padding: "12px 0", background: email ? GREEN : TXT3, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: email ? "pointer" : "not-allowed", marginBottom: 10 }}>Enregistrer et accéder →</button>
+            <button onClick={() => { setToken(tempToken); onLogin({ ...sel }); }} style={{ width: "100%", padding: "9px 0", background: "transparent", border: "1px solid " + BRD, borderRadius: 8, color: TXT3, fontSize: 12, cursor: "pointer" }}>Passer pour l'instant</button>
           </div>
         )}
       </div>
@@ -1230,32 +1285,61 @@ function Board({ name, tasks, onUpdate, ro, showName, onToggleTimer, tick, poleM
 
 // ─── Settings ───
 function SettingsModal({ user, onClose }) {
-  const [cur, setCur] = useState(""); const [np, setNp] = useState(""); const [cp, setCp] = useState("");
+  const [tab, setTab] = useState("password"); // "password" | "email"
+  const [np, setNp] = useState(""); const [cp, setCp] = useState("");
+  const [emailVal, setEmailVal] = useState(user.email || "");
   const [msg, setMsg] = useState(""); const [err, setErr] = useState("");
-  const go = async () => {
-    setErr(""); setMsg("");
-    const stored = await loadPwd(user.name);
-    if (cur !== (stored || DEFAULT_PASSWORD)) { setErr("Incorrect"); return; }
-    if (np.length < 6) { setErr("6 car. min"); return; }
-    if (np !== cp) { setErr("Ne correspond pas"); return; }
-    await savePwd(user.name, np);
-    setMsg("✓ Modifié !"); setCur(""); setNp(""); setCp("");
+  const [busy, setBusy] = useState(false);
+
+  const changePwd = async () => {
+    setErr(""); setMsg(""); setBusy(true);
+    if (np.length < 6) { setErr("6 car. min"); setBusy(false); return; }
+    if (np !== cp) { setErr("Ne correspond pas"); setBusy(false); return; }
+    const r = await authFetch('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ newPassword: np }) });
+    setBusy(false);
+    if (r.ok) { setMsg("✓ Mot de passe modifié !"); setNp(""); setCp(""); }
+    else { setErr((await r.json()).error || "Erreur"); }
   };
+
+  const saveEmail = async () => {
+    setErr(""); setMsg(""); setBusy(true);
+    if (!emailVal.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal.trim())) { setErr("Email invalide"); setBusy(false); return; }
+    const r = await authFetch('/api/auth/set-email', { method: 'POST', body: JSON.stringify({ email: emailVal.trim() }) });
+    setBusy(false);
+    if (r.ok) setMsg("✓ Email enregistré !");
+    else setErr((await r.json()).error || "Erreur");
+  };
+
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: DARK2, border: "1px solid " + BRD, borderRadius: 16, padding: 28, width: "100%", maxWidth: 400 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-          <h2 style={{ color: TXT, fontSize: 18, fontWeight: 700, margin: 0 }}>🔐 Mot de passe</h2>
+          <h2 style={{ color: TXT, fontSize: 18, fontWeight: 700, margin: 0 }}>⚙️ Mon compte</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", color: TXT3, fontSize: 22, cursor: "pointer" }}>✕</button>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div><label style={lBase}>Actuel</label><input type="password" value={cur} onChange={(e) => setCur(e.target.value)} style={iBase} /></div>
-          <div><label style={lBase}>Nouveau</label><input type="password" value={np} onChange={(e) => setNp(e.target.value)} style={iBase} /></div>
-          <div><label style={lBase}>Confirmer</label><input type="password" value={cp} onChange={(e) => setCp(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()} style={iBase} /></div>
+        {/* Tabs */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+          {[{ id: "password", l: "🔐 Mot de passe" }, { id: "email", l: "✉️ Email" }].map((t) => (
+            <button key={t.id} onClick={() => { setTab(t.id); setErr(""); setMsg(""); }} style={{ flex: 1, padding: "8px 0", background: tab === t.id ? BLUE + "22" : DARK3, border: "1px solid " + (tab === t.id ? BLUE + "66" : BRD), borderRadius: 8, color: tab === t.id ? BLUE : TXT2, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{t.l}</button>
+          ))}
         </div>
-        {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginTop: 10 }}>⚠️ {err}</div>}
-        {msg && <div style={{ color: GREEN, fontSize: 12, fontWeight: 600, marginTop: 10 }}>{msg}</div>}
-        <button onClick={go} style={{ width: "100%", marginTop: 18, padding: "11px 0", background: BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Modifier</button>
+        {tab === "password" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div><label style={lBase}>Nouveau mot de passe</label><input type="password" value={np} onChange={(e) => { setNp(e.target.value); setErr(""); setMsg(""); }} autoFocus style={iBase} /></div>
+            <div><label style={lBase}>Confirmer</label><input type="password" value={cp} onChange={(e) => { setCp(e.target.value); setErr(""); setMsg(""); }} onKeyDown={(e) => e.key === "Enter" && changePwd()} style={{ ...iBase, borderColor: cp && cp !== np ? RED : cp && cp === np ? GREEN : BRD }} /></div>
+            {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600 }}>⚠️ {err}</div>}
+            {msg && <div style={{ color: GREEN, fontSize: 12, fontWeight: 600 }}>{msg}</div>}
+            <button onClick={changePwd} disabled={busy || !np || !cp} style={{ padding: "11px 0", background: BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Modifier</button>
+          </div>
+        )}
+        {tab === "email" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div><label style={lBase}>Adresse email</label><input type="email" value={emailVal} onChange={(e) => { setEmailVal(e.target.value); setErr(""); setMsg(""); }} autoFocus style={iBase} placeholder="prenom.nom@sozais.com" /></div>
+            {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600 }}>⚠️ {err}</div>}
+            {msg && <div style={{ color: GREEN, fontSize: 12, fontWeight: 600 }}>{msg}</div>}
+            <button onClick={saveEmail} disabled={busy || !emailVal} style={{ padding: "11px 0", background: BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Enregistrer</button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1268,7 +1352,7 @@ function FixedCostsModal({ onClose }) {
   const [saved, setSaved]   = useState(false);
 
   useEffect(() => {
-    fetch('/api/fixed-costs').then((r) => r.json()).then(setCosts).catch(() => setCosts([]));
+    authFetch('/api/fixed-costs').then((r) => r.json()).then(setCosts).catch(() => setCosts([]));
   }, []);
 
   const update = (cat, val) => setCosts(costs.map((c) => c.category === cat ? { ...c, amount_monthly: val } : c));
@@ -1276,9 +1360,8 @@ function FixedCostsModal({ onClose }) {
   const save = async () => {
     setSaving(true);
     try {
-      await fetch('/api/fixed-costs', {
+      await authFetch('/api/fixed-costs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(costs),
       });
       setSaved(true);
@@ -1346,7 +1429,7 @@ function ProfitabilityModal({ onClose }) {
 
   const reload = () => {
     setLoading(true);
-    fetch('/api/profitability').then((r) => r.json()).then((d) => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+    authFetch('/api/profitability').then((r) => r.json()).then((d) => { setData(d); setLoading(false); }).catch(() => setLoading(false));
   };
   useEffect(() => reload(), []);
 
@@ -1354,9 +1437,8 @@ function ProfitabilityModal({ onClose }) {
 
   const saveProject = async () => {
     setSaving(true);
-    await fetch('/api/projects', {
+    await authFetch('/api/projects', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: editing.project, revenue_forfait: parseFloat(editing.revenue_forfait) || 0, revenue_mode: editing.revenue_mode }),
     });
     setSaving(false);
@@ -1498,7 +1580,7 @@ function EmployeesModal({ employees, onSave, onClose }) {
   const resetPassword = async (name) => {
     if (!window.confirm(`Réinitialiser le mot de passe de "${name}" ? Il devra se reconnecter avec "kanban2026".`)) return;
     try {
-      const r = await fetch(`/api/pwd/${encodeURIComponent(name)}`, { method: "DELETE" });
+      const r = await authFetch(`/api/auth/reset/${encodeURIComponent(name)}`, { method: "DELETE" });
       const data = await r.json();
       if (data.ok) {
         setResetMsg(`✅ Mot de passe de "${name}" réinitialisé. Mot de passe provisoire : kanban2026`);
@@ -1699,8 +1781,8 @@ function KPIEvalModal({ evaluator, evaluated, criteria, onClose, onSaved }) {
 
   const save = async () => {
     setSaving(true);
-    await fetch("/api/kpi/evaluate", {
-      method: "POST", headers: { "Content-Type": "application/json" },
+    await authFetch("/api/kpi/evaluate", {
+      method: "POST",
       body: JSON.stringify({ evaluator_name: evaluator.name, evaluated_name: evaluated.name, period, scores, overall_comment: comment })
     });
     setSaving(false); setDone(true);
@@ -1783,7 +1865,7 @@ function KPIResultsModal({ employee, criteria, onClose }) {
   const [selEval, setSelEval] = useState(null);
 
   useEffect(() => {
-    fetch(`/api/kpi/evaluations/${encodeURIComponent(employee.name)}`)
+    authFetch(`/api/kpi/evaluations/${encodeURIComponent(employee.name)}`)
       .then(r=>r.json()).then(d=>{ setEvals(d); if(d.length) setSelEval(d[0]); setLoading(false); })
       .catch(()=>setLoading(false));
   }, [employee.name]);
@@ -1872,19 +1954,19 @@ function KPIManageModal({ criteria, onClose, onRefresh }) {
   const toggleActive = async (c) => {
     const updated = list.map(x=>x.id===c.id?{...x,active:x.active?0:1}:x);
     setList(updated);
-    await fetch(`/api/kpi/criteria/${c.id}`,{ method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({active:!c.active}) });
+    await authFetch(`/api/kpi/criteria/${c.id}`,{ method:"PATCH",body:JSON.stringify({active:!c.active}) });
   };
 
   const deleteCriteria = async (c) => {
     if(!window.confirm(`Supprimer "${c.label}" ?`)) return;
     setList(l=>l.filter(x=>x.id!==c.id));
-    await fetch(`/api/kpi/criteria/${c.id}`,{ method:"DELETE" });
+    await authFetch(`/api/kpi/criteria/${c.id}`,{ method:"DELETE" });
   };
 
   const addCriteria = async () => {
     if(!newLabel.trim()) return;
     setSaving(true);
-    const r = await fetch("/api/kpi/criteria",{ method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({label:newLabel.trim(),category:newCat}) });
+    const r = await authFetch("/api/kpi/criteria",{ method:"POST",body:JSON.stringify({label:newLabel.trim(),category:newCat}) });
     const d = await r.json();
     if(d.ok) { setList(l=>[...l,{id:d.id,label:newLabel.trim(),category:newCat,active:1,position:l.length+1}]); setNewLabel(""); }
     setSaving(false);
@@ -1942,11 +2024,11 @@ function KPIPickerModal({ employees, evaluator, criteria, onClose }) {
   const [localCriteria, setLocalCriteria] = useState(criteria);
 
   useEffect(()=>{
-    fetch("/api/kpi/summary").then(r=>r.json()).then(setSummary).catch(()=>{});
+    authFetch("/api/kpi/summary").then(r=>r.json()).then(setSummary).catch(()=>{});
   },[]);
 
   const refreshCriteria = () => {
-    fetch("/api/kpi/criteria").then(r=>r.json()).then(setLocalCriteria).catch(()=>{});
+    authFetch("/api/kpi/criteria").then(r=>r.json()).then(setLocalCriteria).catch(()=>{});
   };
 
   const members = employees.filter(e=>!e.isAdmin && e.pole !== "Direction" && (evaluator.isAdmin || evaluator.canViewKPI || evaluator.canViewAll || e.pole===evaluator.pole));
@@ -1992,16 +2074,31 @@ function KPIPickerModal({ employees, evaluator, criteria, onClose }) {
           })}
         </div>
       </div>
-      {kpiTarget && <KPIEvalModal evaluator={evaluator} evaluated={kpiTarget} criteria={localCriteria} onClose={()=>setKpiTarget(null)} onSaved={()=>{ setKpiTarget(null); fetch("/api/kpi/summary").then(r=>r.json()).then(setSummary).catch(()=>{}); }} />}
+      {kpiTarget && <KPIEvalModal evaluator={evaluator} evaluated={kpiTarget} criteria={localCriteria} onClose={()=>setKpiTarget(null)} onSaved={()=>{ setKpiTarget(null); authFetch("/api/kpi/summary").then(r=>r.json()).then(setSummary).catch(()=>{}); }} />}
       {kpiView   && <KPIResultsModal employee={kpiView} criteria={localCriteria} onClose={()=>setKpiView(null)} />}
       {manage    && <KPIManageModal criteria={localCriteria} onClose={()=>setManage(false)} onRefresh={refreshCriteria} />}
     </div>
   );
 }
 
+// ─── Décode le payload JWT sans vérification (usage client uniquement) ───
+function decodeJwtPayload(token) {
+  try {
+    const payload = token.split('.')[1];
+    return JSON.parse(atob(payload.replace(/-/g,'+').replace(/_/g,'/')));
+  } catch { return null; }
+}
+
 // ─── Main App ───
 function App() {
-  const [user, setUser] = useState(null);
+  // Tenter de restaurer la session depuis sessionStorage
+  const [user, setUser] = useState(() => {
+    const token = getToken();
+    if (!token) return null;
+    const payload = decodeJwtPayload(token);
+    if (!payload || payload.exp * 1000 < Date.now()) { setToken(null); return null; }
+    return payload;
+  });
   const [all, setAll] = useState({});
   const [loading, setLoading] = useState(false);
   const [admin, setAdmin] = useState(false);
@@ -2019,7 +2116,7 @@ function App() {
   const [profitabilityOpen, setProfitabilityOpen] = useState(false);
   const [kpiOpen, setKpiOpen] = useState(false);
   const [kpiCriteria, setKpiCriteria] = useState([]);
-  useEffect(() => { fetch("/api/kpi/criteria").then(r=>r.json()).then(setKpiCriteria).catch(()=>{}); }, []);
+  useEffect(() => { if (user) authFetch("/api/kpi/criteria").then(r=>r.json()).then(setKpiCriteria).catch(()=>{}); }, [user]);
   const [fixedCostsOpen, setFixedCostsOpen]       = useState(false);
   // ─── Mode sombre/clair ────────────────────────────────────
   const [isDark, setIsDark] = useState(() => localStorage.getItem('kbtheme') !== 'light');
@@ -2036,13 +2133,14 @@ function App() {
   const lastActivityRef = useRef(Date.now());
   const INACTIVITY_MS = 5 * 60 * 1000; // 5 minutes
 
-  // Charger la liste des collaborateurs depuis le storage
+  // Charger la liste des collaborateurs depuis le serveur (après login)
   useEffect(() => {
+    if (!user) return;
     (async () => {
       const stored = await loadEmployees();
       if (stored && stored.length > 0) setEmpList(stored);
     })();
-  }, []);
+  }, [user]);
 
   useEffect(() => { const id = setInterval(() => setTick((t) => t + 1), 1000); return () => clearInterval(id); }, []);
 
@@ -2196,6 +2294,7 @@ function App() {
       });
       saveTasks(n, stopped);
     });
+    setToken(null); // effacer le JWT
     setUser(null); setAll({}); setAdmin(false);
   };
 

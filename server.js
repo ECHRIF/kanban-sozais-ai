@@ -12,13 +12,56 @@ const path       = require("path");
 const Groq       = require("groq-sdk");
 const nodemailer = require("nodemailer");
 const cron       = require("node-cron");
+const bcrypt     = require("bcrypt");
+const jwt        = require("jsonwebtoken");
+const rateLimit  = require("express-rate-limit");
+const crypto     = require("crypto");
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.json({ limit: "10mb" }));
+const JWT_SECRET      = process.env.JWT_SECRET || (() => { console.warn("⚠️  JWT_SECRET non défini — utilisation d'une clé temporaire (non sécurisé en production)"); return crypto.randomBytes(64).toString("hex"); })();
+const BCRYPT_ROUNDS   = 12;
+const DEFAULT_PASSWORD = "kanban2026";
+const APP_URL         = process.env.APP_URL || "https://kanban-sozais-ai-production.up.railway.app";
+
+// ─── CORS restreint ───────────────────────────────────────────
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || APP_URL + ",http://localhost:3000").split(",");
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.includes(origin)) cb(null, true);
+    else cb(new Error("CORS: origine non autorisée"));
+  },
+  credentials: true
+}));
+app.use(express.json({ limit: "2mb" }));
 app.use(express.static(path.join(__dirname, "public")));
+
+// ─── Rate limiting ─────────────────────────────────────────────
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,   // 15 minutes
+  max: 15,                      // 15 tentatives par IP
+  standardHeaders: true, legacyHeaders: false,
+  message: { error: "Trop de tentatives. Réessayez dans 15 minutes." }
+});
+const apiLimiter = rateLimit({ windowMs: 60 * 1000, max: 120 });
+app.use("/api/", apiLimiter);
+
+// ─── Middleware d'authentification JWT ────────────────────────
+function authenticate(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) return res.status(401).json({ error: "Non authentifié" });
+  try {
+    req.user = jwt.verify(auth.slice(7), JWT_SECRET);
+    next();
+  } catch {
+    res.status(401).json({ error: "Session expirée, veuillez vous reconnecter" });
+  }
+}
+function requireAdmin(req, res, next) {
+  if (!req.user?.isAdmin) return res.status(403).json({ error: "Accès réservé aux Super Admins" });
+  next();
+}
 
 // ─── Pool MySQL ───────────────────────────────────────────────
 const pool = mysql.createPool({
@@ -66,6 +109,15 @@ const pool = mysql.createPool({
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     await conn.query(`
+      CREATE TABLE IF NOT EXISTS reset_tokens (
+        name       VARCHAR(200) NOT NULL,
+        token      VARCHAR(128) NOT NULL,
+        expires_at BIGINT       NOT NULL,
+        PRIMARY KEY (name),
+        UNIQUE KEY uq_token (token)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS employees (
         name          VARCHAR(200) NOT NULL,
         role          VARCHAR(200) NOT NULL DEFAULT '',
@@ -79,14 +131,15 @@ const pool = mysql.createPool({
         PRIMARY KEY (name)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
-    // Ajout des colonnes de permissions si elles n'existent pas encore (migration compatible MySQL 5.x)
-    for (const col of ['can_view_kpi', 'can_view_tjm', 'can_view_all']) {
+    // Ajout des colonnes de permissions + email si elles n'existent pas encore (migration compatible MySQL 5.x)
+    for (const col of ['can_view_kpi', 'can_view_tjm', 'can_view_all', 'email']) {
       const [cols] = await conn.query(
         `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='employees' AND COLUMN_NAME=?`,
         [col]
       );
       if (cols[0].cnt === 0) {
-        await conn.query(`ALTER TABLE employees ADD COLUMN ${col} TINYINT(1) DEFAULT 0`);
+        const colDef = col === 'email' ? `VARCHAR(200) DEFAULT NULL` : `TINYINT(1) DEFAULT 0`;
+        await conn.query(`ALTER TABLE employees ADD COLUMN ${col} ${colDef}`);
       }
     }
     await conn.query(`
@@ -707,10 +760,11 @@ function buildAgentSystemPrompt(userName, userRole, isAdmin, isChef, agentName, 
 
 // ─── API : Agent IA (cœur du système) ─────────────────────────
 // POST /api/ai/agent
-app.post("/api/ai/agent", async (req, res) => {
+app.post("/api/ai/agent", authenticate, async (req, res) => {
   if (!requireAI(res)) return;
   try {
-    const { messages, userName, userRole, isAdmin, isChef, agentName, agentStyle } = req.body;
+    const { messages, agentName, agentStyle } = req.body;
+    const { name: userName, role: userRole, isAdmin, isChef } = req.user;
     const systemPrompt = buildAgentSystemPrompt(userName, userRole || "", !!isAdmin, !!isChef, agentName, agentStyle);
 
     const actions = [];
@@ -797,7 +851,7 @@ app.post("/api/ai/agent", async (req, res) => {
 
 // ─── API : Briefing quotidien ──────────────────────────────────
 // GET /api/ai/briefing/:userName
-app.get("/api/ai/briefing/:userName", async (req, res) => {
+app.get("/api/ai/briefing/:userName", authenticate, async (req, res) => {
   if (!requireAI(res)) return;
   try {
     const { userName } = req.params;
@@ -854,7 +908,7 @@ app.get("/api/ai/briefing/:userName", async (req, res) => {
 
 // ─── API : Analyse de charge ──────────────────────────────────
 // GET /api/ai/workload
-app.get("/api/ai/workload", async (req, res) => {
+app.get("/api/ai/workload", authenticate, async (req, res) => {
   if (!requireAI(res)) return;
   try {
     const { employees, byOwner } = await getAllData();
@@ -896,7 +950,7 @@ app.get("/api/ai/workload", async (req, res) => {
 
 // ─── API : Priorisation ───────────────────────────────────────
 // POST /api/ai/prioritize/:ownerName
-app.post("/api/ai/prioritize/:ownerName", async (req, res) => {
+app.post("/api/ai/prioritize/:ownerName", authenticate, async (req, res) => {
   if (!requireAI(res)) return;
   try {
     const { ownerName } = req.params;
@@ -989,7 +1043,7 @@ async function generateAndSendReport() {
   return reportText;
 }
 
-app.post("/api/ai/weekly-report", async (req, res) => {
+app.post("/api/ai/weekly-report", authenticate, async (req, res) => {
   if (!requireAI(res)) return;
   try {
     const report = await generateAndSendReport();
@@ -1008,7 +1062,7 @@ cron.schedule("0 18 * * 5", async () => {
 });
 
 // ─── API : Tâches ─────────────────────────────────────────────
-app.get("/api/tasks/:ownerName", async (req, res) => {
+app.get("/api/tasks/:ownerName", authenticate, async (req, res) => {
   try {
     const [rows] = await pool.query(
       "SELECT * FROM tasks WHERE owner_name = ? ORDER BY created_at ASC",
@@ -1036,7 +1090,7 @@ app.get("/api/tasks/:ownerName", async (req, res) => {
   }
 });
 
-app.post("/api/tasks/:ownerName", async (req, res) => {
+app.post("/api/tasks/:ownerName", authenticate, async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const { ownerName } = req.params;
@@ -1067,36 +1121,140 @@ app.post("/api/tasks/:ownerName", async (req, res) => {
   }
 });
 
-// ─── API : Mots de passe ──────────────────────────────────────
-app.get("/api/pwd/:name", async (req, res) => {
+// ─── API AUTH ─────────────────────────────────────────────────
+
+// POST /api/auth/login
+app.post("/api/auth/login", loginLimiter, async (req, res) => {
+  const { name, password } = req.body;
+  if (!name || !password) return res.status(400).json({ error: "Nom et mot de passe requis" });
   try {
-    const [rows] = await pool.query("SELECT password FROM passwords WHERE name = ?", [req.params.name]);
-    res.json({ password: rows.length ? rows[0].password : null });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const [emps] = await pool.query("SELECT * FROM employees WHERE name = ?", [name]);
+    if (!emps.length) return res.status(401).json({ error: "Utilisateur inconnu" });
+    const emp = emps[0];
+
+    const [pwds] = await pool.query("SELECT password FROM passwords WHERE name = ?", [name]);
+    let isValid = false, firstLogin = false;
+
+    if (!pwds.length) {
+      // Aucun mot de passe défini → vérifier le mot de passe par défaut
+      isValid = password === DEFAULT_PASSWORD;
+      firstLogin = isValid;
+    } else {
+      const stored = pwds[0].password;
+      if (stored.startsWith("$2b$") || stored.startsWith("$2a$")) {
+        isValid = await bcrypt.compare(password, stored);
+      } else {
+        // Mot de passe en clair hérité → comparer puis re-hacher
+        isValid = password === stored;
+        if (isValid) {
+          const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
+          await pool.query("UPDATE passwords SET password = ? WHERE name = ?", [hashed, name]);
+        }
+      }
+    }
+
+    if (!isValid) return res.status(401).json({ error: "Mot de passe incorrect" });
+
+    const user = {
+      name: emp.name, role: emp.role, pole: emp.pole,
+      isChef: !!emp.is_chef, isAdmin: !!emp.is_admin,
+      canViewKPI: !!emp.can_view_kpi, canViewTJM: !!emp.can_view_tjm, canViewAll: !!emp.can_view_all,
+      email: emp.email || null
+    };
+    const token = jwt.sign(user, JWT_SECRET, { expiresIn: "8h" });
+    res.json({ token, user, firstLogin });
+  } catch (err) {
+    console.error("POST /api/auth/login", err);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
 });
 
-app.post("/api/pwd/:name", async (req, res) => {
+// POST /api/auth/change-password  (authentifié)
+app.post("/api/auth/change-password", authenticate, async (req, res) => {
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 6) return res.status(400).json({ error: "6 caractères minimum" });
+  if (newPassword === DEFAULT_PASSWORD) return res.status(400).json({ error: "Choisissez un autre mot de passe" });
   try {
-    const { password } = req.body;
+    const hashed = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
     await pool.query(
-      `INSERT INTO passwords (name, password) VALUES (?, ?) ON DUPLICATE KEY UPDATE password = VALUES(password)`,
-      [req.params.name, password]
+      "INSERT INTO passwords (name, password) VALUES (?, ?) ON DUPLICATE KEY UPDATE password = VALUES(password)",
+      [req.user.name, hashed]
     );
     res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { res.status(500).json({ error: "Erreur serveur" }); }
 });
 
-// ─── Réinitialisation mot de passe (admin) ───────────────────
-// DELETE /api/pwd/:name
-app.delete("/api/pwd/:name", async (req, res) => {
+// POST /api/auth/set-email  (authentifié)
+app.post("/api/auth/set-email", authenticate, async (req, res) => {
+  const { email } = req.body;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Email invalide" });
+  try {
+    await pool.query("UPDATE employees SET email = ? WHERE name = ?", [email.toLowerCase().trim(), req.user.name]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: "Erreur serveur" }); }
+});
+
+// POST /api/auth/forgot-password  (public, rate-limité)
+app.post("/api/auth/forgot-password", loginLimiter, async (req, res) => {
+  const { name } = req.body;
+  // Réponse identique qu'il y ait un email ou non (évite l'énumération d'utilisateurs)
+  const genericResp = { ok: true, message: "Si un email est associé à ce compte, un lien de réinitialisation vous a été envoyé." };
+  try {
+    const [emps] = await pool.query("SELECT email FROM employees WHERE name = ?", [name]);
+    if (!emps.length || !emps[0].email) return res.json(genericResp);
+
+    const token   = crypto.randomBytes(48).toString("hex");
+    const expires = Date.now() + 60 * 60 * 1000; // 1 heure
+    await pool.query(
+      "INSERT INTO reset_tokens (name, token, expires_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE token = VALUES(token), expires_at = VALUES(expires_at)",
+      [name, token, expires]
+    );
+
+    if (mailer) {
+      const resetUrl = `${APP_URL}/?reset_token=${token}`;
+      await mailer.sendMail({
+        from: process.env.EMAIL_USER,
+        to: emps[0].email,
+        subject: "Réinitialisation de votre mot de passe — Kanban SOZAIS",
+        html: `<p>Bonjour <strong>${name}</strong>,</p>
+               <p>Cliquez sur ce lien pour réinitialiser votre mot de passe (valable 1 heure) :</p>
+               <p><a href="${resetUrl}" style="background:#3b82f6;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none">Réinitialiser mon mot de passe</a></p>
+               <p style="color:#888;font-size:12px">Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>`
+      });
+    }
+    res.json(genericResp);
+  } catch (err) {
+    console.error("POST /api/auth/forgot-password", err);
+    res.json(genericResp); // ne pas révéler l'erreur
+  }
+});
+
+// POST /api/auth/reset-password  (public)
+app.post("/api/auth/reset-password", async (req, res) => {
+  const { token, newPassword } = req.body;
+  if (!token || !newPassword || newPassword.length < 6) return res.status(400).json({ error: "Données invalides" });
+  if (newPassword === DEFAULT_PASSWORD) return res.status(400).json({ error: "Choisissez un autre mot de passe" });
+  try {
+    const [rows] = await pool.query("SELECT * FROM reset_tokens WHERE token = ?", [token]);
+    if (!rows.length || rows[0].expires_at < Date.now()) return res.status(400).json({ error: "Lien invalide ou expiré" });
+
+    const hashed = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    await pool.query("INSERT INTO passwords (name, password) VALUES (?, ?) ON DUPLICATE KEY UPDATE password = VALUES(password)", [rows[0].name, hashed]);
+    await pool.query("DELETE FROM reset_tokens WHERE token = ?", [token]);
+    res.json({ ok: true, name: rows[0].name });
+  } catch (err) { res.status(500).json({ error: "Erreur serveur" }); }
+});
+
+// DELETE /api/auth/reset/:name  (Super Admin — réinitialise le mot de passe d'un utilisateur)
+app.delete("/api/auth/reset/:name", authenticate, requireAdmin, async (req, res) => {
   try {
     await pool.query("DELETE FROM passwords WHERE name = ?", [req.params.name]);
-    res.json({ ok: true, message: `Mot de passe réinitialisé pour "${req.params.name}". Prochain login : kanban2026.` });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    res.json({ ok: true, message: `Mot de passe réinitialisé pour "${req.params.name}". Prochain login : ${DEFAULT_PASSWORD}` });
+  } catch (err) { res.status(500).json({ error: "Erreur serveur" }); }
 });
 
 // ─── API : Employés ───────────────────────────────────────────
-app.get("/api/employees", async (req, res) => {
+app.get("/api/employees", authenticate, async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM employees ORDER BY is_admin DESC, pole ASC, is_chef DESC, name ASC");
     res.json(rows.map(r => ({
@@ -1105,12 +1263,13 @@ app.get("/api/employees", async (req, res) => {
       tjm: parseFloat(r.tjm) || 0,
       canViewKPI: !!r.can_view_kpi,
       canViewTJM: !!r.can_view_tjm,
-      canViewAll: !!r.can_view_all
+      canViewAll: !!r.can_view_all,
+      email: r.email || null
     })));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post("/api/employees", async (req, res) => {
+app.post("/api/employees", authenticate, requireAdmin, async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const employees = req.body;
@@ -1131,14 +1290,14 @@ app.post("/api/employees", async (req, res) => {
 });
 
 // ─── API : Frais fixes ────────────────────────────────────────
-app.get("/api/fixed-costs", async (req, res) => {
+app.get("/api/fixed-costs", authenticate, async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM fixed_costs ORDER BY category");
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post("/api/fixed-costs", async (req, res) => {
+app.post("/api/fixed-costs", authenticate, requireAdmin, async (req, res) => {
   try {
     const costs = req.body;
     const now = new Date().toISOString();
@@ -1153,14 +1312,14 @@ app.post("/api/fixed-costs", async (req, res) => {
 });
 
 // ─── API : Projets ────────────────────────────────────────────
-app.get("/api/projects", async (req, res) => {
+app.get("/api/projects", authenticate, async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM projects ORDER BY name");
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post("/api/projects", async (req, res) => {
+app.post("/api/projects", authenticate, async (req, res) => {
   try {
     const { name, revenue_forfait, revenue_mode, description } = req.body;
     await pool.query(
@@ -1172,7 +1331,7 @@ app.post("/api/projects", async (req, res) => {
 });
 
 // ─── API : Rentabilité ────────────────────────────────────────
-app.get("/api/profitability", async (req, res) => {
+app.get("/api/profitability", authenticate, async (req, res) => {
   try {
     const [tasks]     = await pool.query("SELECT t.*, e.tjm FROM tasks t LEFT JOIN employees e ON t.owner_name = e.name WHERE t.project != ''");
     const [projRows]  = await pool.query("SELECT * FROM projects");
@@ -1217,14 +1376,14 @@ app.get("/api/profitability", async (req, res) => {
 });
 
 // ─── API : KPI Critères ───────────────────────────────────────
-app.get("/api/kpi/criteria", async (req, res) => {
+app.get("/api/kpi/criteria", authenticate, async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM kpi_criteria ORDER BY position, id");
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post("/api/kpi/criteria", async (req, res) => {
+app.post("/api/kpi/criteria", authenticate, requireAdmin, async (req, res) => {
   try {
     const { label, category } = req.body;
     if (!label || !label.trim()) return res.status(400).json({ error: "Label requis" });
@@ -1236,14 +1395,14 @@ app.post("/api/kpi/criteria", async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.delete("/api/kpi/criteria/:id", async (req, res) => {
+app.delete("/api/kpi/criteria/:id", authenticate, requireAdmin, async (req, res) => {
   try {
     await pool.query("DELETE FROM kpi_criteria WHERE id = ?", [req.params.id]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.patch("/api/kpi/criteria/:id", async (req, res) => {
+app.patch("/api/kpi/criteria/:id", authenticate, requireAdmin, async (req, res) => {
   try {
     const { active } = req.body;
     await pool.query("UPDATE kpi_criteria SET active = ? WHERE id = ?", [active ? 1 : 0, req.params.id]);
@@ -1252,7 +1411,7 @@ app.patch("/api/kpi/criteria/:id", async (req, res) => {
 });
 
 // ─── API : KPI Évaluations ────────────────────────────────────
-app.get("/api/kpi/evaluations/:name", async (req, res) => {
+app.get("/api/kpi/evaluations/:name", authenticate, async (req, res) => {
   try {
     const [rows] = await pool.query(
       "SELECT * FROM kpi_evaluations WHERE evaluated_name = ? ORDER BY created_at DESC",
@@ -1262,7 +1421,7 @@ app.get("/api/kpi/evaluations/:name", async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get("/api/kpi/summary", async (req, res) => {
+app.get("/api/kpi/summary", authenticate, async (req, res) => {
   try {
     const [rows] = await pool.query(
       "SELECT evaluated_name, scores, period, created_at FROM kpi_evaluations ORDER BY created_at DESC"
@@ -1281,7 +1440,7 @@ app.get("/api/kpi/summary", async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post("/api/kpi/evaluate", async (req, res) => {
+app.post("/api/kpi/evaluate", authenticate, async (req, res) => {
   try {
     const { evaluator_name, evaluated_name, period, scores, overall_comment } = req.body;
     if (!evaluator_name || !evaluated_name || !period) return res.status(400).json({ error: "Champs requis manquants" });
