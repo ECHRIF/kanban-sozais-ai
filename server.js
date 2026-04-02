@@ -1,4 +1,4 @@
-// ============================================================ 
+// ============================================================
 // Kanban SOZAIS — AI-First Edition
 // Stack : Node.js + Express + MySQL + Groq (LLaMA 3.3-70b)
 // Architecture : Groq tool_use en cœur — l'IA agit directement
@@ -67,15 +67,22 @@ const pool = mysql.createPool({
     `);
     await conn.query(`
       CREATE TABLE IF NOT EXISTS employees (
-        name       VARCHAR(200) NOT NULL,
-        role       VARCHAR(200) NOT NULL DEFAULT '',
-        pole       VARCHAR(50)  NOT NULL DEFAULT 'Fluide',
-        is_chef    TINYINT(1)   DEFAULT 0,
-        is_admin   TINYINT(1)   DEFAULT 0,
-        tjm        DECIMAL(8,2) DEFAULT 0,
+        name          VARCHAR(200) NOT NULL,
+        role          VARCHAR(200) NOT NULL DEFAULT '',
+        pole          VARCHAR(50)  NOT NULL DEFAULT 'Fluide',
+        is_chef       TINYINT(1)   DEFAULT 0,
+        is_admin      TINYINT(1)   DEFAULT 0,
+        tjm           DECIMAL(8,2) DEFAULT 0,
+        can_view_kpi  TINYINT(1)   DEFAULT 0,
+        can_view_tjm  TINYINT(1)   DEFAULT 0,
+        can_view_all  TINYINT(1)   DEFAULT 0,
         PRIMARY KEY (name)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    // Ajout des colonnes de permissions si elles n'existent pas encore (migration)
+    for (const col of ['can_view_kpi', 'can_view_tjm', 'can_view_all']) {
+      await conn.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS ${col} TINYINT(1) DEFAULT 0`).catch(() => {});
+    }
     await conn.query(`
       CREATE TABLE IF NOT EXISTS fixed_costs (
         category       VARCHAR(50)    NOT NULL,
@@ -109,7 +116,6 @@ const pool = mysql.createPool({
         INDEX idx_date  (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
-
     await conn.query(`
       CREATE TABLE IF NOT EXISTS kpi_criteria (
         id       INT UNSIGNED   AUTO_INCREMENT NOT NULL,
@@ -175,6 +181,13 @@ const pool = mysql.createPool({
         emp
       );
     }
+    // ─── Utilisateurs administratifs Direction ─────────────────
+    await conn.query(`INSERT IGNORE INTO employees (name, role, pole, is_chef, is_admin, can_view_kpi) VALUES (?, ?, ?, 0, 0, 1)`,
+      ['Maroua HTIRA', 'Assistante de direction', 'Direction']);
+    await conn.query(`INSERT IGNORE INTO employees (name, role, pole, is_chef, is_admin, can_view_tjm) VALUES (?, ?, ?, 0, 0, 1)`,
+      ['Siwar HOSNI', 'Responsable financière', 'Direction']);
+    await conn.query(`INSERT IGNORE INTO employees (name, role, pole, is_chef, is_admin, can_view_all) VALUES (?, ?, ?, 0, 0, 1)`,
+      ['Marion CESA', 'Resp. administrative et financière', 'Direction']);
     await conn.query(
       `INSERT IGNORE INTO fixed_costs (category, label, amount_monthly) VALUES
        ('loyer', 'Loyer & charges locatives', 0),
@@ -403,15 +416,40 @@ const AGENT_TOOLS = [
     }
   },
   {
-    type:"function",function:{name:"search_tasks",description:"Recherche des tâches par mot-clé, projet, collaborateur, priorité, colonne ou retard.",parameters:{type:"object",properties:{keyword:{type:"string"},project:{type:"string"},owner:{type:"string"},priority:{type:"string",enum:["high","medium","low"]},column:{type:"string",enum:["backlog","todo","in_progress","review","done"]},overdue_only:{type:"boolean"}}}}
+    type: "function",
+    function: {
+      name: "search_tasks",
+      description: "Recherche des tâches dans toute l'équipe par mot-clé, projet, collaborateur, priorité, colonne ou retard. Utiliser pour trouver des tâches spécifiques sans charger toutes les données.",
+      parameters: {
+        type: "object",
+        properties: {
+          keyword:      { type: "string", description: "Mot-clé dans le titre ou la description" },
+          project:      { type: "string", description: "Nom du projet (partiel accepté)" },
+          owner:        { type: "string", description: "Nom du collaborateur (partiel accepté)" },
+          priority:     { type: "string", enum: ["high", "medium", "low"] },
+          column:       { type: "string", enum: ["backlog", "todo", "in_progress", "review", "done"] },
+          overdue_only: { type: "boolean", description: "Si true, retourne uniquement les tâches en retard" }
+        }
+      }
+    }
   },
   {
-    type:"function",function:{name:"get_kpi_summary",description:"Récupère les résultats KPI : scores, évaluateurs, périodes.",parameters:{type:"object",properties:{evaluated_name:{type:"string"},period:{type:"string"}}}}
+    type: "function",
+    function: {
+      name: "get_kpi_summary",
+      description: "Récupère les résultats d'évaluations KPI de l'équipe : scores moyens, évaluateurs, périodes. Utiliser pour répondre aux questions sur la performance des collaborateurs.",
+      parameters: {
+        type: "object",
+        properties: {
+          evaluated_name: { type: "string", description: "Nom du collaborateur évalué (optionnel — tous si absent)" },
+          period:         { type: "string", description: "Période ex: '2026-Avr' (optionnel — toutes si absent)" }
+        }
+      }
+    }
   }
-]
-;
+];
 
-// ─── Exécuteur d'outilseur d'outils ───────────────────────────────────────
+// ─── Exécuteur d'outils ───────────────────────────────────────
 async function execTool(name, input) {
   input = input || {};   // sécurité : LLaMA peut passer null au lieu de {}
   switch (name) {
@@ -445,7 +483,15 @@ async function execTool(name, input) {
           }))
         };
       });
-      const _sm={totalTasks:data.reduce((a,e)=>a+e.stats.total,0),totalOverdue:data.reduce((a,e)=>a+e.stats.overdue,0),totalInProgress:data.reduce((a,e)=>a+e.stats.inProgress,0),totalDone:data.reduce((a,e)=>a+e.stats.done,0),mostLoaded:[...data].sort((a,b)=>b.stats.inProgress-a.stats.inProgress)[0]?.name,mostOverdue:[...data].sort((a,b)=>b.stats.overdue-a.stats.overdue)[0]?.name}; return { ok: true, team: data, today, summary: _sm };
+      const summary = {
+        totalTasks:      data.reduce((s, e) => s + e.stats.total, 0),
+        totalOverdue:    data.reduce((s, e) => s + e.stats.overdue, 0),
+        totalInProgress: data.reduce((s, e) => s + e.stats.inProgress, 0),
+        totalDone:       data.reduce((s, e) => s + e.stats.done, 0),
+        mostLoaded:      [...data].sort((a, b) => b.stats.inProgress - a.stats.inProgress)[0]?.name,
+        mostOverdue:     [...data].sort((a, b) => b.stats.overdue  - a.stats.overdue)[0]?.name
+      };
+      return { ok: true, team: data, today, summary };
     }
 
     case "create_task": {
@@ -529,30 +575,71 @@ async function execTool(name, input) {
     }
 
     case "search_tasks": {
-      const {byOwner:bO,employees:emps}=await getAllData();
-      const tod=new Date().toISOString().split("T")[0];
-      let allT=[];
-      for(const e of emps) for(const t of(bO[e.name]||[])) allT.push({...t,_own:e.name});
-      let res=allT;
-      if(input.keyword){const kw=input.keyword.toLowerCase();res=res.filter(t=>(t.title||"").toLowerCase().includes(kw)||(t.description||"").toLowerCase().includes(kw));}
-      if(input.project){const p=input.project.toLowerCase();res=res.filter(t=>(t.project||"").toLowerCase().includes(p));}
-      if(input.owner){const o=input.owner.toLowerCase();res=res.filter(t=>t._own.toLowerCase().includes(o));}
-      if(input.priority) res=res.filter(t=>t.priority===input.priority);
-      if(input.column)   res=res.filter(t=>(t.column_id||t.column)===input.column);
-      if(input.overdue_only) res=res.filter(t=>t.deadline&&t.deadline<tod&&(t.column_id||t.column)!=="done");
-      return {ok:true,count:res.length,tasks:res.slice(0,30).map(t=>({id:t.id,title:t.title,project:t.project,owner:t._own,priority:t.priority,column:t.column_id||t.column,deadline:t.deadline||null,isOverdue:!!(t.deadline&&t.deadline<tod&&(t.column_id||t.column)!=="done"),estimatedHours:t.estimated_hours}))};
+      const { byOwner, employees } = await getAllData();
+      const today = new Date().toISOString().split("T")[0];
+      let all = [];
+      for (const e of employees) {
+        for (const t of (byOwner[e.name] || [])) {
+          all.push({ ...t, _owner: e.name });
+        }
+      }
+      let results = all;
+      if (input.keyword) {
+        const kw = input.keyword.toLowerCase();
+        results = results.filter(t =>
+          (t.title || "").toLowerCase().includes(kw) ||
+          (t.description || "").toLowerCase().includes(kw)
+        );
+      }
+      if (input.project) {
+        const p = input.project.toLowerCase();
+        results = results.filter(t => (t.project || "").toLowerCase().includes(p));
+      }
+      if (input.owner) {
+        const o = input.owner.toLowerCase();
+        results = results.filter(t => t._owner.toLowerCase().includes(o));
+      }
+      if (input.priority) results = results.filter(t => t.priority === input.priority);
+      if (input.column)   results = results.filter(t => (t.column_id || t.column) === input.column);
+      if (input.overdue_only) {
+        results = results.filter(t => t.deadline && t.deadline < today && (t.column_id || t.column) !== "done");
+      }
+      return {
+        ok: true, count: results.length,
+        tasks: results.slice(0, 30).map(t => ({
+          id: t.id, title: t.title, project: t.project, owner: t._owner,
+          priority: t.priority, column: t.column_id || t.column,
+          deadline: t.deadline || null,
+          isOverdue: !!(t.deadline && t.deadline < today && (t.column_id || t.column) !== "done"),
+          estimatedHours: t.estimated_hours
+        }))
+      };
     }
 
     case "get_kpi_summary": {
-      let q2="SELECT e.evaluated_name,e.evaluator_name,e.period,e.overall_comment,e.created_at,AVG(s.score) as avg_score,COUNT(s.id) as nb FROM kpi_evaluations e JOIN kpi_scores s ON s.evaluation_id=e.id WHERE 1=1";
-      const ps=[];
-      if(input.evaluated_name){q2+=" AND e.evaluated_name LIKE ?";ps.push("%"+input.evaluated_name+"%");}
-      if(input.period){q2+=" AND e.period=?";ps.push(input.period);}
-      q2+=" GROUP BY e.id ORDER BY e.created_at DESC LIMIT 50";
-      const [rws]=await pool.query(q2,ps);
-      const byP={};
-      for(const r of rws){if(!byP[r.evaluated_name])byP[r.evaluated_name]=[];byP[r.evaluated_name].push({evaluator:r.evaluator_name,period:r.period,avgScore:Math.round(parseFloat(r.avg_score)*10)/10,nbCriteria:r.nb,comment:r.overall_comment||"",date:r.created_at});}
-      return {ok:true,evaluations:byP,total:rws.length};
+      let q = `SELECT e.evaluated_name, e.evaluator_name, e.period, e.overall_comment, e.created_at,
+                      AVG(s.score) as avg_score, COUNT(s.id) as nb_criteria
+               FROM kpi_evaluations e
+               JOIN kpi_scores s ON s.evaluation_id = e.id
+               WHERE 1=1`;
+      const params = [];
+      if (input.evaluated_name) { q += " AND e.evaluated_name LIKE ?"; params.push("%" + input.evaluated_name + "%"); }
+      if (input.period)         { q += " AND e.period = ?"; params.push(input.period); }
+      q += " GROUP BY e.id ORDER BY e.created_at DESC LIMIT 50";
+      const [rows] = await pool.query(q, params);
+      const byPerson = {};
+      for (const r of rows) {
+        if (!byPerson[r.evaluated_name]) byPerson[r.evaluated_name] = [];
+        byPerson[r.evaluated_name].push({
+          evaluator: r.evaluator_name,
+          period: r.period,
+          avgScore: Math.round(parseFloat(r.avg_score) * 10) / 10,
+          nbCriteria: r.nb_criteria,
+          comment: r.overall_comment || "",
+          date: r.created_at
+        });
+      }
+      return { ok: true, evaluations: byPerson, total: rows.length };
     }
 
     default:
@@ -565,25 +652,26 @@ function buildAgentSystemPrompt(userName, userRole, isAdmin, isChef, agentName, 
   const today = new Date().toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
   const name = agentName || "SOZAIS IA";
   const style = agentStyle || "professionnel";
-  const styleMap = {
+  const styleInstructions = {
     "professionnel": "Adopte un ton professionnel, structuré et précis.",
     "décontracté": "Adopte un ton décontracté et convivial, tout en restant efficace.",
     "coach motivant": "Adopte un ton de coach : encourage, motive, célèbre les succès de l'équipe.",
     "direct et concis": "Sois ultra-concis : pas de blabla, aller droit au but, réponses courtes.",
     "humouristique": "Ajoute une touche d'humour bienveillant dans tes réponses, tout en restant utile."
-  };
-  const styleInstr = styleMap[style] || "Adopte un ton professionnel.";
+  }[style] || "Adopte un ton professionnel.";
   return (
     `Tu t'appelles ${name} — l'assistant IA de l'application Kanban SOZAIS.\n` +
     `Aujourd'hui : ${today}. Utilisateur connecté : ${userName} (${userRole}${isAdmin ? ", Admin" : isChef ? ", Chef" : ""}).\n` +
-    `STYLE : ${styleInstr}\n\n` +
+    `STYLE DE COMMUNICATION : ${styleInstructions}\n\n` +
     `TES CAPACITÉS :\n` +
-    `- Tu peux CRÉER des tâches directement dans le Kanban (create_task, bulk_create_tasks)\n` +
+    `- Tu peux CRÉER des tâches (create_task, bulk_create_tasks)\n` +
     `- Tu peux MODIFIER des tâches (update_task)\n` +
     `- Tu peux DÉPLACER des tâches entre colonnes (move_task)\n` +
     `- Tu peux RÉAFFECTER des tâches à d'autres collaborateurs (reassign_task)\n` +
     `- Tu peux SUPPRIMER des tâches (delete_task — demander confirmation d'abord)\n` +
-    `- Tu peux ANALYSER la charge, les retards, et faire des recommandations (get_team_data)\n\n` +
+    `- Tu peux ANALYSER toute l'équipe avec stats globales (get_team_data)\n` +
+    `- Tu peux RECHERCHER des tâches par mot-clé/projet/priorité/retard (search_tasks)\n` +
+    `- Tu peux CONSULTER les KPIs et évaluations de performance (get_kpi_summary)\n\n` +
     `RÈGLES IMPORTANTES :\n` +
     `- Réponds TOUJOURS en français\n` +
     `- Avant d'analyser ou recommander, UTILISE get_team_data pour avoir des données fraîches\n` +
@@ -993,7 +1081,14 @@ app.delete("/api/pwd/:name", async (req, res) => {
 app.get("/api/employees", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM employees ORDER BY is_admin DESC, pole ASC, is_chef DESC, name ASC");
-    res.json(rows.map(r => ({ name: r.name, role: r.role, pole: r.pole, isChef: !!r.is_chef, isAdmin: !!r.is_admin, tjm: parseFloat(r.tjm) || 0 })));
+    res.json(rows.map(r => ({
+      name: r.name, role: r.role, pole: r.pole,
+      isChef: !!r.is_chef, isAdmin: !!r.is_admin,
+      tjm: parseFloat(r.tjm) || 0,
+      canViewKPI: !!r.can_view_kpi,
+      canViewTJM: !!r.can_view_tjm,
+      canViewAll: !!r.can_view_all
+    })));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1002,11 +1097,12 @@ app.post("/api/employees", async (req, res) => {
   try {
     const employees = req.body;
     await conn.beginTransaction();
-    await conn.query("DELETE FROM employees WHERE is_admin = 0");
-    const nonAdmins = employees.filter(e => !e.isAdmin);
+    // Supprimer uniquement les employés non-admin et non-Direction
+    await conn.query("DELETE FROM employees WHERE is_admin = 0 AND can_view_kpi = 0 AND can_view_tjm = 0 AND can_view_all = 0");
+    const nonAdmins = employees.filter(e => !e.isAdmin && !e.canViewKPI && !e.canViewTJM && !e.canViewAll);
     if (nonAdmins.length > 0) {
-      const values = nonAdmins.map(e => [e.name, e.role, e.pole, e.isChef ? 1 : 0, 0, parseFloat(e.tjm) || 0]);
-      await conn.query("INSERT INTO employees (name, role, pole, is_chef, is_admin, tjm) VALUES ?", [values]);
+      const values = nonAdmins.map(e => [e.name, e.role, e.pole, e.isChef ? 1 : 0, 0, parseFloat(e.tjm) || 0, 0, 0, 0]);
+      await conn.query("INSERT INTO employees (name, role, pole, is_chef, is_admin, tjm, can_view_kpi, can_view_tjm, can_view_all) VALUES ?", [values]);
     }
     await conn.commit();
     res.json({ ok: true });

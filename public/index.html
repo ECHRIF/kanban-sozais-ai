@@ -80,6 +80,9 @@ const DEFAULT_EMPLOYEES = [
   { name: "M.O. HACHLEF", role: "Ingénieur Elec", pole: "Élec", isChef: false },
   { name: "ECHRIF Walid", role: "Admin", pole: "Admin", isChef: false, isAdmin: true },
   { name: "ECHRIF Youssef", role: "Admin", pole: "Admin", isChef: false, isAdmin: true },
+  { name: "Maroua HTIRA", role: "Assistante de direction", pole: "Direction", isChef: false, isAdmin: false, canViewKPI: true },
+  { name: "Siwar HOSNI", role: "Responsable financière", pole: "Direction", isChef: false, isAdmin: false, canViewTJM: true },
+  { name: "Marion CESA", role: "Resp. administrative et financière", pole: "Direction", isChef: false, isAdmin: false, canViewAll: true },
 ];
 
 const genId = () => Math.random().toString(36).substr(2, 9);
@@ -334,9 +337,10 @@ function AIChatPanel({ user, onClose, onAction }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: TXT3, fontSize: 18, cursor: 'pointer' }}>✕</button>
         </div>
       </div>
+      {/* Config panel */}
       {configOpen && (
         <div style={{ padding:'12px 16px', borderBottom:'1px solid '+BRD, background:DARK4, display:'flex', flexDirection:'column', gap:8 }}>
-          <div style={{ color:TXT2, fontSize:11, fontWeight:700 }}>🎨 Personnaliser l'agent</div>
+          <div style={{ color:TXT2, fontSize:11, fontWeight:700, marginBottom:2 }}>🎨 Personnaliser l'agent</div>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
             <span style={{ color:TXT3, fontSize:11, width:60 }}>Emoji</span>
             <input value={agentEmoji} onChange={e=>setAgentEmoji(e.target.value)} style={{ width:50, padding:'3px 6px', background:DARK2, border:'1px solid '+BRD, borderRadius:6, color:TXT, fontSize:14, textAlign:'center' }} maxLength={2} />
@@ -512,7 +516,7 @@ function ImportExcelModal({ employees, allTasks, onImport, onClose }) {
   const wbRef = useRef(null);
   const fileRef = useRef(null);
 
-  const staffList = employees.filter((e) => !e.isAdmin);
+  const staffList = employees.filter((e) => !e.isAdmin && e.pole !== "Direction");
 
   // ── Parser une feuille depuis le workbook ──────────────────
   const parseSheet = (wb, sheetName) => {
@@ -847,7 +851,7 @@ function LoginScreen({ onLogin, employees }) {
   };
 
   const filtered = employees.filter((e) => {
-    const matchPole = pf === "all" || (pf === "fluide" && e.pole === "Fluide") || (pf === "elec" && e.pole === "Élec") || (pf === "admin" && e.isAdmin);
+    const matchPole = pf === "all" || (pf === "fluide" && e.pole === "Fluide") || (pf === "elec" && e.pole === "Élec") || (pf === "admin" && e.isAdmin) || (pf === "direction" && e.pole === "Direction");
     return matchPole && e.name.toLowerCase().includes(search.toLowerCase());
   });
 
@@ -886,7 +890,7 @@ function LoginScreen({ onLogin, employees }) {
           <div>
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="🔍 Rechercher..." style={{ ...iBase, marginBottom: 10 }} />
             <div style={{ display: "flex", gap: 5, marginBottom: 14 }}>
-              {[{ id: "all", l: "Tous" }, { id: "fluide", l: "Fluide" }, { id: "elec", l: "Élec" }, { id: "admin", l: "Admin" }].map((f) => (
+              {[{ id: "all", l: "Tous" }, { id: "fluide", l: "Fluide" }, { id: "elec", l: "Élec" }, { id: "admin", l: "Admin" }, { id: "direction", l: "Direction" }].map((f) => (
                 <button key={f.id} onClick={() => setPf(f.id)} style={{ flex: 1, padding: "7px 0", background: pf === f.id ? BLUE + "22" : DARK2, border: "1px solid " + (pf === f.id ? BLUE + "66" : BRD), borderRadius: 7, color: pf === f.id ? BLUE : TXT3, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{f.l}</button>
               ))}
             </div>
@@ -896,7 +900,7 @@ function LoginScreen({ onLogin, employees }) {
                   style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 9, cursor: "pointer", textAlign: "left", width: "100%" }}
                   onMouseEnter={(e) => { e.currentTarget.style.background = DARK4; }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = DARK2; }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 99, background: emp.isAdmin ? PURPLE + "44" : emp.isChef ? (emp.pole === "Fluide" ? BLUE : RED) : DARK3, border: "2px solid " + (emp.isAdmin ? PURPLE + "66" : (emp.pole === "Fluide" ? BLUE : RED) + "44"), display: "flex", alignItems: "center", justifyContent: "center", color: emp.isChef || emp.isAdmin ? "#fff" : TXT2, fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 99, background: emp.isAdmin ? PURPLE + "44" : emp.pole === "Direction" ? GREEN + "44" : emp.isChef ? (emp.pole === "Fluide" ? BLUE : RED) : DARK3, border: "2px solid " + (emp.isAdmin ? PURPLE + "66" : emp.pole === "Direction" ? GREEN + "66" : (emp.pole === "Fluide" ? BLUE : RED) + "44"), display: "flex", alignItems: "center", justifyContent: "center", color: emp.isChef || emp.isAdmin || emp.pole === "Direction" ? "#fff" : TXT2, fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
                     {emp.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
                   </div>
                   <div style={{ flex: 1 }}>
@@ -905,7 +909,8 @@ function LoginScreen({ onLogin, employees }) {
                   </div>
                   {emp.isAdmin && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: PURPLE + "22", color: PURPLE, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>}
                   {emp.isChef && !emp.isAdmin && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: ORANGE + "22", color: ORANGE, fontWeight: 700, textTransform: "uppercase" }}>Chef</span>}
-                  {!emp.isAdmin && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: (emp.pole === "Fluide" ? BLUE : RED) + "22", color: emp.pole === "Fluide" ? BLUE : RED, fontWeight: 600 }}>{emp.pole}</span>}
+                  {emp.pole === "Direction" && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: GREEN + "22", color: GREEN, fontWeight: 700, textTransform: "uppercase" }}>Direction</span>}
+                  {!emp.isAdmin && emp.pole !== "Direction" && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: (emp.pole === "Fluide" ? BLUE : RED) + "22", color: emp.pole === "Fluide" ? BLUE : RED, fontWeight: 600 }}>{emp.pole}</span>}
                 </button>
               ))}
             </div>
@@ -1483,11 +1488,12 @@ function ProfitabilityModal({ onClose }) {
 // ─── EmployeesModal (admin only) ───
 function EmployeesModal({ employees, onSave, onClose }) {
   const POLES = ["Fluide", "Élec"];
-  const [list, setList] = useState(employees.filter((e) => !e.isAdmin));
+  const [list, setList] = useState(employees.filter((e) => !e.isAdmin && e.pole !== "Direction"));
   const [form, setForm] = useState({ name: "", role: "", pole: "Fluide", isChef: false, tjm: "" });
   const [err, setErr] = useState("");
   const [resetMsg, setResetMsg] = useState("");
   const adminList = employees.filter((e) => e.isAdmin);
+  const directionList = employees.filter((e) => e.pole === "Direction");
 
   const resetPassword = async (name) => {
     if (!window.confirm(`Réinitialiser le mot de passe de "${name}" ? Il devra se reconnecter avec "kanban2026".`)) return;
@@ -1566,6 +1572,29 @@ function EmployeesModal({ employees, onSave, onClose }) {
             </div>
           </div>
         ))}
+
+        {/* Direction — reset uniquement */}
+        {directionList.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ color: GREEN, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+              🏢 Direction — {directionList.length}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {directionList.map((emp) => (
+                <div key={emp.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: DARK3, borderRadius: 8, border: "1px solid " + GREEN + "44" }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 99, background: GREEN + "33", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: GREEN, flexShrink: 0 }}>
+                    {emp.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: TXT, fontSize: 12, fontWeight: 600 }}>{emp.name}</div>
+                    <div style={{ color: TXT3, fontSize: 10 }}>{emp.role} — {emp.canViewAll ? "Accès complet" : emp.canViewKPI ? "KPI uniquement" : emp.canViewTJM ? "TJM / Rentabilité" : ""}</div>
+                  </div>
+                  <button onClick={() => resetPassword(emp.name)} title="Réinitialiser le mot de passe" style={{ background: GREEN + "22", border: "1px solid " + GREEN + "44", borderRadius: 6, color: GREEN, fontSize: 11, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>🔑 Reset</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Admins — reset uniquement */}
         {adminList.length > 0 && (
@@ -1920,7 +1949,8 @@ function KPIPickerModal({ employees, evaluator, criteria, onClose }) {
     fetch("/api/kpi/criteria").then(r=>r.json()).then(setLocalCriteria).catch(()=>{});
   };
 
-  const members = employees.filter(e=>!e.isAdmin && (evaluator.isAdmin || e.pole===evaluator.pole));
+  const members = employees.filter(e=>!e.isAdmin && e.pole !== "Direction" && (evaluator.isAdmin || evaluator.canViewKPI || evaluator.canViewAll || e.pole===evaluator.pole));
+  const canEvaluate = evaluator.isAdmin || evaluator.isChef || evaluator.canViewAll;
 
   return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500 }}>
@@ -1931,7 +1961,7 @@ function KPIPickerModal({ employees, evaluator, criteria, onClose }) {
             <div style={{ color:TXT3,fontSize:12,marginTop:3 }}>Sélectionnez un membre à évaluer</div>
           </div>
           <div style={{ display:"flex",gap:8 }}>
-            {evaluator.isAdmin && (
+            {(evaluator.isAdmin || evaluator.canViewAll) && (
               <button onClick={()=>setManage(true)} title="Gérer les critères" style={{ padding:"6px 12px",background:DARK3,border:"1px solid "+BRD,borderRadius:7,color:TXT2,fontSize:11,fontWeight:600,cursor:"pointer" }}>⚙️ Critères</button>
             )}
             <button onClick={onClose} style={{ background:"none",border:"none",color:TXT3,fontSize:22,cursor:"pointer" }}>✕</button>
@@ -1956,7 +1986,7 @@ function KPIPickerModal({ employees, evaluator, criteria, onClose }) {
                   </div>
                 )}
                 <button onClick={()=>setKpiView(emp)} style={{ padding:"5px 10px",background:PURPLE+"22",border:"1px solid "+PURPLE+"44",borderRadius:6,color:PURPLE,fontSize:11,fontWeight:600,cursor:"pointer" }}>Voir</button>
-                <button onClick={()=>setKpiTarget(emp)} style={{ padding:"5px 10px",background:CYAN+"22",border:"1px solid "+CYAN+"44",borderRadius:6,color:CYAN,fontSize:11,fontWeight:600,cursor:"pointer" }}>Évaluer</button>
+                {canEvaluate && <button onClick={()=>setKpiTarget(emp)} style={{ padding:"5px 10px",background:CYAN+"22",border:"1px solid "+CYAN+"44",borderRadius:6,color:CYAN,fontSize:11,fontWeight:600,cursor:"pointer" }}>Évaluer</button>}
               </div>
             );
           })}
@@ -1990,10 +2020,10 @@ function App() {
   const [kpiCriteria, setKpiCriteria] = useState([]);
   useEffect(() => { fetch("/api/kpi/criteria").then(r=>r.json()).then(setKpiCriteria).catch(()=>{}); }, []);
   const [fixedCostsOpen, setFixedCostsOpen]       = useState(false);
-  // ─── États IA ─────────────────────────────────────────────
-  // ─── Mode sombre/clair
+  // ─── Mode sombre/clair ────────────────────────────────────
   const [isDark, setIsDark] = useState(() => localStorage.getItem('kbtheme') !== 'light');
   applyTheme(isDark);
+  // ─── États IA ─────────────────────────────────────────────
   const [chatOpen, setChatOpen] = useState(false);
   const [workloadOpen, setWorkloadOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -2062,13 +2092,18 @@ function App() {
   // ─── refetchAll : recharger toutes les tâches (après actions IA) ──
   const refetchAll = useCallback(async () => {
     if (!user) return;
-    if (user.isAdmin) {
-      const ms = empList.filter((e) => !e.isAdmin);
+    if (user.isAdmin || user.canViewAll) {
+      const ms = empList.filter((e) => !e.isAdmin && e.pole !== "Direction");
       const ld = {};
       for (const m of ms) ld[m.name] = await loadTasks(m.name);
       setAll(ld);
     } else if (user.isChef) {
       const ms = empList.filter((e) => e.pole === user.pole);
+      const ld = {};
+      for (const m of ms) ld[m.name] = await loadTasks(m.name);
+      setAll(ld);
+    } else if (user.canViewKPI || user.canViewTJM) {
+      const ms = empList.filter((e) => !e.isAdmin && e.pole !== "Direction");
       const ld = {};
       for (const m of ms) ld[m.name] = await loadTasks(m.name);
       setAll(ld);
@@ -2088,13 +2123,18 @@ function App() {
     if (!user) return;
     (async () => {
       setLoading(true);
-      if (user.isAdmin) {
-        const ms = empList.filter((e) => !e.isAdmin);
+      if (user.isAdmin || user.canViewAll) {
+        const ms = empList.filter((e) => !e.isAdmin && e.pole !== "Direction");
         const ld = {};
         for (const m of ms) ld[m.name] = await loadTasks(m.name);
         setAll(ld);
       } else if (user.isChef) {
         const ms = empList.filter((e) => e.pole === user.pole);
+        const ld = {};
+        for (const m of ms) ld[m.name] = await loadTasks(m.name);
+        setAll(ld);
+      } else if (user.canViewKPI || user.canViewTJM) {
+        const ms = empList.filter((e) => !e.isAdmin && e.pole !== "Direction");
         const ld = {};
         for (const m of ms) ld[m.name] = await loadTasks(m.name);
         setAll(ld);
@@ -2202,7 +2242,7 @@ function App() {
 
   // Build the tasks to export depending on user role
   const getExportData = () => {
-    if (user.isAdmin) return all;
+    if (user.isAdmin || user.canViewAll || user.canViewTJM) return all;
     if (user.isChef) return all;
     return { [user.name]: all[user.name] || [] };
   };
@@ -2210,10 +2250,11 @@ function App() {
   if (!user) return <LoginScreen onLogin={setUser} employees={empList} />;
 
   const my = all[user.name] || [];
-  const canSeeTeam = user.isChef || user.isAdmin;
+  const isDirectionUser = user.canViewKPI || user.canViewTJM || user.canViewAll;
+  const canSeeTeam = user.isChef || user.isAdmin || isDirectionUser;
 
-  const pm = user.isAdmin
-    ? empList.filter((e) => !e.isAdmin)
+  const pm = (user.isAdmin || user.canViewAll || user.canViewKPI || user.canViewTJM)
+    ? empList.filter((e) => !e.isAdmin && e.pole !== "Direction")
     : empList.filter((e) => e.pole === user.pole && !e.isChef);
 
   const fm = af === "all" ? pm : pm.filter((m) => {
@@ -2243,12 +2284,13 @@ function App() {
             <div style={{ color: TXT3, fontSize: 11 }}>{user.role}</div>
           </div>
           {user.isAdmin && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: PURPLE + "22", color: PURPLE, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>}
+          {user.pole === "Direction" && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: GREEN + "22", color: GREEN, fontWeight: 700, textTransform: "uppercase" }}>Direction</span>}
           {my.some((t) => t.timerRunning) && <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 99, background: CYAN + "22", color: CYAN, fontWeight: 700, animation: "pulse 1.5s infinite" }}>⏱ Timer actif</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {canSeeTeam && (
             <button onClick={() => setAdmin(!admin)} style={{ padding: "8px 14px", background: admin ? ORANGE + "22" : DARK2, border: "1px solid " + (admin ? ORANGE : BRD), borderRadius: 8, color: admin ? ORANGE : TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
-              {admin ? "👤 Mon tableau" : user.isAdmin ? "👥 Vue globale" : "👥 Vue équipe"}
+              {admin ? "👤 Mon tableau" : (user.isAdmin || user.canViewAll) ? "👥 Vue globale" : "👥 Vue équipe"}
             </button>
           )}
           <button onClick={() => exportToExcel(getExportData(), empList)} title="Exporter en Excel" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: GREEN, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📊 Export</button>
@@ -2258,23 +2300,27 @@ function App() {
           {user.isAdmin && (
             <button onClick={() => setEmpModal(true)} title="Gérer les collaborateurs" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: CYAN, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>👥 Équipe</button>
           )}
-          {user.isAdmin && (
+          {(user.isAdmin || user.canViewTJM || user.canViewAll) && (
             <>
               <button onClick={() => setProfitabilityOpen(true)} title="Tableau de rentabilité" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + GREEN + "66", borderRadius: 8, color: GREEN, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>💰 Rentabilité</button>
+            </>
+          )}
+          {(user.isAdmin || user.canViewAll) && (
+            <>
               <button onClick={() => setFixedCostsOpen(true)} title="Frais fixes mensuels" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + ORANGE + "44", borderRadius: 8, color: ORANGE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚙️ Frais fixes</button>
             </>
           )}
-          {(user.isAdmin || user.isChef) && (
+          {(user.isAdmin || user.isChef || user.canViewAll) && (
             <>
               <button onClick={() => setWorkloadOpen(true)} title="Analyse de charge IA" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + PURPLE + "66", borderRadius: 8, color: PURPLE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚡ Charge IA</button>
-              {user.isAdmin && <button onClick={() => setReportOpen(true)} title="Rapport hebdomadaire IA" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + ORANGE + "66", borderRadius: 8, color: ORANGE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📊 Rapport IA</button>}
+              {(user.isAdmin || user.canViewAll) && <button onClick={() => setReportOpen(true)} title="Rapport hebdomadaire IA" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + ORANGE + "66", borderRadius: 8, color: ORANGE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📊 Rapport IA</button>}
             </>
           )}
-          {(user.isAdmin || user.isChef) && (
+          {(user.isAdmin || user.isChef || user.canViewKPI || user.canViewAll) && (
             <button onClick={() => setKpiOpen(true)} title="Évaluations KPI des membres" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + PURPLE + "66", borderRadius: 8, color: PURPLE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📋 KPI</button>
           )}
           <button onClick={() => setChatOpen((v) => !v)} title="Agent IA — Peut créer et gérer les tâches" style={{ padding: "8px 14px", background: chatOpen ? BLUE + "33" : DARK2, border: "2px solid " + (chatOpen ? BLUE : BLUE + "55"), borderRadius: 8, color: chatOpen ? BLUE : BLUE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🤖 Agent IA</button>
-          <button onClick={() => { const n=!isDark; localStorage.setItem('kbtheme',n?'dark':'light'); applyTheme(n); setIsDark(n); }} title={isDark?"Éclaircir":"Éteindre les lumières"} style={{ padding:"8px 14px", background:DARK2, border:"1px solid "+BRD, borderRadius:8, color:TXT2, fontWeight:600, fontSize:14, cursor:"pointer" }}>{isDark ? "☀️" : "🌙"}</button>
+          <button onClick={() => { const n=!isDark; localStorage.setItem('kbtheme',n?'dark':'light'); applyTheme(n); setIsDark(n); }} title={isDark?"Mode clair":"Mode sombre"} style={{ padding:"8px 14px", background:DARK2, border:"1px solid "+BRD, borderRadius:8, color:TXT2, fontWeight:600, fontSize:14, cursor:"pointer" }}>{isDark ? "☀️" : "🌙"}</button>
           <button onClick={() => setSettings(true)} style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>🔐</button>
           <button onClick={logout} style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>Déconnexion</button>
         </div>
@@ -2342,4 +2388,4 @@ function App() {
     root.render(<App />);
   </script>
 </body>
-  </html>
+</html>
