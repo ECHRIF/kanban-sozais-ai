@@ -830,8 +830,9 @@ function LoginScreen({ onLogin, employees }) {
   const [pf, setPf] = useState("all");
   const [busy, setBusy] = useState(false);
   const [resetSent, setResetSent] = useState(false);
-  // token JWT temporaire (reçu après login, utilisé pour change-password et set-email)
+  // token JWT + user data temporaires (reçus après login, utilisés pour change-password et set-email)
   const [tempToken, setTempToken] = useState(null);
+  const [tempUser, setTempUser] = useState(null); // data.user du serveur (complet)
 
   const forgotPassword = async () => {
     if (!sel) return;
@@ -862,12 +863,13 @@ function LoginScreen({ onLogin, employees }) {
       const data = await r.json();
       if (!r.ok) { setErr(data.error || "Mot de passe incorrect"); setBusy(false); return; }
       setTempToken(data.token);
+      setTempUser(data.user); // sauvegarder les données complètes du serveur
       if (data.firstLogin) {
         // Première connexion → changer le mot de passe obligatoire
         setStep("change"); setNPwd(""); setCPwd("");
       } else {
         setToken(data.token);
-        onLogin(data.user);
+        onLogin(data.user); // utiliser data.user (complet, depuis le serveur)
       }
     } catch { setErr("Erreur réseau, réessayez."); }
     setBusy(false);
@@ -886,8 +888,9 @@ function LoginScreen({ onLogin, employees }) {
       });
       if (!r.ok) { setErr((await r.json()).error || "Erreur"); setBusy(false); return; }
       // Vérifier si l'utilisateur n'a pas encore d'email → étape email
-      if (!sel.email) { setStep("email"); setEmail(""); }
-      else { setToken(tempToken); onLogin({ ...sel }); }
+      // Utiliser tempUser (données du serveur) et non sel (DEFAULT_EMPLOYEES incomplet)
+      if (!tempUser?.email) { setStep("email"); setEmail(""); }
+      else { setToken(tempToken); onLogin(tempUser); }
     } catch { setErr("Erreur réseau"); }
     setBusy(false);
   };
@@ -902,7 +905,8 @@ function LoginScreen({ onLogin, employees }) {
         body: JSON.stringify({ email: email.trim() }),
       });
       setToken(tempToken);
-      onLogin({ ...sel, email: email.trim() });
+      // Utiliser tempUser (complet depuis serveur) + email saisi
+      onLogin({ ...tempUser, email: email.trim() });
     } catch { setErr("Erreur réseau"); }
     setBusy(false);
   };
@@ -1020,7 +1024,7 @@ function LoginScreen({ onLogin, employees }) {
             </div>
             {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>⚠️ {err}</div>}
             <button onClick={saveEmail} disabled={busy || !email} style={{ width: "100%", padding: "12px 0", background: email ? GREEN : TXT3, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: email ? "pointer" : "not-allowed", marginBottom: 10 }}>Enregistrer et accéder →</button>
-            <button onClick={() => { setToken(tempToken); onLogin({ ...sel }); }} style={{ width: "100%", padding: "9px 0", background: "transparent", border: "1px solid " + BRD, borderRadius: 8, color: TXT3, fontSize: 12, cursor: "pointer" }}>Passer pour l'instant</button>
+            <button onClick={() => { setToken(tempToken); onLogin(tempUser); }} style={{ width: "100%", padding: "9px 0", background: "transparent", border: "1px solid " + BRD, borderRadius: 8, color: TXT3, fontSize: 12, cursor: "pointer" }}>Passer pour l'instant</button>
           </div>
         )}
       </div>
@@ -2133,7 +2137,14 @@ function App() {
   const lastActivityRef = useRef(Date.now());
   const INACTIVITY_MS = 5 * 60 * 1000; // 5 minutes
 
-  // Charger la liste des collaborateurs depuis le serveur (après login)
+  // Charger la liste minimale (sans auth) pour l'écran de login
+  useEffect(() => {
+    fetch('/api/auth/users').then(r => r.json()).then(list => {
+      if (list && list.length > 0) setEmpList(list);
+    }).catch(() => {});
+  }, []);
+
+  // Recharger la liste complète (avec auth, inclut TJM + email) après login
   useEffect(() => {
     if (!user) return;
     (async () => {
