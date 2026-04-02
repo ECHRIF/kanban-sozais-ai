@@ -890,7 +890,7 @@ function LoginScreen({ onLogin, employees }) {
           <div>
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="🔍 Rechercher..." style={{ ...iBase, marginBottom: 10 }} />
             <div style={{ display: "flex", gap: 5, marginBottom: 14 }}>
-              {[{ id: "all", l: "Tous" }, { id: "fluide", l: "Fluide" }, { id: "elec", l: "Élec" }, { id: "admin", l: "Admin" }, { id: "direction", l: "Direction" }].map((f) => (
+              {[{ id: "all", l: "Tous" }, { id: "fluide", l: "Fluide" }, { id: "elec", l: "Élec" }, { id: "admin", l: "Super Admin" }, { id: "direction", l: "Admin" }].map((f) => (
                 <button key={f.id} onClick={() => setPf(f.id)} style={{ flex: 1, padding: "7px 0", background: pf === f.id ? BLUE + "22" : DARK2, border: "1px solid " + (pf === f.id ? BLUE + "66" : BRD), borderRadius: 7, color: pf === f.id ? BLUE : TXT3, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{f.l}</button>
               ))}
             </div>
@@ -907,9 +907,9 @@ function LoginScreen({ onLogin, employees }) {
                     <div style={{ color: TXT, fontSize: 13, fontWeight: 600 }}>{emp.name}</div>
                     <div style={{ color: TXT3, fontSize: 10 }}>{emp.role}</div>
                   </div>
-                  {emp.isAdmin && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: PURPLE + "22", color: PURPLE, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>}
+                  {emp.isAdmin && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: PURPLE + "22", color: PURPLE, fontWeight: 700, textTransform: "uppercase" }}>Super Admin</span>}
                   {emp.isChef && !emp.isAdmin && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: ORANGE + "22", color: ORANGE, fontWeight: 700, textTransform: "uppercase" }}>Chef</span>}
-                  {emp.pole === "Direction" && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: GREEN + "22", color: GREEN, fontWeight: 700, textTransform: "uppercase" }}>Direction</span>}
+                  {emp.pole === "Direction" && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: GREEN + "22", color: GREEN, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>}
                   {!emp.isAdmin && emp.pole !== "Direction" && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: (emp.pole === "Fluide" ? BLUE : RED) + "22", color: emp.pole === "Fluide" ? BLUE : RED, fontWeight: 600 }}>{emp.pole}</span>}
                 </button>
               ))}
@@ -1573,11 +1573,11 @@ function EmployeesModal({ employees, onSave, onClose }) {
           </div>
         ))}
 
-        {/* Direction — reset uniquement */}
+        {/* Admin (Direction) — reset uniquement */}
         {directionList.length > 0 && (
           <div style={{ marginBottom: 18 }}>
             <div style={{ color: GREEN, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-              🏢 Direction — {directionList.length}
+              🏢 Admin — {directionList.length}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {directionList.map((emp) => (
@@ -1600,7 +1600,7 @@ function EmployeesModal({ employees, onSave, onClose }) {
         {adminList.length > 0 && (
           <div style={{ marginBottom: 18 }}>
             <div style={{ color: ORANGE, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-              🛡️ Administrateurs — {adminList.length}
+              🛡️ Super Admins — {adminList.length}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {adminList.map((emp) => (
@@ -1610,7 +1610,7 @@ function EmployeesModal({ employees, onSave, onClose }) {
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ color: TXT, fontSize: 12, fontWeight: 600 }}>{emp.name}</div>
-                    <div style={{ color: TXT3, fontSize: 10 }}>Admin</div>
+                    <div style={{ color: TXT3, fontSize: 10 }}>Super Admin</div>
                   </div>
                   <button onClick={() => resetPassword(emp.name)} title="Réinitialiser le mot de passe" style={{ background: ORANGE + "22", border: "1px solid " + ORANGE + "44", borderRadius: 6, color: ORANGE, fontSize: 11, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>🔑 Reset</button>
                 </div>
@@ -2257,6 +2257,11 @@ function App() {
     ? empList.filter((e) => !e.isAdmin && e.pole !== "Direction")
     : empList.filter((e) => e.pole === user.pole && !e.isChef);
 
+  // Membres Direction (Admin) — ont leur propre espace Kanban visible en vue globale
+  const directionMembers = user.isAdmin
+    ? empList.filter((e) => e.pole === "Direction")
+    : [];
+
   const fm = af === "all" ? pm : pm.filter((m) => {
     const t = all[m.name] || [];
     if (af === "overdue") return t.some((x) => x.deadline && new Date(x.deadline) < new Date() && x.column !== "done");
@@ -2283,8 +2288,8 @@ function App() {
             <div style={{ color: TXT, fontSize: 14, fontWeight: 700 }}>{user.name}</div>
             <div style={{ color: TXT3, fontSize: 11 }}>{user.role}</div>
           </div>
-          {user.isAdmin && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: PURPLE + "22", color: PURPLE, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>}
-          {user.pole === "Direction" && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: GREEN + "22", color: GREEN, fontWeight: 700, textTransform: "uppercase" }}>Direction</span>}
+          {user.isAdmin && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: PURPLE + "22", color: PURPLE, fontWeight: 700, textTransform: "uppercase" }}>Super Admin</span>}
+          {user.pole === "Direction" && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: GREEN + "22", color: GREEN, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>}
           {my.some((t) => t.timerRunning) && <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 99, background: CYAN + "22", color: CYAN, fontWeight: 700, animation: "pulse 1.5s infinite" }}>⏱ Timer actif</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -2351,6 +2356,22 @@ function App() {
                 ))}
                 {fm.length === 0 && <div style={{ textAlign: "center", padding: 40, color: TXT3 }}>Aucun résultat.</div>}
               </div>
+
+              {/* ─── Section Kanban Direction (Admin) ─────────────────── */}
+              {directionMembers.length > 0 && (
+                <div style={{ marginTop: 32 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                    <div style={{ height: 1, flex: 1, background: GREEN + "33" }} />
+                    <span style={{ color: GREEN, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, padding: "4px 12px", background: GREEN + "15", borderRadius: 99, border: "1px solid " + GREEN + "44" }}>🏢 Espace Admin</span>
+                    <div style={{ height: 1, flex: 1, background: GREEN + "33" }} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                    {directionMembers.map((m) => (
+                      <Board key={m.name} name={m.name} tasks={all[m.name] || []} onUpdate={upd} ro={false} showName={true} onToggleTimer={toggleTimer} tick={tick} poleMembers={null} onReassign={null} onPrioritize={handlePrioritize} prioritizing={prioritizing} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )
           : (
