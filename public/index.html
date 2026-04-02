@@ -2202,18 +2202,18 @@ function App() {
   // ─── refetchAll : recharger toutes les tâches (après actions IA) ──
   const refetchAll = useCallback(async () => {
     if (!user) return;
-    if (user.isAdmin || user.canViewAll) {
-      const ms = empList.filter((e) => !e.isAdmin && e.pole !== "Direction");
+    if (user.pole === "Direction") {
+      const ms = empList.filter((e) => e.pole === "Direction");
+      const ld = {};
+      for (const m of ms) ld[m.name] = await loadTasks(m.name);
+      setAll(ld);
+    } else if (user.isAdmin) {
+      const ms = empList.filter((e) => !e.isAdmin);
       const ld = {};
       for (const m of ms) ld[m.name] = await loadTasks(m.name);
       setAll(ld);
     } else if (user.isChef) {
       const ms = empList.filter((e) => e.pole === user.pole);
-      const ld = {};
-      for (const m of ms) ld[m.name] = await loadTasks(m.name);
-      setAll(ld);
-    } else if (user.canViewKPI || user.canViewTJM) {
-      const ms = empList.filter((e) => !e.isAdmin && e.pole !== "Direction");
       const ld = {};
       for (const m of ms) ld[m.name] = await loadTasks(m.name);
       setAll(ld);
@@ -2233,18 +2233,20 @@ function App() {
     if (!user) return;
     (async () => {
       setLoading(true);
-      if (user.isAdmin || user.canViewAll) {
-        const ms = empList.filter((e) => !e.isAdmin && e.pole !== "Direction");
+      if (user.pole === "Direction") {
+        // Utilisateur Admin (Direction) : charge toutes les tâches Direction (y compris les siennes)
+        const ms = empList.filter((e) => e.pole === "Direction");
+        const ld = {};
+        for (const m of ms) ld[m.name] = await loadTasks(m.name);
+        setAll(ld);
+      } else if (user.isAdmin) {
+        // Super Admin : charge toute l'équipe tech + l'espace Admin
+        const ms = empList.filter((e) => !e.isAdmin);
         const ld = {};
         for (const m of ms) ld[m.name] = await loadTasks(m.name);
         setAll(ld);
       } else if (user.isChef) {
         const ms = empList.filter((e) => e.pole === user.pole);
-        const ld = {};
-        for (const m of ms) ld[m.name] = await loadTasks(m.name);
-        setAll(ld);
-      } else if (user.canViewKPI || user.canViewTJM) {
-        const ms = empList.filter((e) => !e.isAdmin && e.pole !== "Direction");
         const ld = {};
         for (const m of ms) ld[m.name] = await loadTasks(m.name);
         setAll(ld);
@@ -2372,11 +2374,9 @@ function App() {
       : empList.filter((e) => e.pole === user.pole && !e.isChef);
 
   // Membres Direction visibles en vue équipe
-  const directionMembers = user.isAdmin
+  const directionMembers = (user.isAdmin || user.pole === "Direction")
     ? empList.filter((e) => e.pole === "Direction")
-    : user.pole === "Direction"
-      ? empList.filter((e) => e.pole === "Direction" && e.name !== user.name) // Marion voit Siwar + Maroua, etc.
-      : [];
+    : [];
 
   const pmFiltered = teamPole === "all" ? pm
     : teamPole === "fluide" ? pm.filter((m) => m.pole === "Fluide")
