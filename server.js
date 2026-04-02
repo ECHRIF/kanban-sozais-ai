@@ -79,9 +79,15 @@ const pool = mysql.createPool({
         PRIMARY KEY (name)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
-    // Ajout des colonnes de permissions si elles n'existent pas encore (migration)
+    // Ajout des colonnes de permissions si elles n'existent pas encore (migration compatible MySQL 5.x)
     for (const col of ['can_view_kpi', 'can_view_tjm', 'can_view_all']) {
-      await conn.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS ${col} TINYINT(1) DEFAULT 0`).catch(() => {});
+      const [cols] = await conn.query(
+        `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='employees' AND COLUMN_NAME=?`,
+        [col]
+      );
+      if (cols[0].cnt === 0) {
+        await conn.query(`ALTER TABLE employees ADD COLUMN ${col} TINYINT(1) DEFAULT 0`);
+      }
     }
     await conn.query(`
       CREATE TABLE IF NOT EXISTS fixed_costs (
@@ -182,12 +188,24 @@ const pool = mysql.createPool({
       );
     }
     // ─── Utilisateurs administratifs Direction ─────────────────
-    await conn.query(`INSERT IGNORE INTO employees (name, role, pole, is_chef, is_admin, can_view_kpi) VALUES (?, ?, ?, 0, 0, 1)`,
-      ['Maroua HTIRA', 'Assistante de direction', 'Direction']);
-    await conn.query(`INSERT IGNORE INTO employees (name, role, pole, is_chef, is_admin, can_view_tjm) VALUES (?, ?, ?, 0, 0, 1)`,
-      ['Siwar HOSNI', 'Responsable financière', 'Direction']);
-    await conn.query(`INSERT IGNORE INTO employees (name, role, pole, is_chef, is_admin, can_view_all) VALUES (?, ?, ?, 0, 0, 1)`,
-      ['Marion CESA', 'Resp. administrative et financière', 'Direction']);
+    await conn.query(
+      `INSERT INTO employees (name, role, pole, is_chef, is_admin, can_view_kpi, can_view_tjm, can_view_all)
+       VALUES (?, ?, 'Direction', 0, 0, 1, 0, 0)
+       ON DUPLICATE KEY UPDATE role=VALUES(role), pole=VALUES(pole), can_view_kpi=1, can_view_tjm=0, can_view_all=0`,
+      ['Maroua HTIRA', 'Assistante de direction']
+    );
+    await conn.query(
+      `INSERT INTO employees (name, role, pole, is_chef, is_admin, can_view_kpi, can_view_tjm, can_view_all)
+       VALUES (?, ?, 'Direction', 0, 0, 0, 1, 0)
+       ON DUPLICATE KEY UPDATE role=VALUES(role), pole=VALUES(pole), can_view_kpi=0, can_view_tjm=1, can_view_all=0`,
+      ['Siwar HOSNI', 'Responsable financière']
+    );
+    await conn.query(
+      `INSERT INTO employees (name, role, pole, is_chef, is_admin, can_view_kpi, can_view_tjm, can_view_all)
+       VALUES (?, ?, 'Direction', 0, 0, 0, 0, 1)
+       ON DUPLICATE KEY UPDATE role=VALUES(role), pole=VALUES(pole), can_view_kpi=0, can_view_tjm=0, can_view_all=1`,
+      ['Marion CESA', 'Resp. administrative et financière']
+    );
     await conn.query(
       `INSERT IGNORE INTO fixed_costs (category, label, amount_monthly) VALUES
        ('loyer', 'Loyer & charges locatives', 0),
