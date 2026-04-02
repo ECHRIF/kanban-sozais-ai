@@ -2006,6 +2006,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [admin, setAdmin] = useState(false);
   const [af, setAf] = useState("all");
+  const [teamPole, setTeamPole] = useState("all");
   const [settings, setSettings] = useState(false);
   const [empModal, setEmpModal] = useState(false);
   const [tick, setTick] = useState(0);
@@ -2262,7 +2263,12 @@ function App() {
     ? empList.filter((e) => e.pole === "Direction")
     : [];
 
-  const fm = af === "all" ? pm : pm.filter((m) => {
+  const pmFiltered = teamPole === "all" ? pm
+    : teamPole === "fluide" ? pm.filter((m) => m.pole === "Fluide")
+    : teamPole === "elec"   ? pm.filter((m) => m.pole === "Élec")
+    : []; // "admin" → seulement l'espace Admin, pas les membres normaux
+
+  const fm = af === "all" ? pmFiltered : pmFiltered.filter((m) => {
     const t = all[m.name] || [];
     if (af === "overdue") return t.some((x) => x.deadline && new Date(x.deadline) < new Date() && x.column !== "done");
     if (af === "high") return t.some((x) => x.priority === "high" && x.column !== "done");
@@ -2270,7 +2276,9 @@ function App() {
     return true;
   });
 
-  const apt = pm.flatMap((m) => all[m.name] || []);
+  const showDirectionSection = user.isAdmin && directionMembers.length > 0 && (teamPole === "all" || teamPole === "admin");
+  const statsBase = teamPole === "admin" ? directionMembers : fm;
+  const apt = statsBase.flatMap((m) => all[m.name] || []);
   const tot = apt.length;
   const dn = apt.filter((t) => t.column === "done").length;
   const activeTimers = apt.filter((t) => t.timerRunning).length;
@@ -2345,6 +2353,11 @@ function App() {
                   </div>
                 ))}
               </div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                {[{ id: "all", l: "Tous les pôles" }, { id: "fluide", l: "🔵 Fluide" }, { id: "elec", l: "🔴 Élec" }, { id: "admin", l: "🏢 Admin" }].map((f) => (
+                  <button key={f.id} onClick={() => setTeamPole(f.id)} style={{ padding: "6px 14px", background: teamPole === f.id ? GREEN + "22" : DARK2, border: "1px solid " + (teamPole === f.id ? GREEN + "66" : BRD), borderRadius: 6, color: teamPole === f.id ? GREEN : TXT3, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{f.l}</button>
+                ))}
+              </div>
               <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
                 {[{ id: "all", l: "Tous" }, { id: "timer", l: "⏱ Timer actif" }, { id: "overdue", l: "⚠️ En retard" }, { id: "high", l: "🔴 Prio haute" }].map((f) => (
                   <button key={f.id} onClick={() => setAf(f.id)} style={{ padding: "6px 14px", background: af === f.id ? BLUE + "22" : DARK2, border: "1px solid " + (af === f.id ? BLUE + "66" : BRD), borderRadius: 6, color: af === f.id ? BLUE : TXT3, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{f.l}</button>
@@ -2358,7 +2371,7 @@ function App() {
               </div>
 
               {/* ─── Section Kanban Direction (Admin) ─────────────────── */}
-              {directionMembers.length > 0 && (
+              {showDirectionSection && (
                 <div style={{ marginTop: 32 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
                     <div style={{ height: 1, flex: 1, background: GREEN + "33" }} />
