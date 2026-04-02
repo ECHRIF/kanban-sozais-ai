@@ -2254,14 +2254,19 @@ function App() {
   const isDirectionUser = user.canViewKPI || user.canViewTJM || user.canViewAll;
   const canSeeTeam = user.isChef || user.isAdmin || isDirectionUser;
 
-  const pm = (user.isAdmin || user.canViewAll || user.canViewKPI || user.canViewTJM)
-    ? empList.filter((e) => !e.isAdmin && e.pole !== "Direction")
-    : empList.filter((e) => e.pole === user.pole && !e.isChef);
+  // Direction users ne voient pas les boards de l'équipe technique (seulement leurs collègues Admin)
+  const pm = user.pole === "Direction"
+    ? []
+    : (user.isAdmin || user.canViewAll || user.canViewKPI || user.canViewTJM)
+      ? empList.filter((e) => !e.isAdmin && e.pole !== "Direction")
+      : empList.filter((e) => e.pole === user.pole && !e.isChef);
 
-  // Membres Direction (Admin) — ont leur propre espace Kanban visible en vue globale
+  // Membres Direction visibles en vue équipe
   const directionMembers = user.isAdmin
     ? empList.filter((e) => e.pole === "Direction")
-    : [];
+    : user.pole === "Direction"
+      ? empList.filter((e) => e.pole === "Direction" && e.name !== user.name) // Marion voit Siwar + Maroua, etc.
+      : [];
 
   const pmFiltered = teamPole === "all" ? pm
     : teamPole === "fluide" ? pm.filter((m) => m.pole === "Fluide")
@@ -2276,7 +2281,7 @@ function App() {
     return true;
   });
 
-  const showDirectionSection = user.isAdmin && directionMembers.length > 0 && (teamPole === "all" || teamPole === "admin");
+  const showDirectionSection = (user.isAdmin || user.pole === "Direction") && directionMembers.length > 0 && (teamPole === "all" || teamPole === "admin");
   const statsBase = teamPole === "admin" ? directionMembers : fm;
   const apt = statsBase.flatMap((m) => all[m.name] || []);
   const tot = apt.length;
@@ -2303,7 +2308,7 @@ function App() {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {canSeeTeam && (
             <button onClick={() => setAdmin(!admin)} style={{ padding: "8px 14px", background: admin ? ORANGE + "22" : DARK2, border: "1px solid " + (admin ? ORANGE : BRD), borderRadius: 8, color: admin ? ORANGE : TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
-              {admin ? "👤 Mon tableau" : (user.isAdmin || user.canViewAll) ? "👥 Vue globale" : "👥 Vue équipe"}
+              {admin ? "👤 Mon tableau" : user.isAdmin ? "👥 Vue globale" : user.pole === "Direction" ? "👥 Vue Admin" : "👥 Vue équipe"}
             </button>
           )}
           <button onClick={() => exportToExcel(getExportData(), empList)} title="Exporter en Excel" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: GREEN, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📊 Export</button>
