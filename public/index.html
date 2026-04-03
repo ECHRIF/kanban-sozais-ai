@@ -82,7 +82,10 @@ const DEFAULT_EMPLOYEES = [
   { name: "ECHRIF Youssef", role: "Admin", pole: "Admin", isChef: false, isAdmin: true },
   { name: "Maroua HTIRA", role: "Assistante de direction", pole: "Direction", isChef: false, isAdmin: false, canViewKPI: true },
   { name: "Siwar HOSNI", role: "Responsable financière", pole: "Direction", isChef: false, isAdmin: false, canViewTJM: true },
-  { name: "Marion CESA", role: "Resp. administrative et financière", pole: "Direction", isChef: false, isAdmin: false, canViewAll: true },
+  { name: "Marion CESA", role: "Resp. administrative et financière", pole: "Direction", isChef: true, isAdmin: false, canViewAll: true },
+  { name: "Asma ATHIMNI", role: "Directrice Commerciale", pole: "Commercial", isChef: true },
+  { name: "Nourchene OUESLATI", role: "Commerciale", pole: "Commercial", isChef: false },
+  { name: "Warden EL FEKIH", role: "Commercial", pole: "Commercial", isChef: false },
 ];
 
 const genId = () => Math.random().toString(36).substr(2, 9);
@@ -849,7 +852,7 @@ function LoginScreen({ onLogin, employees }) {
   };
 
   const filtered = employees.filter((e) => {
-    const matchPole = pf === "all" || (pf === "fluide" && e.pole === "Fluide") || (pf === "elec" && e.pole === "Élec") || (pf === "admin" && e.isAdmin) || (pf === "direction" && e.pole === "Direction");
+    const matchPole = pf === "all" || (pf === "fluide" && e.pole === "Fluide") || (pf === "elec" && e.pole === "Élec") || (pf === "com" && e.pole === "Commercial") || (pf === "admin" && e.isAdmin) || (pf === "direction" && e.pole === "Direction");
     return matchPole && e.name.toLowerCase().includes(search.toLowerCase());
   });
 
@@ -931,7 +934,7 @@ function LoginScreen({ onLogin, employees }) {
           <div>
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="🔍 Rechercher..." style={{ ...iBase, marginBottom: 10 }} />
             <div style={{ display: "flex", gap: 5, marginBottom: 14 }}>
-              {[{ id: "all", l: "Tous" }, { id: "fluide", l: "Fluide" }, { id: "elec", l: "Élec" }, { id: "admin", l: "Super Admin" }, { id: "direction", l: "Admin" }].map((f) => (
+              {[{ id: "all", l: "Tous" }, { id: "fluide", l: "Fluide" }, { id: "elec", l: "Élec" }, { id: "com", l: "Commercial" }, { id: "admin", l: "Super Admin" }, { id: "direction", l: "Admin" }].map((f) => (
                 <button key={f.id} onClick={() => setPf(f.id)} style={{ flex: 1, padding: "7px 0", background: pf === f.id ? BLUE + "22" : DARK2, border: "1px solid " + (pf === f.id ? BLUE + "66" : BRD), borderRadius: 7, color: pf === f.id ? BLUE : TXT3, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{f.l}</button>
               ))}
             </div>
@@ -1573,7 +1576,7 @@ function ProfitabilityModal({ onClose }) {
 
 // ─── EmployeesModal (admin only) ───
 function EmployeesModal({ employees, onSave, onClose }) {
-  const POLES = ["Fluide", "Élec"];
+  const POLES = ["Fluide", "Élec", "Commercial"];
   const [list, setList] = useState(employees.filter((e) => !e.isAdmin && e.pole !== "Direction"));
   const [form, setForm] = useState({ name: "", role: "", pole: "Fluide", isChef: false, tjm: "" });
   const [err, setErr] = useState("");
@@ -2381,6 +2384,7 @@ function App() {
   const pmFiltered = teamPole === "all" ? pm
     : teamPole === "fluide" ? pm.filter((m) => m.pole === "Fluide")
     : teamPole === "elec"   ? pm.filter((m) => m.pole === "Élec")
+    : teamPole === "com"    ? pm.filter((m) => m.pole === "Commercial")
     : []; // "admin" → seulement l'espace Admin, pas les membres normaux
 
   const fm = af === "all" ? pmFiltered : pmFiltered.filter((m) => {
@@ -2469,7 +2473,7 @@ function App() {
                 ))}
               </div>
               <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                {[{ id: "all", l: "Tous les pôles" }, { id: "fluide", l: "🔵 Fluide" }, { id: "elec", l: "🔴 Élec" }, { id: "admin", l: "🏢 Admin" }].map((f) => (
+                {[{ id: "all", l: "Tous les pôles" }, { id: "fluide", l: "🔵 Fluide" }, { id: "elec", l: "🔴 Élec" }, { id: "com", l: "🟡 Commercial" }, { id: "admin", l: "🏢 Admin" }].map((f) => (
                   <button key={f.id} onClick={() => setTeamPole(f.id)} style={{ padding: "6px 14px", background: teamPole === f.id ? GREEN + "22" : DARK2, border: "1px solid " + (teamPole === f.id ? GREEN + "66" : BRD), borderRadius: 6, color: teamPole === f.id ? GREEN : TXT3, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{f.l}</button>
                 ))}
               </div>

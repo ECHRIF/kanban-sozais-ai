@@ -231,8 +231,11 @@ const pool = mysql.createPool({
       ['Amine DRONGA',     'Ingénieur Elec',           'Élec',   0, 0],
       ['Salma HANZOULI',   'Ingénieur Elec',           'Élec',   0, 0],
       ['M.O. HACHLEF',     'Ingénieur Elec',           'Élec',   0, 0],
-      ['ECHRIF Walid',     'Admin',                    'Admin',  0, 1],
-      ['ECHRIF Youssef',   'Admin',                    'Admin',  0, 1],
+      ['ECHRIF Walid',       'Admin',                    'Admin',      0, 1],
+      ['ECHRIF Youssef',     'Admin',                    'Admin',      0, 1],
+      ['Asma ATHIMNI',       'Directrice Commerciale',   'Commercial', 1, 0],
+      ['Nourchene OUESLATI', 'Commerciale',              'Commercial', 0, 0],
+      ['Warden EL FEKIH',    'Commercial',               'Commercial', 0, 0],
     ];
     for (const emp of employeesData) {
       await conn.query(
@@ -255,8 +258,8 @@ const pool = mysql.createPool({
     );
     await conn.query(
       `INSERT INTO employees (name, role, pole, is_chef, is_admin, can_view_kpi, can_view_tjm, can_view_all)
-       VALUES (?, ?, 'Direction', 0, 0, 0, 0, 1)
-       ON DUPLICATE KEY UPDATE role=VALUES(role), pole=VALUES(pole), can_view_kpi=0, can_view_tjm=0, can_view_all=1`,
+       VALUES (?, ?, 'Direction', 1, 0, 0, 0, 1)
+       ON DUPLICATE KEY UPDATE role=VALUES(role), pole=VALUES(pole), is_chef=1, can_view_kpi=0, can_view_tjm=0, can_view_all=1`,
       ['Marion CESA', 'Resp. administrative et financière']
     );
     await conn.query(
