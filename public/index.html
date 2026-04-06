@@ -82,89 +82,86 @@ const DEFAULT_EMPLOYEES = [
   { name: "ECHRIF Youssef", role: "Admin", pole: "Admin", isChef: false, isAdmin: true },
   { name: "Maroua HTIRA", role: "Assistante de direction", pole: "Direction", isChef: false, isAdmin: false, canViewKPI: true },
   { name: "Siwar HOSNI", role: "Responsable financière", pole: "Direction", isChef: false, isAdmin: false, canViewTJM: true },
-  { name: "Marion CESA", role: "Resp. administrative et financière", pole: "Direction", isChef: false, isAdmin: false, canViewAll: true },
+  { name: "Marion CESA", role: "Resp. administrative et financière", pole: "Direction", isChef: true, isAdmin: false, canViewAll: true },
+  { name: "Asma ATHIMNI", role: "Directrice Commerciale", pole: "Commercial", isChef: true },
+  { name: "Nourchene OUESLATI", role: "Commerciale", pole: "Commercial", isChef: false },
+  { name: "Warden EL FEKIH", role: "Commercial", pole: "Commercial", isChef: false },
 ];
 
 const genId = () => Math.random().toString(36).substr(2, 9);
 let dragData = null;
 
+// ─── Auth : token JWT ──────────────────────────────────
+function getToken() { return sessionStorage.getItem('_kbt') || ''; }
+function setToken(t) { if (t) sessionStorage.setItem('_kbt', t); else sessionStorage.removeItem('_kbt'); }
+
+// authFetch : ajoute automatiquement le header Authorization
+async function authFetch(url, opts = {}) {
+  const token = getToken();
+  return fetch(url, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}), ...(token ? { Authorization: 'Bearer ' + token } : {}) }
+  });
+}
+
 // ─── Helpers API REST → MySQL (via serveur Express) ───
 async function loadTasks(name) {
   try {
-    const r = await fetch('/api/tasks/' + encodeURIComponent(name));
+    const r = await authFetch('/api/tasks/' + encodeURIComponent(name));
     if (!r.ok) return [];
     return await r.json();
   } catch { return []; }
 }
 async function saveTasks(name, tasks) {
   try {
-    await fetch('/api/tasks/' + encodeURIComponent(name), {
+    await authFetch('/api/tasks/' + encodeURIComponent(name), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(tasks),
-    });
-  } catch (e) { console.error(e); }
-}
-async function loadPwd(name) {
-  try {
-    const r = await fetch('/api/pwd/' + encodeURIComponent(name));
-    if (!r.ok) return null;
-    const d = await r.json();
-    return d.password || null;
-  } catch { return null; }
-}
-async function savePwd(name, pwd) {
-  try {
-    await fetch('/api/pwd/' + encodeURIComponent(name), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: pwd }),
     });
   } catch (e) { console.error(e); }
 }
 async function loadEmployees() {
   try {
-    const r = await fetch('/api/employees');
+    const r = await authFetch('/api/employees');
     if (!r.ok) return null;
     return await r.json();
   } catch { return null; }
 }
 async function saveEmployees(list) {
   try {
-    await fetch('/api/employees', {
+    await authFetch('/api/employees', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(list),
     });
   } catch (e) { console.error(e); }
 }
 
 // ─── Helpers API IA ───────────────────────────────────────────
-async function aiAgent(messages, userName, userRole, isAdmin, isChef, agentName, agentStyle) {
-  const r = await fetch('/api/ai/agent', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, userName, userRole, isAdmin, isChef, agentName, agentStyle }),
+async function aiAgent(messages, agentName, agentStyle) {
+  const r = await authFetch('/api/ai/agent', {
+    method: 'POST',
+    body: JSON.stringify({ messages, agentName, agentStyle }),
   });
   if (!r.ok) throw new Error((await r.json()).error || 'Erreur IA');
   return await r.json(); // { reply, actions }
 }
 async function aiBriefing(userName) {
-  const r = await fetch('/api/ai/briefing/' + encodeURIComponent(userName));
+  const r = await authFetch('/api/ai/briefing/' + encodeURIComponent(userName));
   if (!r.ok) return null;
   return (await r.json()).briefing;
 }
 async function aiWorkload() {
-  const r = await fetch('/api/ai/workload');
+  const r = await authFetch('/api/ai/workload');
   if (!r.ok) throw new Error((await r.json()).error || 'Erreur IA');
   return (await r.json()).analysis;
 }
 async function aiPrioritize(ownerName) {
-  const r = await fetch('/api/ai/prioritize/' + encodeURIComponent(ownerName), { method: 'POST' });
+  const r = await authFetch('/api/ai/prioritize/' + encodeURIComponent(ownerName), { method: 'POST' });
   if (!r.ok) throw new Error((await r.json()).error || 'Erreur IA');
   return await r.json();
 }
 async function aiWeeklyReport() {
-  const r = await fetch('/api/ai/weekly-report', { method: 'POST' });
+  const r = await authFetch('/api/ai/weekly-report', { method: 'POST' });
   if (!r.ok) throw new Error((await r.json()).error || 'Erreur IA');
   return await r.json();
 }
@@ -304,7 +301,7 @@ function AIChatPanel({ user, onClose, onAction }) {
     const next = [...messages, userMsg];
     setMessages(next); setInput(""); setLoading(true);
     try {
-      const { reply, actions } = await aiAgent(next, user.name, user.role, !!user.isAdmin, !!user.isChef, agentName, agentStyle);
+      const { reply, actions } = await aiAgent(next, agentName, agentStyle);
       const assistantMsg = { role: 'assistant', content: reply, actions: actions || [] };
       setMessages([...next, assistantMsg]);
       if (actions && actions.length > 0 && onAction) onAction();
@@ -823,44 +820,87 @@ function ImportExcelModal({ employees, allTasks, onImport, onClose }) {
   );
 }
 
+// ─── Page d'accueil ───
+function LandingPage({ onLogin }) {
+  return (
+    <div style={{ minHeight: "100vh", background: DARK, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit','Segoe UI',sans-serif", position: "relative", overflow: "hidden" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+      <style>{"*{box-sizing:border-box;margin:0;padding:0}@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}"}</style>
+      <div style={{ position:"absolute", inset:0, backgroundImage:"radial-gradient(circle at 20% 50%, "+BLUE+"18 0%, transparent 50%), radial-gradient(circle at 80% 20%, "+PURPLE+"18 0%, transparent 40%)", pointerEvents:"none" }} />
+      <div style={{ animation:"fadeUp 0.6s ease", textAlign:"center", padding:"40px 24px", maxWidth:480, width:"100%", position:"relative" }}>
+        <div style={{ marginBottom:20 }}><Logo size={80} /></div>
+        <div style={{ color:TXT, fontSize:38, fontWeight:800, letterSpacing:-1.5, lineHeight:1.1 }}>Kanban SOZAIS</div>
+        <div style={{ color:TXT3, fontSize:15, marginTop:10, fontWeight:400, lineHeight:1.6 }}>
+          Gestion de projets &amp; équipes<br/>
+          <span style={{ color:BLUE, fontWeight:600 }}>Propulsé par l'IA</span>
+        </div>
+        <div style={{ display:"flex", gap:10, justifyContent:"center", marginTop:28, marginBottom:32, flexWrap:"wrap" }}>
+          {[["📐","Ingénierie"],["🤖","IA Intégrée"],["📅","Planning Gantt"],["⏱","Pointage"]].map(([ic,lb]) => (
+            <div key={lb} style={{ padding:"10px 16px", background:DARK2, border:"1px solid "+BRD, borderRadius:10, display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
+              <span style={{ fontSize:20 }}>{ic}</span>
+              <span style={{ color:TXT3, fontSize:9, fontWeight:600, textTransform:"uppercase", letterSpacing:.5 }}>{lb}</span>
+            </div>
+          ))}
+        </div>
+        <button onClick={onLogin} style={{ width:"100%", maxWidth:320, padding:"15px 0", background:BLUE, border:"none", borderRadius:12, color:"#fff", fontSize:16, fontWeight:700, cursor:"pointer", letterSpacing:0.3, boxShadow:"0 8px 32px "+BLUE+"55" }}>
+          Se connecter →
+        </button>
+        <div style={{ marginTop:24, color:TXT3, fontSize:11 }}>© 2026 SOZAIS · Version AI-First v2</div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Login ───
-function LoginScreen({ onLogin, employees }) {
-  const [step, setStep] = useState("select");
-  const [sel, setSel] = useState(null);
+function LoginScreen({ onLogin, employees, onBack }) {
+  const [step, setStep] = useState("login");
+  const [name, setName] = useState("");
   const [pwd, setPwd] = useState("");
   const [nPwd, setNPwd] = useState("");
   const [cPwd, setCPwd] = useState("");
+  const [email, setEmail] = useState("");
   const [err, setErr] = useState("");
-  const [search, setSearch] = useState("");
-  const [pf, setPf] = useState("all");
   const [busy, setBusy] = useState(false);
-  const [resetDone, setResetDone] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [tempToken, setTempToken] = useState(null);
+  const [tempUser, setTempUser] = useState(null);
+
+  const matchedEmp = employees.find(e => e.name.toLowerCase() === name.trim().toLowerCase());
 
   const forgotPassword = async () => {
-    if (!sel) return;
+    if (!name.trim()) { setErr("Entrez d'abord votre nom"); return; }
     setBusy(true);
     try {
-      await fetch(`/api/pwd/${encodeURIComponent(sel.name)}`, { method: "DELETE" });
-      setResetDone(true);
-      setPwd("");
-      setErr("");
-    } catch (e) {
-      setErr("Erreur réseau, réessayez.");
-    }
+      await fetch('/api/auth/forgot-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      setResetSent(true); setErr("");
+    } catch { setErr("Erreur réseau, réessayez."); }
     setBusy(false);
   };
 
-  const filtered = employees.filter((e) => {
-    const matchPole = pf === "all" || (pf === "fluide" && e.pole === "Fluide") || (pf === "elec" && e.pole === "Élec") || (pf === "admin" && e.isAdmin) || (pf === "direction" && e.pole === "Direction");
-    return matchPole && e.name.toLowerCase().includes(search.toLowerCase());
-  });
-
   const checkPwd = async () => {
+    if (!name.trim()) { setErr("Entrez votre nom complet"); return; }
+    if (!pwd) { setErr("Entrez votre mot de passe"); return; }
     setBusy(true); setErr("");
-    const stored = await loadPwd(sel.name);
-    if (pwd !== (stored || DEFAULT_PASSWORD)) { setErr("Mot de passe incorrect"); setBusy(false); return; }
-    if (!stored) { setStep("change"); setNPwd(""); setCPwd(""); setBusy(false); return; }
-    setBusy(false); onLogin(sel);
+    try {
+      const r = await fetch('/api/auth/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), password: pwd }),
+      });
+      const data = await r.json();
+      if (!r.ok) { setErr(data.error || "Identifiants incorrects"); setBusy(false); return; }
+      setTempToken(data.token);
+      setTempUser(data.user);
+      if (data.firstLogin) {
+        setStep("change"); setNPwd(""); setCPwd("");
+      } else {
+        setToken(data.token);
+        onLogin(data.user);
+      }
+    } catch { setErr("Erreur réseau, réessayez."); }
+    setBusy(false);
   };
 
   const changePwd = async () => {
@@ -868,89 +908,120 @@ function LoginScreen({ onLogin, employees }) {
     if (nPwd.length < 6) { setErr("6 caractères minimum"); return; }
     if (nPwd !== cPwd) { setErr("Les mots de passe ne correspondent pas"); return; }
     if (nPwd === DEFAULT_PASSWORD) { setErr("Choisissez un autre mot de passe"); return; }
-    setBusy(true); await savePwd(sel.name, nPwd); setBusy(false); onLogin(sel);
+    setBusy(true);
+    try {
+      const r = await fetch('/api/auth/change-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tempToken },
+        body: JSON.stringify({ newPassword: nPwd }),
+      });
+      if (!r.ok) { setErr((await r.json()).error || "Erreur"); setBusy(false); return; }
+      if (!tempUser?.email) { setStep("email"); setEmail(""); }
+      else { setToken(tempToken); onLogin(tempUser); }
+    } catch { setErr("Erreur réseau"); }
+    setBusy(false);
   };
+
+  const saveEmail = async () => {
+    setErr("");
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setErr("Email invalide"); return; }
+    setBusy(true);
+    try {
+      await fetch('/api/auth/set-email', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tempToken },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      setToken(tempToken);
+      onLogin({ ...tempUser, email: email.trim() });
+    } catch { setErr("Erreur réseau"); }
+    setBusy(false);
+  };
+
+  const avatar = matchedEmp
+    ? matchedEmp.name.split(" ").map(n=>n[0]).join("").slice(0,2)
+    : (name.trim() ? name.trim().split(" ").map(n=>n[0]).join("").slice(0,2) : "?");
 
   return (
     <div style={{ minHeight: "100vh", background: DARK, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit','Segoe UI',sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
-      <style>{"@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}"}</style>
-      <div style={{ width: "100%", maxWidth: 460, padding: 24, animation: "fadeUp 0.4s ease" }}>
+      <style>{"@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}"}</style>
+      <div style={{ width: "100%", maxWidth: 440, padding: 24, animation: "fadeUp 0.4s ease" }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ marginBottom: 10 }}><Logo size={60} /></div>
-          <h1 style={{ color: TXT, fontSize: 22, fontWeight: 800, margin: 0 }}>Kanban Équipe</h1>
-          <p style={{ color: TXT3, fontSize: 13, marginTop: 4 }}>
-            {step === "select" && "Sélectionnez votre nom pour vous connecter"}
-            {step === "password" && ("Connexion — " + (sel && sel.name))}
-            {step === "change" && "Première connexion : créez votre mot de passe"}
+          <div style={{ marginBottom: 10 }}><Logo size={56} /></div>
+          <h1 style={{ color: TXT, fontSize: 20, fontWeight: 800, margin: 0 }}>
+            {step === "login" && "Connexion"}
+            {step === "change" && "Changement de mot de passe"}
+            {step === "email" && "Ajout de l'email"}
+          </h1>
+          <p style={{ color: TXT3, fontSize: 12, marginTop: 4 }}>
+            {step === "login" && "Entrez vos identifiants pour accéder au tableau"}
+            {step === "change" && "Première connexion — créez votre mot de passe personnel"}
+            {step === "email" && "Ajoutez votre email pour récupérer votre compte"}
           </p>
         </div>
 
-        {step === "select" && (
-          <div>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="🔍 Rechercher..." style={{ ...iBase, marginBottom: 10 }} />
-            <div style={{ display: "flex", gap: 5, marginBottom: 14 }}>
-              {[{ id: "all", l: "Tous" }, { id: "fluide", l: "Fluide" }, { id: "elec", l: "Élec" }, { id: "admin", l: "Admin" }, { id: "direction", l: "Direction" }].map((f) => (
-                <button key={f.id} onClick={() => setPf(f.id)} style={{ flex: 1, padding: "7px 0", background: pf === f.id ? BLUE + "22" : DARK2, border: "1px solid " + (pf === f.id ? BLUE + "66" : BRD), borderRadius: 7, color: pf === f.id ? BLUE : TXT3, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{f.l}</button>
-              ))}
-            </div>
-            <div style={{ maxHeight: 380, overflowY: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
-              {filtered.map((emp) => (
-                <button key={emp.name} onClick={() => { setSel(emp); setStep("password"); setPwd(""); setErr(""); setResetDone(false); }}
-                  style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 9, cursor: "pointer", textAlign: "left", width: "100%" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = DARK4; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = DARK2; }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 99, background: emp.isAdmin ? PURPLE + "44" : emp.pole === "Direction" ? GREEN + "44" : emp.isChef ? (emp.pole === "Fluide" ? BLUE : RED) : DARK3, border: "2px solid " + (emp.isAdmin ? PURPLE + "66" : emp.pole === "Direction" ? GREEN + "66" : (emp.pole === "Fluide" ? BLUE : RED) + "44"), display: "flex", alignItems: "center", justifyContent: "center", color: emp.isChef || emp.isAdmin || emp.pole === "Direction" ? "#fff" : TXT2, fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
-                    {emp.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: TXT, fontSize: 13, fontWeight: 600 }}>{emp.name}</div>
-                    <div style={{ color: TXT3, fontSize: 10 }}>{emp.role}</div>
-                  </div>
-                  {emp.isAdmin && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: PURPLE + "22", color: PURPLE, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>}
-                  {emp.isChef && !emp.isAdmin && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: ORANGE + "22", color: ORANGE, fontWeight: 700, textTransform: "uppercase" }}>Chef</span>}
-                  {emp.pole === "Direction" && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: GREEN + "22", color: GREEN, fontWeight: 700, textTransform: "uppercase" }}>Direction</span>}
-                  {!emp.isAdmin && emp.pole !== "Direction" && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: (emp.pole === "Fluide" ? BLUE : RED) + "22", color: emp.pole === "Fluide" ? BLUE : RED, fontWeight: 600 }}>{emp.pole}</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {step === "password" && (
+        {/* ── Formulaire login ── */}
+        {step === "login" && (
           <div style={{ animation: "fadeUp 0.3s ease" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: DARK2, border: "1px solid " + BRD, borderRadius: 10, marginBottom: 20 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 99, background: sel.isAdmin ? PURPLE + "44" : sel.isChef ? (sel.pole === "Fluide" ? BLUE : RED) : DARK3, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontWeight: 800 }}>
-                {sel.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-              </div>
-              <div><div style={{ color: TXT, fontSize: 15, fontWeight: 700 }}>{sel.name}</div><div style={{ color: TXT3, fontSize: 11 }}>{sel.role}</div></div>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={lBase}>Mot de passe</label>
-              <input type="password" value={pwd} onChange={(e) => { setPwd(e.target.value); setErr(""); }} onKeyDown={(e) => e.key === "Enter" && checkPwd()} placeholder="Mot de passe" autoFocus style={{ ...iBase, borderColor: err ? RED : BRD, animation: err ? "shake 0.3s" : "none" }} />
-            </div>
-            {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>⚠️ {err}</div>}
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => { setStep("select"); setErr(""); }} style={{ flex: 1, padding: "11px 0", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, cursor: "pointer" }}>← Retour</button>
-              <button onClick={checkPwd} disabled={busy || !pwd} style={{ flex: 2, padding: "11px 0", background: !pwd ? TXT3 : BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: pwd ? "pointer" : "not-allowed" }}>Se connecter</button>
-            </div>
-            {!resetDone ? (
-              <div style={{ marginTop: 16 }}>
-                <div style={{ padding: "10px 14px", background: BLUE + "11", border: "1px solid " + BLUE + "33", borderRadius: 8, marginBottom: 10 }}>
-                  <div style={{ color: BLUE, fontSize: 11, fontWeight: 600 }}>ℹ️ Première connexion ?</div>
-                  <div style={{ color: TXT2, fontSize: 11, marginTop: 3 }}>Mot de passe initial : <span style={{ color: TXT, fontWeight: 700, fontFamily: "monospace", background: DARK, padding: "1px 6px", borderRadius: 4 }}>{DEFAULT_PASSWORD}</span></div>
+            {name.trim() && (
+              <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", background:DARK2, border:"1px solid "+(matchedEmp ? BLUE+"44" : BRD), borderRadius:10, marginBottom:16, transition:"border-color .2s" }}>
+                <div style={{ width:38, height:38, borderRadius:99, background:matchedEmp ? (matchedEmp.isAdmin ? PURPLE+"44" : matchedEmp.pole==="Direction" ? GREEN+"44" : BLUE+"44") : DARK3, border:"2px solid "+(matchedEmp ? BLUE : BRD), display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13, fontWeight:800 }}>
+                  {avatar}
                 </div>
-                <button onClick={forgotPassword} disabled={busy} style={{ width: "100%", padding: "9px 0", background: "transparent", border: "1px solid " + ORANGE + "44", borderRadius: 8, color: ORANGE, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                  🔑 Mot de passe oublié ? Réinitialiser mon compte
-                </button>
-              </div>
-            ) : (
-              <div style={{ marginTop: 16, padding: "12px 14px", background: GREEN + "15", border: "1px solid " + GREEN + "44", borderRadius: 8 }}>
-                <div style={{ color: GREEN, fontSize: 12, fontWeight: 700, marginBottom: 4 }}>✅ Mot de passe réinitialisé !</div>
-                <div style={{ color: TXT2, fontSize: 11 }}>Entrez le mot de passe provisoire : <span style={{ color: TXT, fontWeight: 700, fontFamily: "monospace", background: DARK, padding: "1px 6px", borderRadius: 4 }}>{DEFAULT_PASSWORD}</span></div>
-                <div style={{ color: TXT3, fontSize: 10, marginTop: 4 }}>Vous serez ensuite invité à créer un nouveau mot de passe.</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ color:matchedEmp ? TXT : TXT2, fontSize:13, fontWeight:600 }}>{name.trim()}</div>
+                  <div style={{ color:TXT3, fontSize:10 }}>{matchedEmp ? matchedEmp.role+" · "+matchedEmp.pole : "Nom non reconnu dans la liste"}</div>
+                </div>
+                {matchedEmp && <span style={{ color:GREEN, fontSize:16 }}>✓</span>}
               </div>
             )}
+            <div style={{ marginBottom:12 }}>
+              <label style={lBase}>Nom complet</label>
+              <input
+                list="emp-list"
+                value={name}
+                onChange={e => { setName(e.target.value); setErr(""); setResetSent(false); }}
+                onKeyDown={e => e.key==="Enter" && document.getElementById("pwd-input") && document.getElementById("pwd-input").focus()}
+                placeholder="Ex: Ahmed TRABELSI"
+                autoFocus
+                style={{ ...iBase, borderColor: err && !name.trim() ? RED : BRD }}
+              />
+              <datalist id="emp-list">
+                {employees.map(e => <option key={e.name} value={e.name}>{e.role} — {e.pole}</option>)}
+              </datalist>
+            </div>
+            <div style={{ marginBottom:16 }}>
+              <label style={lBase}>Mot de passe</label>
+              <input
+                id="pwd-input"
+                type="password"
+                value={pwd}
+                onChange={e => { setPwd(e.target.value); setErr(""); }}
+                onKeyDown={e => e.key==="Enter" && checkPwd()}
+                placeholder="••••••••"
+                style={{ ...iBase, borderColor: err ? RED : BRD, animation: err ? "shake 0.3s" : "none" }}
+              />
+            </div>
+            {err && <div style={{ color:RED, fontSize:12, fontWeight:600, marginBottom:12 }}>⚠️ {err}</div>}
+            <button onClick={checkPwd} disabled={busy || !name.trim() || !pwd}
+              style={{ width:"100%", padding:"12px 0", background:name.trim()&&pwd ? BLUE : TXT3, border:"none", borderRadius:8, color:"#fff", fontWeight:700, cursor:name.trim()&&pwd ? "pointer" : "not-allowed", fontSize:14, marginBottom:10 }}>
+              {busy ? "Connexion…" : "Se connecter →"}
+            </button>
+            <div style={{ padding:"10px 14px", background:BLUE+"11", border:"1px solid "+BLUE+"33", borderRadius:8, marginBottom:10 }}>
+              <div style={{ color:BLUE, fontSize:11, fontWeight:600 }}>ℹ️ Première connexion ?</div>
+              <div style={{ color:TXT2, fontSize:11, marginTop:3 }}>Mot de passe initial : <span style={{ color:TXT, fontWeight:700, fontFamily:"monospace", background:DARK, padding:"1px 6px", borderRadius:4 }}>{DEFAULT_PASSWORD}</span></div>
+            </div>
+            {!resetSent ? (
+              <button onClick={forgotPassword} disabled={busy}
+                style={{ width:"100%", padding:"9px 0", background:"transparent", border:"1px solid "+ORANGE+"44", borderRadius:8, color:ORANGE, fontSize:12, fontWeight:600, cursor:"pointer", marginBottom:8 }}>
+                🔑 Mot de passe oublié ? Recevoir un lien par email
+              </button>
+            ) : (
+              <div style={{ padding:"12px 14px", background:GREEN+"15", border:"1px solid "+GREEN+"44", borderRadius:8, marginBottom:8 }}>
+                <div style={{ color:GREEN, fontSize:12, fontWeight:700 }}>✉️ Lien envoyé !</div>
+                <div style={{ color:TXT2, fontSize:11 }}>Si un email est associé à votre compte, vous recevrez un lien de réinitialisation.</div>
+              </div>
+            )}
+            {onBack && <button onClick={onBack} style={{ width:"100%", padding:"8px 0", background:"transparent", border:"none", color:TXT3, fontSize:12, cursor:"pointer" }}>← Retour à l'accueil</button>}
           </div>
         )}
 
@@ -966,6 +1037,25 @@ function LoginScreen({ onLogin, employees }) {
             </div>
             {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>⚠️ {err}</div>}
             <button onClick={changePwd} disabled={busy || !nPwd || !cPwd} style={{ width: "100%", padding: "12px 0", background: nPwd && cPwd && nPwd === cPwd ? GREEN : TXT3, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: nPwd && cPwd ? "pointer" : "not-allowed" }}>Valider →</button>
+          </div>
+        )}
+
+        {step === "email" && (
+          <div style={{ animation: "fadeUp 0.3s ease" }}>
+            <div style={{ padding: "12px 16px", background: BLUE + "15", border: "1px solid " + BLUE + "44", borderRadius: 10, marginBottom: 20, display: "flex", gap: 10 }}>
+              <span style={{ fontSize: 20 }}>✉️</span>
+              <div>
+                <div style={{ color: BLUE, fontSize: 13, fontWeight: 700 }}>Ajoutez votre email</div>
+                <div style={{ color: TXT2, fontSize: 11, marginTop: 3 }}>Permettra de réinitialiser votre mot de passe en cas d'oubli.</div>
+              </div>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={lBase}>Adresse email</label>
+              <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setErr(""); }} onKeyDown={(e) => e.key === "Enter" && saveEmail()} placeholder="prenom.nom@sozais.com" autoFocus style={iBase} />
+            </div>
+            {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>⚠️ {err}</div>}
+            <button onClick={saveEmail} disabled={busy || !email} style={{ width: "100%", padding: "12px 0", background: email ? GREEN : TXT3, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: email ? "pointer" : "not-allowed", marginBottom: 10 }}>Enregistrer et accéder →</button>
+            <button onClick={() => { setToken(tempToken); onLogin(tempUser); }} style={{ width: "100%", padding: "9px 0", background: "transparent", border: "1px solid " + BRD, borderRadius: 8, color: TXT3, fontSize: 12, cursor: "pointer" }}>Passer pour l'instant</button>
           </div>
         )}
       </div>
@@ -1230,32 +1320,61 @@ function Board({ name, tasks, onUpdate, ro, showName, onToggleTimer, tick, poleM
 
 // ─── Settings ───
 function SettingsModal({ user, onClose }) {
-  const [cur, setCur] = useState(""); const [np, setNp] = useState(""); const [cp, setCp] = useState("");
+  const [tab, setTab] = useState("password"); // "password" | "email"
+  const [np, setNp] = useState(""); const [cp, setCp] = useState("");
+  const [emailVal, setEmailVal] = useState(user.email || "");
   const [msg, setMsg] = useState(""); const [err, setErr] = useState("");
-  const go = async () => {
-    setErr(""); setMsg("");
-    const stored = await loadPwd(user.name);
-    if (cur !== (stored || DEFAULT_PASSWORD)) { setErr("Incorrect"); return; }
-    if (np.length < 6) { setErr("6 car. min"); return; }
-    if (np !== cp) { setErr("Ne correspond pas"); return; }
-    await savePwd(user.name, np);
-    setMsg("✓ Modifié !"); setCur(""); setNp(""); setCp("");
+  const [busy, setBusy] = useState(false);
+
+  const changePwd = async () => {
+    setErr(""); setMsg(""); setBusy(true);
+    if (np.length < 6) { setErr("6 car. min"); setBusy(false); return; }
+    if (np !== cp) { setErr("Ne correspond pas"); setBusy(false); return; }
+    const r = await authFetch('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ newPassword: np }) });
+    setBusy(false);
+    if (r.ok) { setMsg("✓ Mot de passe modifié !"); setNp(""); setCp(""); }
+    else { setErr((await r.json()).error || "Erreur"); }
   };
+
+  const saveEmail = async () => {
+    setErr(""); setMsg(""); setBusy(true);
+    if (!emailVal.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal.trim())) { setErr("Email invalide"); setBusy(false); return; }
+    const r = await authFetch('/api/auth/set-email', { method: 'POST', body: JSON.stringify({ email: emailVal.trim() }) });
+    setBusy(false);
+    if (r.ok) setMsg("✓ Email enregistré !");
+    else setErr((await r.json()).error || "Erreur");
+  };
+
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: DARK2, border: "1px solid " + BRD, borderRadius: 16, padding: 28, width: "100%", maxWidth: 400 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-          <h2 style={{ color: TXT, fontSize: 18, fontWeight: 700, margin: 0 }}>🔐 Mot de passe</h2>
+          <h2 style={{ color: TXT, fontSize: 18, fontWeight: 700, margin: 0 }}>⚙️ Mon compte</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", color: TXT3, fontSize: 22, cursor: "pointer" }}>✕</button>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div><label style={lBase}>Actuel</label><input type="password" value={cur} onChange={(e) => setCur(e.target.value)} style={iBase} /></div>
-          <div><label style={lBase}>Nouveau</label><input type="password" value={np} onChange={(e) => setNp(e.target.value)} style={iBase} /></div>
-          <div><label style={lBase}>Confirmer</label><input type="password" value={cp} onChange={(e) => setCp(e.target.value)} onKeyDown={(e) => e.key === "Enter" && go()} style={iBase} /></div>
+        {/* Tabs */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+          {[{ id: "password", l: "🔐 Mot de passe" }, { id: "email", l: "✉️ Email" }].map((t) => (
+            <button key={t.id} onClick={() => { setTab(t.id); setErr(""); setMsg(""); }} style={{ flex: 1, padding: "8px 0", background: tab === t.id ? BLUE + "22" : DARK3, border: "1px solid " + (tab === t.id ? BLUE + "66" : BRD), borderRadius: 8, color: tab === t.id ? BLUE : TXT2, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{t.l}</button>
+          ))}
         </div>
-        {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginTop: 10 }}>⚠️ {err}</div>}
-        {msg && <div style={{ color: GREEN, fontSize: 12, fontWeight: 600, marginTop: 10 }}>{msg}</div>}
-        <button onClick={go} style={{ width: "100%", marginTop: 18, padding: "11px 0", background: BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Modifier</button>
+        {tab === "password" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div><label style={lBase}>Nouveau mot de passe</label><input type="password" value={np} onChange={(e) => { setNp(e.target.value); setErr(""); setMsg(""); }} autoFocus style={iBase} /></div>
+            <div><label style={lBase}>Confirmer</label><input type="password" value={cp} onChange={(e) => { setCp(e.target.value); setErr(""); setMsg(""); }} onKeyDown={(e) => e.key === "Enter" && changePwd()} style={{ ...iBase, borderColor: cp && cp !== np ? RED : cp && cp === np ? GREEN : BRD }} /></div>
+            {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600 }}>⚠️ {err}</div>}
+            {msg && <div style={{ color: GREEN, fontSize: 12, fontWeight: 600 }}>{msg}</div>}
+            <button onClick={changePwd} disabled={busy || !np || !cp} style={{ padding: "11px 0", background: BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Modifier</button>
+          </div>
+        )}
+        {tab === "email" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div><label style={lBase}>Adresse email</label><input type="email" value={emailVal} onChange={(e) => { setEmailVal(e.target.value); setErr(""); setMsg(""); }} autoFocus style={iBase} placeholder="prenom.nom@sozais.com" /></div>
+            {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600 }}>⚠️ {err}</div>}
+            {msg && <div style={{ color: GREEN, fontSize: 12, fontWeight: 600 }}>{msg}</div>}
+            <button onClick={saveEmail} disabled={busy || !emailVal} style={{ padding: "11px 0", background: BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Enregistrer</button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1268,7 +1387,7 @@ function FixedCostsModal({ onClose }) {
   const [saved, setSaved]   = useState(false);
 
   useEffect(() => {
-    fetch('/api/fixed-costs').then((r) => r.json()).then(setCosts).catch(() => setCosts([]));
+    authFetch('/api/fixed-costs').then((r) => r.json()).then(setCosts).catch(() => setCosts([]));
   }, []);
 
   const update = (cat, val) => setCosts(costs.map((c) => c.category === cat ? { ...c, amount_monthly: val } : c));
@@ -1276,9 +1395,8 @@ function FixedCostsModal({ onClose }) {
   const save = async () => {
     setSaving(true);
     try {
-      await fetch('/api/fixed-costs', {
+      await authFetch('/api/fixed-costs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(costs),
       });
       setSaved(true);
@@ -1346,7 +1464,7 @@ function ProfitabilityModal({ onClose }) {
 
   const reload = () => {
     setLoading(true);
-    fetch('/api/profitability').then((r) => r.json()).then((d) => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+    authFetch('/api/profitability').then((r) => r.json()).then((d) => { setData(d); setLoading(false); }).catch(() => setLoading(false));
   };
   useEffect(() => reload(), []);
 
@@ -1354,9 +1472,8 @@ function ProfitabilityModal({ onClose }) {
 
   const saveProject = async () => {
     setSaving(true);
-    await fetch('/api/projects', {
+    await authFetch('/api/projects', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: editing.project, revenue_forfait: parseFloat(editing.revenue_forfait) || 0, revenue_mode: editing.revenue_mode }),
     });
     setSaving(false);
@@ -1487,7 +1604,7 @@ function ProfitabilityModal({ onClose }) {
 
 // ─── EmployeesModal (admin only) ───
 function EmployeesModal({ employees, onSave, onClose }) {
-  const POLES = ["Fluide", "Élec"];
+  const POLES = ["Fluide", "Élec", "Commercial"];
   const [list, setList] = useState(employees.filter((e) => !e.isAdmin && e.pole !== "Direction"));
   const [form, setForm] = useState({ name: "", role: "", pole: "Fluide", isChef: false, tjm: "" });
   const [err, setErr] = useState("");
@@ -1498,7 +1615,7 @@ function EmployeesModal({ employees, onSave, onClose }) {
   const resetPassword = async (name) => {
     if (!window.confirm(`Réinitialiser le mot de passe de "${name}" ? Il devra se reconnecter avec "kanban2026".`)) return;
     try {
-      const r = await fetch(`/api/pwd/${encodeURIComponent(name)}`, { method: "DELETE" });
+      const r = await authFetch(`/api/auth/reset/${encodeURIComponent(name)}`, { method: "DELETE" });
       const data = await r.json();
       if (data.ok) {
         setResetMsg(`✅ Mot de passe de "${name}" réinitialisé. Mot de passe provisoire : kanban2026`);
@@ -1573,11 +1690,11 @@ function EmployeesModal({ employees, onSave, onClose }) {
           </div>
         ))}
 
-        {/* Direction — reset uniquement */}
+        {/* Admin (Direction) — reset uniquement */}
         {directionList.length > 0 && (
           <div style={{ marginBottom: 18 }}>
             <div style={{ color: GREEN, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-              🏢 Direction — {directionList.length}
+              🏢 Admin — {directionList.length}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {directionList.map((emp) => (
@@ -1600,7 +1717,7 @@ function EmployeesModal({ employees, onSave, onClose }) {
         {adminList.length > 0 && (
           <div style={{ marginBottom: 18 }}>
             <div style={{ color: ORANGE, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-              🛡️ Administrateurs — {adminList.length}
+              🛡️ Super Admins — {adminList.length}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {adminList.map((emp) => (
@@ -1610,7 +1727,7 @@ function EmployeesModal({ employees, onSave, onClose }) {
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ color: TXT, fontSize: 12, fontWeight: 600 }}>{emp.name}</div>
-                    <div style={{ color: TXT3, fontSize: 10 }}>Admin</div>
+                    <div style={{ color: TXT3, fontSize: 10 }}>Super Admin</div>
                   </div>
                   <button onClick={() => resetPassword(emp.name)} title="Réinitialiser le mot de passe" style={{ background: ORANGE + "22", border: "1px solid " + ORANGE + "44", borderRadius: 6, color: ORANGE, fontSize: 11, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>🔑 Reset</button>
                 </div>
@@ -1699,8 +1816,8 @@ function KPIEvalModal({ evaluator, evaluated, criteria, onClose, onSaved }) {
 
   const save = async () => {
     setSaving(true);
-    await fetch("/api/kpi/evaluate", {
-      method: "POST", headers: { "Content-Type": "application/json" },
+    await authFetch("/api/kpi/evaluate", {
+      method: "POST",
       body: JSON.stringify({ evaluator_name: evaluator.name, evaluated_name: evaluated.name, period, scores, overall_comment: comment })
     });
     setSaving(false); setDone(true);
@@ -1783,7 +1900,7 @@ function KPIResultsModal({ employee, criteria, onClose }) {
   const [selEval, setSelEval] = useState(null);
 
   useEffect(() => {
-    fetch(`/api/kpi/evaluations/${encodeURIComponent(employee.name)}`)
+    authFetch(`/api/kpi/evaluations/${encodeURIComponent(employee.name)}`)
       .then(r=>r.json()).then(d=>{ setEvals(d); if(d.length) setSelEval(d[0]); setLoading(false); })
       .catch(()=>setLoading(false));
   }, [employee.name]);
@@ -1872,19 +1989,19 @@ function KPIManageModal({ criteria, onClose, onRefresh }) {
   const toggleActive = async (c) => {
     const updated = list.map(x=>x.id===c.id?{...x,active:x.active?0:1}:x);
     setList(updated);
-    await fetch(`/api/kpi/criteria/${c.id}`,{ method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({active:!c.active}) });
+    await authFetch(`/api/kpi/criteria/${c.id}`,{ method:"PATCH",body:JSON.stringify({active:!c.active}) });
   };
 
   const deleteCriteria = async (c) => {
     if(!window.confirm(`Supprimer "${c.label}" ?`)) return;
     setList(l=>l.filter(x=>x.id!==c.id));
-    await fetch(`/api/kpi/criteria/${c.id}`,{ method:"DELETE" });
+    await authFetch(`/api/kpi/criteria/${c.id}`,{ method:"DELETE" });
   };
 
   const addCriteria = async () => {
     if(!newLabel.trim()) return;
     setSaving(true);
-    const r = await fetch("/api/kpi/criteria",{ method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({label:newLabel.trim(),category:newCat}) });
+    const r = await authFetch("/api/kpi/criteria",{ method:"POST",body:JSON.stringify({label:newLabel.trim(),category:newCat}) });
     const d = await r.json();
     if(d.ok) { setList(l=>[...l,{id:d.id,label:newLabel.trim(),category:newCat,active:1,position:l.length+1}]); setNewLabel(""); }
     setSaving(false);
@@ -1942,11 +2059,11 @@ function KPIPickerModal({ employees, evaluator, criteria, onClose }) {
   const [localCriteria, setLocalCriteria] = useState(criteria);
 
   useEffect(()=>{
-    fetch("/api/kpi/summary").then(r=>r.json()).then(setSummary).catch(()=>{});
+    authFetch("/api/kpi/summary").then(r=>r.json()).then(setSummary).catch(()=>{});
   },[]);
 
   const refreshCriteria = () => {
-    fetch("/api/kpi/criteria").then(r=>r.json()).then(setLocalCriteria).catch(()=>{});
+    authFetch("/api/kpi/criteria").then(r=>r.json()).then(setLocalCriteria).catch(()=>{});
   };
 
   const members = employees.filter(e=>!e.isAdmin && e.pole !== "Direction" && (evaluator.isAdmin || evaluator.canViewKPI || evaluator.canViewAll || e.pole===evaluator.pole));
@@ -1992,33 +2109,270 @@ function KPIPickerModal({ employees, evaluator, criteria, onClose }) {
           })}
         </div>
       </div>
-      {kpiTarget && <KPIEvalModal evaluator={evaluator} evaluated={kpiTarget} criteria={localCriteria} onClose={()=>setKpiTarget(null)} onSaved={()=>{ setKpiTarget(null); fetch("/api/kpi/summary").then(r=>r.json()).then(setSummary).catch(()=>{}); }} />}
+      {kpiTarget && <KPIEvalModal evaluator={evaluator} evaluated={kpiTarget} criteria={localCriteria} onClose={()=>setKpiTarget(null)} onSaved={()=>{ setKpiTarget(null); authFetch("/api/kpi/summary").then(r=>r.json()).then(setSummary).catch(()=>{}); }} />}
       {kpiView   && <KPIResultsModal employee={kpiView} criteria={localCriteria} onClose={()=>setKpiView(null)} />}
       {manage    && <KPIManageModal criteria={localCriteria} onClose={()=>setManage(false)} onRefresh={refreshCriteria} />}
     </div>
   );
 }
 
+// ─── Vue Planning Gantt ───────────────────────────────────────
+function GanttView({ user, empList, all, tick }) {
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [hovered, setHovered] = useState(null);
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const rangeStart = new Date(today); rangeStart.setDate(today.getDate() - 2 + weekOffset * 7);
+  const rangeEnd   = new Date(rangeStart); rangeEnd.setDate(rangeStart.getDate() + 20);
+  const TOTAL_DAYS = 21;
+
+  const days = [];
+  for (let d = new Date(rangeStart); d <= rangeEnd; d.setDate(d.getDate() + 1)) days.push(new Date(d));
+
+  const dayIdx = (date) => {
+    const d = new Date(date); d.setHours(0,0,0,0);
+    return Math.round((d - rangeStart) / 86400000);
+  };
+
+  const members = user.pole === "Direction" ? []
+    : user.isAdmin
+      ? empList.filter(e => !e.isAdmin && e.pole !== "Direction")
+      : user.isChef
+        ? empList.filter(e => e.pole === user.pole)
+        : [empList.find(e => e.name === user.name)].filter(Boolean);
+
+  const prioColor = { high: RED, medium: ORANGE, low: GREEN };
+  const DAY_NAMES = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
+  const MONTH_NAMES = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
+  const ROW_H = 30;
+  const LABEL_W = 164;
+
+  const getMemberRows = (member) => {
+    const tasks = (all[member.name] || []).filter(t => t.column !== "done");
+    const sorted = [...tasks].sort((a,b) => {
+      if (!a.deadline) return 1; if (!b.deadline) return -1;
+      return new Date(a.deadline) - new Date(b.deadline);
+    });
+    const rows = [];
+    for (const task of sorted) {
+      const dlDate = task.deadline ? new Date(task.deadline) : null;
+      if (dlDate) dlDate.setHours(0,0,0,0);
+      const barStart = Math.max(0, dayIdx(today) - 1);
+      const barEnd   = dlDate ? Math.min(TOTAL_DAYS - 1, dayIdx(dlDate)) : Math.min(TOTAL_DAYS - 1, dayIdx(today) + 4);
+      const width = Math.max(1, barEnd - barStart);
+      let placed = false;
+      for (let r = 0; r < rows.length; r++) {
+        if (!rows[r].some(b => !(b.end < barStart || b.start > barEnd))) {
+          rows[r].push({ task, start: barStart, end: barEnd, width }); placed = true; break;
+        }
+      }
+      if (!placed) rows.push([{ task, start: barStart, end: barEnd, width }]);
+    }
+    return rows;
+  };
+
+  return (
+    <div style={{ flex:1, overflow:"auto", padding:"14px 20px" }}>
+      {/* Toolbar */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:8 }}>
+        <div style={{ color:TXT, fontSize:15, fontWeight:700 }}>
+          📅 Planning — {MONTH_NAMES[rangeStart.getMonth()]} {rangeStart.getFullYear()}
+        </div>
+        <div style={{ display:"flex", gap:6 }}>
+          {[["◀ Préc.", () => setWeekOffset(w=>w-1)], ["Aujourd'hui", () => setWeekOffset(0)], ["Suiv. ▶", () => setWeekOffset(w=>w+1)]].map(([l, fn]) => (
+            <button key={l} onClick={fn}
+              style={{ padding:"7px 14px", background: l==="Aujourd'hui" && weekOffset===0 ? BLUE+"22" : DARK2, border:"1px solid "+(l==="Aujourd'hui" && weekOffset===0 ? BLUE : BRD), borderRadius:7, color: l==="Aujourd'hui" && weekOffset===0 ? BLUE : TXT2, fontSize:12, fontWeight:600, cursor:"pointer" }}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Gantt table */}
+      <div style={{ background:DARK2, borderRadius:12, border:"1px solid "+BRD, overflow:"hidden" }}>
+        {/* Day header */}
+        <div style={{ display:"flex", borderBottom:"1px solid "+BRD, background:DARK, position:"sticky", top:0, zIndex:10 }}>
+          <div style={{ width:LABEL_W, flexShrink:0, padding:"10px 14px", borderRight:"1px solid "+BRD }}>
+            <span style={{ color:TXT3, fontSize:10, fontWeight:600, textTransform:"uppercase" }}>Collaborateur</span>
+          </div>
+          <div style={{ flex:1, display:"flex" }}>
+            {days.map((d, i) => {
+              const isToday   = d.getTime() === today.getTime();
+              const isWeekend = d.getDay()===0 || d.getDay()===6;
+              return (
+                <div key={i} style={{ flex:1, textAlign:"center", padding:"6px 2px", borderRight:"1px solid "+BRD+"44", background: isToday ? BLUE+"22" : "transparent" }}>
+                  <div style={{ color: isToday ? BLUE : isWeekend ? TXT3+"88" : TXT3, fontSize:9, fontWeight: isToday ? 700 : 400 }}>{DAY_NAMES[d.getDay()]}</div>
+                  <div style={{ color: isToday ? BLUE : isWeekend ? TXT3+"88" : TXT2, fontSize:11, fontWeight: isToday ? 700 : 500 }}>{d.getDate()}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Member rows */}
+        {members.length === 0 && (
+          <div style={{ padding:40, textAlign:"center", color:TXT3 }}>Aucun membre à afficher dans la vue planning.</div>
+        )}
+        {members.map((member, mi) => {
+          const rows = getMemberRows(member);
+          const rowCount = Math.max(1, rows.length);
+          const taskCount = (all[member.name]||[]).filter(t=>t.column!=="done").length;
+          return (
+            <div key={member.name} style={{ display:"flex", borderBottom:"1px solid "+BRD, background: mi%2===0 ? DARK2 : DARK }}>
+              {/* Label */}
+              <div style={{ width:LABEL_W, flexShrink:0, padding:"10px 14px", borderRight:"1px solid "+BRD, display:"flex", alignItems:"center", gap:8 }}>
+                <div style={{ width:28, height:28, borderRadius:99, background:member.isChef ? (member.pole==="Fluide"?BLUE:RED)+"44" : DARK3, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:10, fontWeight:800, flexShrink:0 }}>
+                  {member.name.split(" ").map(n=>n[0]).join("").slice(0,2)}
+                </div>
+                <div>
+                  <div style={{ color:TXT, fontSize:11, fontWeight:600, lineHeight:1.2 }}>{member.name.split(" ").slice(-1)[0]}</div>
+                  <div style={{ color:TXT3, fontSize:9 }}>{taskCount} tâche{taskCount!==1?"s":""}</div>
+                </div>
+              </div>
+              {/* Bars */}
+              <div style={{ flex:1, position:"relative", minHeight: rowCount * ROW_H + 8 }}>
+                {/* Background: weekend + today shading */}
+                {days.map((d, i) => {
+                  const isToday   = d.getTime() === today.getTime();
+                  const isWeekend = d.getDay()===0 || d.getDay()===6;
+                  if (!isToday && !isWeekend) return null;
+                  return <div key={i} style={{ position:"absolute", top:0, bottom:0, left:`${(i/TOTAL_DAYS)*100}%`, width:`${(1/TOTAL_DAYS)*100}%`, background: isToday ? BLUE+"1a" : BRD+"33", pointerEvents:"none" }} />;
+                })}
+                {/* Task bars */}
+                {rows.map((row, ri) => row.map(({ task, start, end, width }) => {
+                  const isOverdue = task.deadline && new Date(new Date(task.deadline).setHours(0,0,0,0)) < today;
+                  const color = isOverdue ? RED : prioColor[task.priority] || BLUE;
+                  const left  = `${(Math.max(0,start)/TOTAL_DAYS)*100}%`;
+                  const w     = `${(Math.min(width+1, TOTAL_DAYS-Math.max(0,start))/TOTAL_DAYS)*100}%`;
+                  return (
+                    <div key={task.id}
+                      title={`${task.title}${task.deadline?" → "+task.deadline:""}${isOverdue?" ⚠️ En retard":""}`}
+                      onMouseEnter={()=>setHovered(task.id)} onMouseLeave={()=>setHovered(null)}
+                      style={{ position:"absolute", left, width:w, top: 4+ri*ROW_H, height: ROW_H-6, background: color+(hovered===task.id ? "ee" : "bb"), borderRadius:4, display:"flex", alignItems:"center", paddingLeft:6, overflow:"hidden", cursor:"default", borderLeft: isOverdue ? "3px solid "+RED : "none", transition:"opacity .12s", boxShadow: hovered===task.id ? "0 2px 8px "+color+"55" : "none" }}>
+                      <span style={{ color:"#fff", fontSize:10, fontWeight:600, whiteSpace:"nowrap", textOverflow:"ellipsis", overflow:"hidden" }}>
+                        {isOverdue ? "⚠️ " : ""}{task.title}
+                      </span>
+                    </div>
+                  );
+                }))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Légende */}
+      <div style={{ display:"flex", gap:14, marginTop:10, flexWrap:"wrap", alignItems:"center" }}>
+        {[["En retard",RED],["Urgent",ORANGE],["Normal",GREEN],["Bas",BLUE]].map(([l,c])=>(
+          <div key={l} style={{ display:"flex", alignItems:"center", gap:5 }}>
+            <div style={{ width:12, height:12, borderRadius:3, background:c }} />
+            <span style={{ color:TXT3, fontSize:11 }}>{l}</span>
+          </div>
+        ))}
+        <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+          <div style={{ width:12, height:12, borderRadius:3, background:BLUE+"22", border:"1px solid "+BLUE }} />
+          <span style={{ color:TXT3, fontSize:11 }}>Aujourd'hui</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Décode le payload JWT sans vérification (usage client uniquement) ───
+function decodeJwtPayload(token) {
+  try {
+    const payload = token.split('.')[1];
+    return JSON.parse(atob(payload.replace(/-/g,'+').replace(/_/g,'/')));
+  } catch { return null; }
+}
+
 // ─── Main App ───
 function App() {
-  const [user, setUser] = useState(null);
+  // Tenter de restaurer la session depuis sessionStorage
+  const [user, setUser] = useState(() => {
+    const token = getToken();
+    if (!token) return null;
+    const payload = decodeJwtPayload(token);
+    if (!payload || payload.exp * 1000 < Date.now()) { setToken(null); return null; }
+    return payload;
+  });
+  const [showLanding, setShowLanding] = useState(() => !getToken());
+  const [viewMode, setViewMode] = useState("kanban"); // "kanban" | "planning"
   const [all, setAll] = useState({});
   const [loading, setLoading] = useState(false);
   const [admin, setAdmin] = useState(false);
   const [af, setAf] = useState("all");
+  const [teamPole, setTeamPole] = useState("all");
   const [settings, setSettings] = useState(false);
   const [empModal, setEmpModal] = useState(false);
   const [tick, setTick] = useState(0);
   const [empList, setEmpList] = useState(DEFAULT_EMPLOYEES);
   const allRef = useRef(all);
   allRef.current = all;
+
+  // ─── Minuteur de pointage journalier ─────────────────────────
+  const [dailyTimer, setDailyTimer] = useState({ running: false, startedAt: null, seconds: 0 });
+
+  const fmtTime = (sec) => {
+    const h = Math.floor(sec / 3600).toString().padStart(2,"0");
+    const m = Math.floor((sec % 3600) / 60).toString().padStart(2,"0");
+    const s = (sec % 60).toString().padStart(2,"0");
+    return `${h}:${m}:${s}`;
+  };
+
+  // Charger le minuteur depuis localStorage lors du login
+  useEffect(() => {
+    if (!user) return;
+    const key = `dt_${user.name}_${new Date().toISOString().slice(0,10)}`;
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || "{}");
+      const s = saved.seconds || 0;
+      if (saved.running && saved.startedAt) {
+        const elapsed = Math.floor((Date.now() - saved.startedAt) / 1000);
+        setDailyTimer({ running: true, startedAt: saved.startedAt, seconds: s + elapsed });
+      } else {
+        setDailyTimer({ running: false, startedAt: null, seconds: s });
+      }
+    } catch { setDailyTimer({ running: false, startedAt: null, seconds: 0 }); }
+  }, [user?.name]);
+
+  // Sauvegarder le minuteur dans localStorage + serveur
+  const saveDailyTimer = useCallback((dt) => {
+    if (!user) return;
+    const dateStr = new Date().toISOString().slice(0,10);
+    const key = `dt_${user.name}_${dateStr}`;
+    localStorage.setItem(key, JSON.stringify(dt));
+    // Persistance serveur (best-effort)
+    authFetch(`/api/timer/daily/${encodeURIComponent(user.name)}`, {
+      method: "POST",
+      body: JSON.stringify({ date: dateStr, seconds: dt.seconds, running: dt.running, startedAt: dt.startedAt }),
+    }).catch(() => {});
+  }, [user?.name]);
+
+  const toggleDailyTimer = useCallback(() => {
+    setDailyTimer(prev => {
+      let next;
+      if (prev.running) {
+        const elapsed = prev.startedAt ? Math.floor((Date.now() - prev.startedAt) / 1000) : 0;
+        next = { running: false, startedAt: null, seconds: prev.seconds + elapsed };
+      } else {
+        next = { running: true, startedAt: Date.now(), seconds: prev.seconds };
+      }
+      saveDailyTimer(next);
+      return next;
+    });
+  }, [saveDailyTimer]);
+
+  const dailyDisplaySeconds = dailyTimer.running && dailyTimer.startedAt
+    ? dailyTimer.seconds + Math.floor((Date.now() - dailyTimer.startedAt) / 1000)
+    : dailyTimer.seconds;
   // ─── États Import Excel ───────────────────────────────────
   const [importModal, setImportModal] = useState(false);
   // ─── États Rentabilité ────────────────────────────────────
   const [profitabilityOpen, setProfitabilityOpen] = useState(false);
   const [kpiOpen, setKpiOpen] = useState(false);
   const [kpiCriteria, setKpiCriteria] = useState([]);
-  useEffect(() => { fetch("/api/kpi/criteria").then(r=>r.json()).then(setKpiCriteria).catch(()=>{}); }, []);
+  useEffect(() => { if (user) authFetch("/api/kpi/criteria").then(r=>r.json()).then(setKpiCriteria).catch(()=>{}); }, [user]);
   const [fixedCostsOpen, setFixedCostsOpen]       = useState(false);
   // ─── Mode sombre/clair ────────────────────────────────────
   const [isDark, setIsDark] = useState(() => localStorage.getItem('kbtheme') !== 'light');
@@ -2035,13 +2389,21 @@ function App() {
   const lastActivityRef = useRef(Date.now());
   const INACTIVITY_MS = 5 * 60 * 1000; // 5 minutes
 
-  // Charger la liste des collaborateurs depuis le storage
+  // Charger la liste minimale (sans auth) pour l'écran de login
   useEffect(() => {
+    fetch('/api/auth/users').then(r => r.json()).then(list => {
+      if (list && list.length > 0) setEmpList(list);
+    }).catch(() => {});
+  }, []);
+
+  // Recharger la liste complète (avec auth, inclut TJM + email) après login
+  useEffect(() => {
+    if (!user) return;
     (async () => {
       const stored = await loadEmployees();
       if (stored && stored.length > 0) setEmpList(stored);
     })();
-  }, []);
+  }, [user]);
 
   useEffect(() => { const id = setInterval(() => setTick((t) => t + 1), 1000); return () => clearInterval(id); }, []);
 
@@ -2092,18 +2454,18 @@ function App() {
   // ─── refetchAll : recharger toutes les tâches (après actions IA) ──
   const refetchAll = useCallback(async () => {
     if (!user) return;
-    if (user.isAdmin || user.canViewAll) {
-      const ms = empList.filter((e) => !e.isAdmin && e.pole !== "Direction");
+    if (user.pole === "Direction") {
+      const ms = empList.filter((e) => e.pole === "Direction");
+      const ld = {};
+      for (const m of ms) ld[m.name] = await loadTasks(m.name);
+      setAll(ld);
+    } else if (user.isAdmin) {
+      const ms = empList.filter((e) => !e.isAdmin);
       const ld = {};
       for (const m of ms) ld[m.name] = await loadTasks(m.name);
       setAll(ld);
     } else if (user.isChef) {
       const ms = empList.filter((e) => e.pole === user.pole);
-      const ld = {};
-      for (const m of ms) ld[m.name] = await loadTasks(m.name);
-      setAll(ld);
-    } else if (user.canViewKPI || user.canViewTJM) {
-      const ms = empList.filter((e) => !e.isAdmin && e.pole !== "Direction");
       const ld = {};
       for (const m of ms) ld[m.name] = await loadTasks(m.name);
       setAll(ld);
@@ -2123,18 +2485,20 @@ function App() {
     if (!user) return;
     (async () => {
       setLoading(true);
-      if (user.isAdmin || user.canViewAll) {
-        const ms = empList.filter((e) => !e.isAdmin && e.pole !== "Direction");
+      if (user.pole === "Direction") {
+        // Utilisateur Admin (Direction) : charge toutes les tâches Direction (y compris les siennes)
+        const ms = empList.filter((e) => e.pole === "Direction");
+        const ld = {};
+        for (const m of ms) ld[m.name] = await loadTasks(m.name);
+        setAll(ld);
+      } else if (user.isAdmin) {
+        // Super Admin : charge toute l'équipe tech + l'espace Admin
+        const ms = empList.filter((e) => !e.isAdmin);
         const ld = {};
         for (const m of ms) ld[m.name] = await loadTasks(m.name);
         setAll(ld);
       } else if (user.isChef) {
         const ms = empList.filter((e) => e.pole === user.pole);
-        const ld = {};
-        for (const m of ms) ld[m.name] = await loadTasks(m.name);
-        setAll(ld);
-      } else if (user.canViewKPI || user.canViewTJM) {
-        const ms = empList.filter((e) => !e.isAdmin && e.pole !== "Direction");
         const ld = {};
         for (const m of ms) ld[m.name] = await loadTasks(m.name);
         setAll(ld);
@@ -2195,6 +2559,7 @@ function App() {
       });
       saveTasks(n, stopped);
     });
+    setToken(null); // effacer le JWT
     setUser(null); setAll({}); setAdmin(false);
   };
 
@@ -2247,17 +2612,32 @@ function App() {
     return { [user.name]: all[user.name] || [] };
   };
 
-  if (!user) return <LoginScreen onLogin={setUser} employees={empList} />;
+  if (!user && showLanding) return <LandingPage onLogin={() => setShowLanding(false)} />;
+  if (!user) return <LoginScreen onLogin={(u) => { setUser(u); setShowLanding(false); }} employees={empList} onBack={() => setShowLanding(true)} />;
 
   const my = all[user.name] || [];
   const isDirectionUser = user.canViewKPI || user.canViewTJM || user.canViewAll;
   const canSeeTeam = user.isChef || user.isAdmin || isDirectionUser;
 
-  const pm = (user.isAdmin || user.canViewAll || user.canViewKPI || user.canViewTJM)
-    ? empList.filter((e) => !e.isAdmin && e.pole !== "Direction")
-    : empList.filter((e) => e.pole === user.pole && !e.isChef);
+  // Direction users ne voient pas les boards de l'équipe technique (seulement leurs collègues Admin)
+  const pm = user.pole === "Direction"
+    ? []
+    : (user.isAdmin || user.canViewAll || user.canViewKPI || user.canViewTJM)
+      ? empList.filter((e) => !e.isAdmin && e.pole !== "Direction")
+      : empList.filter((e) => e.pole === user.pole && !e.isChef);
 
-  const fm = af === "all" ? pm : pm.filter((m) => {
+  // Membres Direction visibles en vue équipe
+  const directionMembers = (user.isAdmin || user.pole === "Direction")
+    ? empList.filter((e) => e.pole === "Direction")
+    : [];
+
+  const pmFiltered = teamPole === "all" ? pm
+    : teamPole === "fluide" ? pm.filter((m) => m.pole === "Fluide")
+    : teamPole === "elec"   ? pm.filter((m) => m.pole === "Élec")
+    : teamPole === "com"    ? pm.filter((m) => m.pole === "Commercial")
+    : []; // "admin" → seulement l'espace Admin, pas les membres normaux
+
+  const fm = af === "all" ? pmFiltered : pmFiltered.filter((m) => {
     const t = all[m.name] || [];
     if (af === "overdue") return t.some((x) => x.deadline && new Date(x.deadline) < new Date() && x.column !== "done");
     if (af === "high") return t.some((x) => x.priority === "high" && x.column !== "done");
@@ -2265,7 +2645,9 @@ function App() {
     return true;
   });
 
-  const apt = pm.flatMap((m) => all[m.name] || []);
+  const showDirectionSection = (user.isAdmin || user.pole === "Direction") && directionMembers.length > 0 && (teamPole === "all" || teamPole === "admin");
+  const statsBase = teamPole === "admin" ? directionMembers : fm;
+  const apt = statsBase.flatMap((m) => all[m.name] || []);
   const tot = apt.length;
   const dn = apt.filter((t) => t.column === "done").length;
   const activeTimers = apt.filter((t) => t.timerRunning).length;
@@ -2283,14 +2665,25 @@ function App() {
             <div style={{ color: TXT, fontSize: 14, fontWeight: 700 }}>{user.name}</div>
             <div style={{ color: TXT3, fontSize: 11 }}>{user.role}</div>
           </div>
-          {user.isAdmin && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: PURPLE + "22", color: PURPLE, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>}
-          {user.pole === "Direction" && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: GREEN + "22", color: GREEN, fontWeight: 700, textTransform: "uppercase" }}>Direction</span>}
+          {user.isAdmin && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: PURPLE + "22", color: PURPLE, fontWeight: 700, textTransform: "uppercase" }}>Super Admin</span>}
+          {user.pole === "Direction" && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: GREEN + "22", color: GREEN, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>}
           {my.some((t) => t.timerRunning) && <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 99, background: CYAN + "22", color: CYAN, fontWeight: 700, animation: "pulse 1.5s infinite" }}>⏱ Timer actif</span>}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {canSeeTeam && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {/* ── Minuteur de pointage ── */}
+          <button onClick={toggleDailyTimer}
+            style={{ padding:"8px 14px", background: dailyTimer.running ? CYAN+"22" : DARK2, border:"1px solid "+(dailyTimer.running ? CYAN : BRD), borderRadius:8, color: dailyTimer.running ? CYAN : TXT2, fontWeight:600, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:6, minWidth:110 }}>
+            <span style={{ animation: dailyTimer.running ? "pulse 1.5s infinite" : "none" }}>⏱</span>
+            {dailyTimer.running ? fmtTime(dailyDisplaySeconds) : (dailyDisplaySeconds > 0 ? fmtTime(dailyDisplaySeconds) : "Pointer")}
+          </button>
+          {/* ── Toggle vue Kanban / Planning ── */}
+          <button onClick={() => setViewMode(m => m==="kanban" ? "planning" : "kanban")}
+            style={{ padding:"8px 14px", background: viewMode==="planning" ? PURPLE+"22" : DARK2, border:"1px solid "+(viewMode==="planning" ? PURPLE : BRD), borderRadius:8, color: viewMode==="planning" ? PURPLE : TXT2, fontWeight:600, fontSize:12, cursor:"pointer" }}>
+            {viewMode==="kanban" ? "📅 Planning" : "📋 Kanban"}
+          </button>
+          {canSeeTeam && viewMode==="kanban" && (
             <button onClick={() => setAdmin(!admin)} style={{ padding: "8px 14px", background: admin ? ORANGE + "22" : DARK2, border: "1px solid " + (admin ? ORANGE : BRD), borderRadius: 8, color: admin ? ORANGE : TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
-              {admin ? "👤 Mon tableau" : (user.isAdmin || user.canViewAll) ? "👥 Vue globale" : "👥 Vue équipe"}
+              {admin ? "👤 Mon tableau" : user.isAdmin ? "👥 Vue globale" : user.pole === "Direction" ? "👥 Vue Admin" : "👥 Vue équipe"}
             </button>
           )}
           <button onClick={() => exportToExcel(getExportData(), empList)} title="Exporter en Excel" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: GREEN, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📊 Export</button>
@@ -2327,9 +2720,11 @@ function App() {
       </div>
 
       {showBriefing && briefing && <DailyBriefingBanner briefing={briefing} onClose={() => setShowBriefing(false)} />}
-      {loading
-        ? <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ color: TXT2 }}>Chargement...</div></div>
-        : admin && canSeeTeam
+      {viewMode === "planning"
+        ? null /* GanttView est rendu séparément en bas */
+        : loading
+          ? <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ color: TXT2 }}>Chargement...</div></div>
+          : admin && canSeeTeam
           ? (
             <div style={{ flex: 1, overflow: "auto", padding: 20 }}>
               <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
@@ -2338,6 +2733,11 @@ function App() {
                     <div style={{ color: TXT3, fontSize: 9, fontWeight: 600, textTransform: "uppercase" }}>{s.l}</div>
                     <div style={{ color: TXT, fontSize: 20, fontWeight: 800, marginTop: 3 }}>{s.v}</div>
                   </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                {[{ id: "all", l: "Tous les pôles" }, { id: "fluide", l: "🔵 Fluide" }, { id: "elec", l: "🔴 Élec" }, { id: "com", l: "🟡 Commercial" }, { id: "admin", l: "🏢 Admin" }].map((f) => (
+                  <button key={f.id} onClick={() => setTeamPole(f.id)} style={{ padding: "6px 14px", background: teamPole === f.id ? GREEN + "22" : DARK2, border: "1px solid " + (teamPole === f.id ? GREEN + "66" : BRD), borderRadius: 6, color: teamPole === f.id ? GREEN : TXT3, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{f.l}</button>
                 ))}
               </div>
               <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
@@ -2351,6 +2751,22 @@ function App() {
                 ))}
                 {fm.length === 0 && <div style={{ textAlign: "center", padding: 40, color: TXT3 }}>Aucun résultat.</div>}
               </div>
+
+              {/* ─── Section Kanban Direction (Admin) ─────────────────── */}
+              {showDirectionSection && (
+                <div style={{ marginTop: 32 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                    <div style={{ height: 1, flex: 1, background: GREEN + "33" }} />
+                    <span style={{ color: GREEN, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, padding: "4px 12px", background: GREEN + "15", borderRadius: 99, border: "1px solid " + GREEN + "44" }}>🏢 Espace Admin</span>
+                    <div style={{ height: 1, flex: 1, background: GREEN + "33" }} />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                    {directionMembers.map((m) => (
+                      <Board key={m.name} name={m.name} tasks={all[m.name] || []} onUpdate={upd} ro={false} showName={true} onToggleTimer={toggleTimer} tick={tick} poleMembers={null} onReassign={null} onPrioritize={handlePrioritize} prioritizing={prioritizing} />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )
           : (
@@ -2359,6 +2775,11 @@ function App() {
             </div>
           )
       }
+
+      {/* ─── Vue Planning Gantt ─────────────────────────────────── */}
+      {viewMode === "planning" && (
+        <GanttView user={user} empList={empList} all={all} tick={tick} />
+      )}
 
       {settings && <SettingsModal user={user} onClose={() => setSettings(false)} />}
       {empModal && user.isAdmin && <EmployeesModal employees={empList} onSave={handleSaveEmployees} onClose={() => setEmpModal(false)} />}
