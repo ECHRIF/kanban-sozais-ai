@@ -201,16 +201,28 @@ const pool = mysql.createPool({
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     await conn.query(`
-      CREATE TABLE IF NOT EXISTS daily_timers (
-        name          VARCHAR(200) NOT NULL,
-        date          VARCHAR(10)  NOT NULL,
-        seconds       INT UNSIGNED DEFAULT 0,
-        running       TINYINT(1)   DEFAULT 0,
-        started_at    BIGINT       DEFAULT NULL,
-        PRIMARY KEY (name, date),
-        INDEX idx_date (date)
+      CREATE TABLE IF NOT EXISTS notifications (
+        id           INT UNSIGNED   AUTO_INCREMENT NOT NULL,
+        recipient    VARCHAR(200)   NOT NULL,
+        type         VARCHAR(50)    NOT NULL DEFAULT 'new_task',
+        task_id      VARCHAR(20)    NOT NULL,
+        task_title   VARCHAR(500)   NOT NULL,
+        project      VARCHAR(300)   DEFAULT '',
+        from_name    VARCHAR(200)   NOT NULL,
+        seen         TINYINT(1)     DEFAULT 0,
+        created_at   DATETIME       DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        INDEX idx_recipient_seen (recipient, seen),
+        INDEX idx_created (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    // Migration : ajouter created_by dans tasks si absent
+    const [cbCols] = await conn.query(
+      `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tasks' AND COLUMN_NAME='created_by'`
+    );
+    if (cbCols[0].cnt === 0) {
+      await conn.query(`ALTER TABLE tasks ADD COLUMN created_by VARCHAR(200) DEFAULT NULL`);
+    }
 
     // ─── Données initiales employees ──────────────────────────
     const employeesData = [
@@ -1109,7 +1121,16 @@ app.post("/api/tasks/:ownerName", authenticate, async (req, res) => {
   try {
     const { ownerName } = req.params;
     const tasks = req.body;
+    const actor = req.user?.name || null;
+
     await conn.beginTransaction();
+
+    // Récupérer les IDs existants avant suppression (pour détecter les nouvelles tâches)
+    const [existingRows] = await conn.query(
+      "SELECT id FROM tasks WHERE owner_name = ?", [ownerName]
+    );
+    const existingIds = new Set(existingRows.map(r => r.id));
+
     await conn.query("DELETE FROM tasks WHERE owner_name = ?", [ownerName]);
     if (tasks && tasks.length > 0) {
       const values = tasks.map(t => [
@@ -1118,11 +1139,26 @@ app.post("/api/tasks/:ownerName", authenticate, async (req, res) => {
         t.estimatedHours ? parseFloat(t.estimatedHours) : null,
         t.timerSeconds || 0, t.timerRunning ? 1 : 0, t.timerStartedAt || null,
         t.createdAt || new Date().toISOString(), parseFloat(t.revenueAmount) || 0,
+        t.createdBy || actor || null,
       ]);
       await conn.query(
-        `INSERT INTO tasks (id, owner_name, title, project, description, priority, column_id, deadline, estimated_hours, timer_seconds, timer_running, timer_started_at, created_at, revenue_amount) VALUES ?`,
+        `INSERT INTO tasks (id, owner_name, title, project, description, priority, column_id, deadline, estimated_hours, timer_seconds, timer_running, timer_started_at, created_at, revenue_amount, created_by) VALUES ?`,
         [values]
       );
+
+      // Créer des notifications pour les nouvelles tâches ajoutées par quelqu'un d'autre
+      if (actor && actor !== ownerName) {
+        const newTasks = tasks.filter(t => !existingIds.has(t.id));
+        if (newTasks.length > 0) {
+          const notifValues = newTasks.map(t => [
+            ownerName, 'new_task', t.id, t.title || "Sans titre", t.project || "", actor
+          ]);
+          await conn.query(
+            `INSERT INTO notifications (recipient, type, task_id, task_title, project, from_name) VALUES ?`,
+            [notifValues]
+          );
+        }
+      }
     }
     await conn.commit();
     res.json({ ok: true, count: tasks ? tasks.length : 0 });
@@ -1481,43 +1517,60 @@ app.post("/api/kpi/evaluate", authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ─── Minuteur de pointage journalier ─────────────────────────
-// GET  /api/timer/daily/:name/:date  → données du timer
-app.get("/api/timer/daily/:name/:date", authenticate, async (req, res) => {
-  const { name, date } = req.params;
-  if (req.user.name !== name && !req.user.isAdmin && !req.user.isChef) return res.status(403).json({ error: "Accès refusé" });
+// ─── API NOTIFICATIONS ────────────────────────────────────────
+
+// GET /api/notifications  — retourne les notifs non lues + les 20 dernières lues
+app.get("/api/notifications", authenticate, async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT * FROM daily_timers WHERE name=? AND date=?", [name, date]);
-    if (!rows.length) return res.json({ seconds: 0, running: false, startedAt: null });
-    const r = rows[0];
-    res.json({ seconds: r.seconds, running: !!r.running, startedAt: r.started_at });
+    const name = req.user.name;
+    const [rows] = await pool.query(
+      `SELECT id, type, task_id, task_title, project, from_name, seen, created_at
+       FROM notifications
+       WHERE recipient = ?
+       ORDER BY created_at DESC
+       LIMIT 30`,
+      [name]
+    );
+    res.json(rows.map(r => ({
+      id:         r.id,
+      type:       r.type,
+      taskId:     r.task_id,
+      taskTitle:  r.task_title,
+      project:    r.project || "",
+      fromName:   r.from_name,
+      seen:       !!r.seen,
+      createdAt:  r.created_at,
+    })));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /api/timer/daily/:name  → sauvegarder l'état du timer
-app.post("/api/timer/daily/:name", authenticate, async (req, res) => {
-  if (req.user.name !== req.params.name && !req.user.isAdmin) return res.status(403).json({ error: "Accès refusé" });
-  const { date, seconds, running, startedAt } = req.body;
-  if (!date) return res.status(400).json({ error: "date requis" });
+// POST /api/notifications/seen  — marque toutes les notifs de l'utilisateur comme lues
+app.post("/api/notifications/seen", authenticate, async (req, res) => {
   try {
-    await pool.query(
-      `INSERT INTO daily_timers (name, date, seconds, running, started_at) VALUES (?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE seconds=VALUES(seconds), running=VALUES(running), started_at=VALUES(started_at)`,
-      [req.params.name, date, seconds || 0, running ? 1 : 0, startedAt || null]
-    );
+    const name = req.user.name;
+    const { ids } = req.body; // optionnel : tableau d'IDs spécifiques
+    if (ids && ids.length > 0) {
+      await pool.query(
+        `UPDATE notifications SET seen = 1 WHERE recipient = ? AND id IN (?)`,
+        [name, ids]
+      );
+    } else {
+      await pool.query(
+        `UPDATE notifications SET seen = 1 WHERE recipient = ?`,
+        [name]
+      );
+    }
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// GET /api/timer/team/:date  → pointage de toute l'équipe (chef/admin)
-app.get("/api/timer/team/:date", authenticate, async (req, res) => {
-  if (!req.user.isAdmin && !req.user.isChef && !req.user.canViewAll) return res.status(403).json({ error: "Accès réservé aux chefs et admins" });
+// DELETE /api/notifications  — supprime les notifs lues de + de 7 jours (nettoyage auto)
+app.delete("/api/notifications/old", authenticate, requireAdmin, async (req, res) => {
   try {
-    const [rows] = await pool.query(
-      "SELECT dt.*, e.role, e.pole FROM daily_timers dt LEFT JOIN employees e ON e.name=dt.name WHERE dt.date=? ORDER BY dt.name",
-      [req.params.date]
+    const [result] = await pool.query(
+      `DELETE FROM notifications WHERE seen = 1 AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)`
     );
-    res.json(rows.map(r => ({ name: r.name, role: r.role, pole: r.pole, seconds: r.seconds, running: !!r.running, startedAt: r.started_at })));
+    res.json({ ok: true, deleted: result.affectedRows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

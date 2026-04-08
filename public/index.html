@@ -166,7 +166,76 @@ async function aiWeeklyReport() {
   return await r.json();
 }
 
+// ─── Notifications ─────────────────────────────────────────────
+async function fetchNotifications() {
+  try {
+    const r = await authFetch('/api/notifications');
+    if (!r.ok) return [];
+    return await r.json();
+  } catch { return []; }
+}
+async function markNotificationsSeen(ids) {
+  try {
+    await authFetch('/api/notifications/seen', {
+      method: 'POST',
+      body: JSON.stringify(ids && ids.length ? { ids } : {})
+    });
+  } catch {}
+}
 
+function NotificationPanel({ notifs, onMarkSeen, onClose }) {
+  const unseen = notifs.filter(n => !n.seen).length;
+  const fmtDate = (d) => {
+    try {
+      const dt = new Date(d);
+      const now = new Date();
+      const diffMs = now - dt;
+      const diffMin = Math.floor(diffMs / 60000);
+      const diffH = Math.floor(diffMs / 3600000);
+      const diffD = Math.floor(diffMs / 86400000);
+      if (diffMin < 2)  return "à l'instant";
+      if (diffMin < 60) return `il y a ${diffMin} min`;
+      if (diffH < 24)   return `il y a ${diffH}h`;
+      return `il y a ${diffD}j`;
+    } catch { return ""; }
+  };
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:2000 }}>
+      <div onClick={e => e.stopPropagation()} style={{ position:"absolute", top:56, right:8, width:340, maxHeight:"70vh", background:DARK2, border:"1px solid "+BRD, borderRadius:14, boxShadow:"0 16px 48px rgba(0,0,0,0.6)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+        {/* Header */}
+        <div style={{ padding:"12px 16px", borderBottom:"1px solid "+BRD, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ color:TXT, fontWeight:700, fontSize:13 }}>🔔 Notifications</span>
+            {unseen > 0 && <span style={{ fontSize:9, padding:"2px 7px", borderRadius:99, background:BLUE+"33", color:BLUE, fontWeight:700 }}>{unseen} nouvelle{unseen>1?"s":""}</span>}
+          </div>
+          {unseen > 0 && (
+            <button onClick={() => onMarkSeen()} style={{ fontSize:10, padding:"4px 10px", background:"none", border:"1px solid "+BRD, borderRadius:6, color:TXT3, cursor:"pointer", fontWeight:600 }}>Tout marquer lu</button>
+          )}
+        </div>
+        {/* Liste */}
+        <div style={{ overflowY:"auto", flex:1 }}>
+          {notifs.length === 0 ? (
+            <div style={{ padding:"32px 16px", textAlign:"center", color:TXT3, fontSize:12 }}>Aucune notification</div>
+          ) : notifs.map(n => (
+            <div key={n.id} style={{ padding:"11px 16px", borderBottom:"1px solid "+BRD+"55", background:n.seen ? "transparent" : BLUE+"09", display:"flex", gap:10, alignItems:"flex-start" }}>
+              {!n.seen && <div style={{ width:7, height:7, borderRadius:"50%", background:BLUE, marginTop:4, flexShrink:0 }} />}
+              {n.seen  && <div style={{ width:7, flexShrink:0 }} />}
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ color:TXT, fontSize:12, fontWeight:n.seen?400:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                  {n.type === 'new_task' ? '📌' : '🔄'} {n.taskTitle}
+                </div>
+                {n.project && <div style={{ color:BLUE, fontSize:10, textTransform:"uppercase", fontWeight:600, marginTop:1 }}>{n.project}</div>}
+                <div style={{ color:TXT3, fontSize:10, marginTop:2 }}>
+                  {n.type === 'new_task' ? 'Assignée par' : 'Déplacée par'} <strong style={{ color:TXT2 }}>{n.fromName}</strong> · {fmtDate(n.createdAt)}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function exportToExcel(allTasks, empList) {
   const BOM = "\uFEFF";
@@ -820,84 +889,59 @@ function ImportExcelModal({ employees, allTasks, onImport, onClose }) {
   );
 }
 
-// ─── Page d'accueil ───
-function LandingPage({ onLogin }) {
-  return (
-    <div style={{ minHeight: "100vh", background: DARK, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit','Segoe UI',sans-serif", position: "relative", overflow: "hidden" }}>
-      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
-      <style>{"*{box-sizing:border-box;margin:0;padding:0}@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}"}</style>
-      <div style={{ position:"absolute", inset:0, backgroundImage:"radial-gradient(circle at 20% 50%, "+BLUE+"18 0%, transparent 50%), radial-gradient(circle at 80% 20%, "+PURPLE+"18 0%, transparent 40%)", pointerEvents:"none" }} />
-      <div style={{ animation:"fadeUp 0.6s ease", textAlign:"center", padding:"40px 24px", maxWidth:480, width:"100%", position:"relative" }}>
-        <div style={{ marginBottom:20 }}><Logo size={80} /></div>
-        <div style={{ color:TXT, fontSize:38, fontWeight:800, letterSpacing:-1.5, lineHeight:1.1 }}>Kanban SOZAIS</div>
-        <div style={{ color:TXT3, fontSize:15, marginTop:10, fontWeight:400, lineHeight:1.6 }}>
-          Gestion de projets &amp; équipes<br/>
-          <span style={{ color:BLUE, fontWeight:600 }}>Propulsé par l'IA</span>
-        </div>
-        <div style={{ display:"flex", gap:10, justifyContent:"center", marginTop:28, marginBottom:32, flexWrap:"wrap" }}>
-          {[["📐","Ingénierie"],["🤖","IA Intégrée"],["📅","Planning Gantt"],["⏱","Pointage"]].map(([ic,lb]) => (
-            <div key={lb} style={{ padding:"10px 16px", background:DARK2, border:"1px solid "+BRD, borderRadius:10, display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
-              <span style={{ fontSize:20 }}>{ic}</span>
-              <span style={{ color:TXT3, fontSize:9, fontWeight:600, textTransform:"uppercase", letterSpacing:.5 }}>{lb}</span>
-            </div>
-          ))}
-        </div>
-        <button onClick={onLogin} style={{ width:"100%", maxWidth:320, padding:"15px 0", background:BLUE, border:"none", borderRadius:12, color:"#fff", fontSize:16, fontWeight:700, cursor:"pointer", letterSpacing:0.3, boxShadow:"0 8px 32px "+BLUE+"55" }}>
-          Se connecter →
-        </button>
-        <div style={{ marginTop:24, color:TXT3, fontSize:11 }}>© 2026 SOZAIS · Version AI-First v2</div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Login ───
-function LoginScreen({ onLogin, employees, onBack }) {
-  const [step, setStep] = useState("login");
-  const [name, setName] = useState("");
+function LoginScreen({ onLogin, employees }) {
+  const [step, setStep] = useState("select");
+  const [sel, setSel] = useState(null);
   const [pwd, setPwd] = useState("");
   const [nPwd, setNPwd] = useState("");
   const [cPwd, setCPwd] = useState("");
   const [email, setEmail] = useState("");
   const [err, setErr] = useState("");
+  const [search, setSearch] = useState("");
+  const [pf, setPf] = useState("all");
   const [busy, setBusy] = useState(false);
   const [resetSent, setResetSent] = useState(false);
+  // token JWT + user data temporaires (reçus après login, utilisés pour change-password et set-email)
   const [tempToken, setTempToken] = useState(null);
-  const [tempUser, setTempUser] = useState(null);
-
-  const matchedEmp = employees.find(e => e.name.toLowerCase() === name.trim().toLowerCase());
+  const [tempUser, setTempUser] = useState(null); // data.user du serveur (complet)
 
   const forgotPassword = async () => {
-    if (!name.trim()) { setErr("Entrez d'abord votre nom"); return; }
+    if (!sel) return;
     setBusy(true);
     try {
       await fetch('/api/auth/forgot-password', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify({ name: sel.name }),
       });
-      setResetSent(true); setErr("");
+      setResetSent(true);
+      setPwd(""); setErr("");
     } catch { setErr("Erreur réseau, réessayez."); }
     setBusy(false);
   };
 
+  const filtered = employees.filter((e) => {
+    const matchPole = pf === "all" || (pf === "fluide" && e.pole === "Fluide") || (pf === "elec" && e.pole === "Élec") || (pf === "com" && e.pole === "Commercial") || (pf === "admin" && e.isAdmin) || (pf === "direction" && e.pole === "Direction");
+    return matchPole && e.name.toLowerCase().includes(search.toLowerCase());
+  });
+
   const checkPwd = async () => {
-    if (!name.trim()) { setErr("Entrez votre nom complet"); return; }
-    if (!pwd) { setErr("Entrez votre mot de passe"); return; }
     setBusy(true); setErr("");
     try {
       const r = await fetch('/api/auth/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), password: pwd }),
+        body: JSON.stringify({ name: sel.name, password: pwd }),
       });
       const data = await r.json();
-      if (!r.ok) { setErr(data.error || "Identifiants incorrects"); setBusy(false); return; }
+      if (!r.ok) { setErr(data.error || "Mot de passe incorrect"); setBusy(false); return; }
       setTempToken(data.token);
-      setTempUser(data.user);
+      setTempUser(data.user); // sauvegarder les données complètes du serveur
       if (data.firstLogin) {
+        // Première connexion → changer le mot de passe obligatoire
         setStep("change"); setNPwd(""); setCPwd("");
       } else {
         setToken(data.token);
-        onLogin(data.user);
+        onLogin(data.user); // utiliser data.user (complet, depuis le serveur)
       }
     } catch { setErr("Erreur réseau, réessayez."); }
     setBusy(false);
@@ -915,6 +959,8 @@ function LoginScreen({ onLogin, employees, onBack }) {
         body: JSON.stringify({ newPassword: nPwd }),
       });
       if (!r.ok) { setErr((await r.json()).error || "Erreur"); setBusy(false); return; }
+      // Vérifier si l'utilisateur n'a pas encore d'email → étape email
+      // Utiliser tempUser (données du serveur) et non sel (DEFAULT_EMPLOYEES incomplet)
       if (!tempUser?.email) { setStep("email"); setEmail(""); }
       else { setToken(tempToken); onLogin(tempUser); }
     } catch { setErr("Erreur réseau"); }
@@ -931,97 +977,92 @@ function LoginScreen({ onLogin, employees, onBack }) {
         body: JSON.stringify({ email: email.trim() }),
       });
       setToken(tempToken);
+      // Utiliser tempUser (complet depuis serveur) + email saisi
       onLogin({ ...tempUser, email: email.trim() });
     } catch { setErr("Erreur réseau"); }
     setBusy(false);
   };
 
-  const avatar = matchedEmp
-    ? matchedEmp.name.split(" ").map(n=>n[0]).join("").slice(0,2)
-    : (name.trim() ? name.trim().split(" ").map(n=>n[0]).join("").slice(0,2) : "?");
-
   return (
     <div style={{ minHeight: "100vh", background: DARK, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit','Segoe UI',sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
-      <style>{"@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}"}</style>
-      <div style={{ width: "100%", maxWidth: 440, padding: 24, animation: "fadeUp 0.4s ease" }}>
+      <style>{"@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}"}</style>
+      <div style={{ width: "100%", maxWidth: 460, padding: 24, animation: "fadeUp 0.4s ease" }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ marginBottom: 10 }}><Logo size={56} /></div>
-          <h1 style={{ color: TXT, fontSize: 20, fontWeight: 800, margin: 0 }}>
-            {step === "login" && "Connexion"}
-            {step === "change" && "Changement de mot de passe"}
-            {step === "email" && "Ajout de l'email"}
-          </h1>
-          <p style={{ color: TXT3, fontSize: 12, marginTop: 4 }}>
-            {step === "login" && "Entrez vos identifiants pour accéder au tableau"}
-            {step === "change" && "Première connexion — créez votre mot de passe personnel"}
-            {step === "email" && "Ajoutez votre email pour récupérer votre compte"}
+          <div style={{ marginBottom: 10 }}><Logo size={60} /></div>
+          <h1 style={{ color: TXT, fontSize: 22, fontWeight: 800, margin: 0 }}>Kanban Équipe</h1>
+          <p style={{ color: TXT3, fontSize: 13, marginTop: 4 }}>
+            {step === "select" && "Sélectionnez votre nom pour vous connecter"}
+            {step === "password" && ("Connexion — " + (sel && sel.name))}
+            {step === "change" && "Première connexion : créez votre mot de passe"}
+            {step === "email" && "Ajoutez votre adresse email (récupération de compte)"}
           </p>
         </div>
 
-        {/* ── Formulaire login ── */}
-        {step === "login" && (
+        {step === "select" && (
+          <div>
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="🔍 Rechercher..." style={{ ...iBase, marginBottom: 10 }} />
+            <div style={{ display: "flex", gap: 5, marginBottom: 14 }}>
+              {[{ id: "all", l: "Tous" }, { id: "fluide", l: "Fluide" }, { id: "elec", l: "Élec" }, { id: "com", l: "Commercial" }, { id: "admin", l: "Super Admin" }, { id: "direction", l: "Admin" }].map((f) => (
+                <button key={f.id} onClick={() => setPf(f.id)} style={{ flex: 1, padding: "7px 0", background: pf === f.id ? BLUE + "22" : DARK2, border: "1px solid " + (pf === f.id ? BLUE + "66" : BRD), borderRadius: 7, color: pf === f.id ? BLUE : TXT3, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{f.l}</button>
+              ))}
+            </div>
+            <div style={{ maxHeight: 380, overflowY: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
+              {filtered.map((emp) => (
+                <button key={emp.name} onClick={() => { setSel(emp); setStep("password"); setPwd(""); setErr(""); setResetDone(false); }}
+                  style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 9, cursor: "pointer", textAlign: "left", width: "100%" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = DARK4; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = DARK2; }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 99, background: emp.isAdmin ? PURPLE + "44" : emp.pole === "Direction" ? GREEN + "44" : emp.isChef ? (emp.pole === "Fluide" ? BLUE : RED) : DARK3, border: "2px solid " + (emp.isAdmin ? PURPLE + "66" : emp.pole === "Direction" ? GREEN + "66" : (emp.pole === "Fluide" ? BLUE : RED) + "44"), display: "flex", alignItems: "center", justifyContent: "center", color: emp.isChef || emp.isAdmin || emp.pole === "Direction" ? "#fff" : TXT2, fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
+                    {emp.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: TXT, fontSize: 13, fontWeight: 600 }}>{emp.name}</div>
+                    <div style={{ color: TXT3, fontSize: 10 }}>{emp.role}</div>
+                  </div>
+                  {emp.isAdmin && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: PURPLE + "22", color: PURPLE, fontWeight: 700, textTransform: "uppercase" }}>Super Admin</span>}
+                  {emp.isChef && !emp.isAdmin && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: ORANGE + "22", color: ORANGE, fontWeight: 700, textTransform: "uppercase" }}>Chef</span>}
+                  {emp.pole === "Direction" && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: GREEN + "22", color: GREEN, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>}
+                  {!emp.isAdmin && emp.pole !== "Direction" && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: (emp.pole === "Fluide" ? BLUE : RED) + "22", color: emp.pole === "Fluide" ? BLUE : RED, fontWeight: 600 }}>{emp.pole}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === "password" && (
           <div style={{ animation: "fadeUp 0.3s ease" }}>
-            {name.trim() && (
-              <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", background:DARK2, border:"1px solid "+(matchedEmp ? BLUE+"44" : BRD), borderRadius:10, marginBottom:16, transition:"border-color .2s" }}>
-                <div style={{ width:38, height:38, borderRadius:99, background:matchedEmp ? (matchedEmp.isAdmin ? PURPLE+"44" : matchedEmp.pole==="Direction" ? GREEN+"44" : BLUE+"44") : DARK3, border:"2px solid "+(matchedEmp ? BLUE : BRD), display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13, fontWeight:800 }}>
-                  {avatar}
-                </div>
-                <div style={{ flex:1 }}>
-                  <div style={{ color:matchedEmp ? TXT : TXT2, fontSize:13, fontWeight:600 }}>{name.trim()}</div>
-                  <div style={{ color:TXT3, fontSize:10 }}>{matchedEmp ? matchedEmp.role+" · "+matchedEmp.pole : "Nom non reconnu dans la liste"}</div>
-                </div>
-                {matchedEmp && <span style={{ color:GREEN, fontSize:16 }}>✓</span>}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: DARK2, border: "1px solid " + BRD, borderRadius: 10, marginBottom: 20 }}>
+              <div style={{ width: 42, height: 42, borderRadius: 99, background: sel.isAdmin ? PURPLE + "44" : sel.isChef ? (sel.pole === "Fluide" ? BLUE : RED) : DARK3, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontWeight: 800 }}>
+                {sel.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
               </div>
-            )}
-            <div style={{ marginBottom:12 }}>
-              <label style={lBase}>Nom complet</label>
-              <input
-                list="emp-list"
-                value={name}
-                onChange={e => { setName(e.target.value); setErr(""); setResetSent(false); }}
-                onKeyDown={e => e.key==="Enter" && document.getElementById("pwd-input") && document.getElementById("pwd-input").focus()}
-                placeholder="Ex: Ahmed TRABELSI"
-                autoFocus
-                style={{ ...iBase, borderColor: err && !name.trim() ? RED : BRD }}
-              />
-              <datalist id="emp-list">
-                {employees.map(e => <option key={e.name} value={e.name}>{e.role} — {e.pole}</option>)}
-              </datalist>
+              <div><div style={{ color: TXT, fontSize: 15, fontWeight: 700 }}>{sel.name}</div><div style={{ color: TXT3, fontSize: 11 }}>{sel.role}</div></div>
             </div>
-            <div style={{ marginBottom:16 }}>
+            <div style={{ marginBottom: 16 }}>
               <label style={lBase}>Mot de passe</label>
-              <input
-                id="pwd-input"
-                type="password"
-                value={pwd}
-                onChange={e => { setPwd(e.target.value); setErr(""); }}
-                onKeyDown={e => e.key==="Enter" && checkPwd()}
-                placeholder="••••••••"
-                style={{ ...iBase, borderColor: err ? RED : BRD, animation: err ? "shake 0.3s" : "none" }}
-              />
+              <input type="password" value={pwd} onChange={(e) => { setPwd(e.target.value); setErr(""); }} onKeyDown={(e) => e.key === "Enter" && checkPwd()} placeholder="Mot de passe" autoFocus style={{ ...iBase, borderColor: err ? RED : BRD, animation: err ? "shake 0.3s" : "none" }} />
             </div>
-            {err && <div style={{ color:RED, fontSize:12, fontWeight:600, marginBottom:12 }}>⚠️ {err}</div>}
-            <button onClick={checkPwd} disabled={busy || !name.trim() || !pwd}
-              style={{ width:"100%", padding:"12px 0", background:name.trim()&&pwd ? BLUE : TXT3, border:"none", borderRadius:8, color:"#fff", fontWeight:700, cursor:name.trim()&&pwd ? "pointer" : "not-allowed", fontSize:14, marginBottom:10 }}>
-              {busy ? "Connexion…" : "Se connecter →"}
-            </button>
-            <div style={{ padding:"10px 14px", background:BLUE+"11", border:"1px solid "+BLUE+"33", borderRadius:8, marginBottom:10 }}>
-              <div style={{ color:BLUE, fontSize:11, fontWeight:600 }}>ℹ️ Première connexion ?</div>
-              <div style={{ color:TXT2, fontSize:11, marginTop:3 }}>Mot de passe initial : <span style={{ color:TXT, fontWeight:700, fontFamily:"monospace", background:DARK, padding:"1px 6px", borderRadius:4 }}>{DEFAULT_PASSWORD}</span></div>
+            {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>⚠️ {err}</div>}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => { setStep("select"); setErr(""); }} style={{ flex: 1, padding: "11px 0", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, cursor: "pointer" }}>← Retour</button>
+              <button onClick={checkPwd} disabled={busy || !pwd} style={{ flex: 2, padding: "11px 0", background: !pwd ? TXT3 : BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: pwd ? "pointer" : "not-allowed" }}>Se connecter</button>
             </div>
             {!resetSent ? (
-              <button onClick={forgotPassword} disabled={busy}
-                style={{ width:"100%", padding:"9px 0", background:"transparent", border:"1px solid "+ORANGE+"44", borderRadius:8, color:ORANGE, fontSize:12, fontWeight:600, cursor:"pointer", marginBottom:8 }}>
-                🔑 Mot de passe oublié ? Recevoir un lien par email
-              </button>
+              <div style={{ marginTop: 16 }}>
+                <div style={{ padding: "10px 14px", background: BLUE + "11", border: "1px solid " + BLUE + "33", borderRadius: 8, marginBottom: 10 }}>
+                  <div style={{ color: BLUE, fontSize: 11, fontWeight: 600 }}>ℹ️ Première connexion ?</div>
+                  <div style={{ color: TXT2, fontSize: 11, marginTop: 3 }}>Mot de passe initial : <span style={{ color: TXT, fontWeight: 700, fontFamily: "monospace", background: DARK, padding: "1px 6px", borderRadius: 4 }}>{DEFAULT_PASSWORD}</span></div>
+                </div>
+                <button onClick={forgotPassword} disabled={busy} style={{ width: "100%", padding: "9px 0", background: "transparent", border: "1px solid " + ORANGE + "44", borderRadius: 8, color: ORANGE, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                  🔑 Mot de passe oublié ? Recevoir un lien par email
+                </button>
+              </div>
             ) : (
-              <div style={{ padding:"12px 14px", background:GREEN+"15", border:"1px solid "+GREEN+"44", borderRadius:8, marginBottom:8 }}>
-                <div style={{ color:GREEN, fontSize:12, fontWeight:700 }}>✉️ Lien envoyé !</div>
-                <div style={{ color:TXT2, fontSize:11 }}>Si un email est associé à votre compte, vous recevrez un lien de réinitialisation.</div>
+              <div style={{ marginTop: 16, padding: "12px 14px", background: GREEN + "15", border: "1px solid " + GREEN + "44", borderRadius: 8 }}>
+                <div style={{ color: GREEN, fontSize: 12, fontWeight: 700, marginBottom: 4 }}>✉️ Lien envoyé !</div>
+                <div style={{ color: TXT2, fontSize: 11 }}>Si un email est associé à votre compte, vous recevrez un lien de réinitialisation.</div>
               </div>
             )}
-            {onBack && <button onClick={onBack} style={{ width:"100%", padding:"8px 0", background:"transparent", border:"none", color:TXT3, fontSize:12, cursor:"pointer" }}>← Retour à l'accueil</button>}
           </div>
         )}
 
@@ -2116,168 +2157,6 @@ function KPIPickerModal({ employees, evaluator, criteria, onClose }) {
   );
 }
 
-// ─── Vue Planning Gantt ───────────────────────────────────────
-function GanttView({ user, empList, all, tick }) {
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [hovered, setHovered] = useState(null);
-
-  const today = new Date(); today.setHours(0,0,0,0);
-  const rangeStart = new Date(today); rangeStart.setDate(today.getDate() - 2 + weekOffset * 7);
-  const rangeEnd   = new Date(rangeStart); rangeEnd.setDate(rangeStart.getDate() + 20);
-  const TOTAL_DAYS = 21;
-
-  const days = [];
-  for (let d = new Date(rangeStart); d <= rangeEnd; d.setDate(d.getDate() + 1)) days.push(new Date(d));
-
-  const dayIdx = (date) => {
-    const d = new Date(date); d.setHours(0,0,0,0);
-    return Math.round((d - rangeStart) / 86400000);
-  };
-
-  const members = user.pole === "Direction" ? []
-    : user.isAdmin
-      ? empList.filter(e => !e.isAdmin && e.pole !== "Direction")
-      : user.isChef
-        ? empList.filter(e => e.pole === user.pole)
-        : [empList.find(e => e.name === user.name)].filter(Boolean);
-
-  const prioColor = { high: RED, medium: ORANGE, low: GREEN };
-  const DAY_NAMES = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
-  const MONTH_NAMES = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
-  const ROW_H = 30;
-  const LABEL_W = 164;
-
-  const getMemberRows = (member) => {
-    const tasks = (all[member.name] || []).filter(t => t.column !== "done");
-    const sorted = [...tasks].sort((a,b) => {
-      if (!a.deadline) return 1; if (!b.deadline) return -1;
-      return new Date(a.deadline) - new Date(b.deadline);
-    });
-    const rows = [];
-    for (const task of sorted) {
-      const dlDate = task.deadline ? new Date(task.deadline) : null;
-      if (dlDate) dlDate.setHours(0,0,0,0);
-      const barStart = Math.max(0, dayIdx(today) - 1);
-      const barEnd   = dlDate ? Math.min(TOTAL_DAYS - 1, dayIdx(dlDate)) : Math.min(TOTAL_DAYS - 1, dayIdx(today) + 4);
-      const width = Math.max(1, barEnd - barStart);
-      let placed = false;
-      for (let r = 0; r < rows.length; r++) {
-        if (!rows[r].some(b => !(b.end < barStart || b.start > barEnd))) {
-          rows[r].push({ task, start: barStart, end: barEnd, width }); placed = true; break;
-        }
-      }
-      if (!placed) rows.push([{ task, start: barStart, end: barEnd, width }]);
-    }
-    return rows;
-  };
-
-  return (
-    <div style={{ flex:1, overflow:"auto", padding:"14px 20px" }}>
-      {/* Toolbar */}
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:8 }}>
-        <div style={{ color:TXT, fontSize:15, fontWeight:700 }}>
-          📅 Planning — {MONTH_NAMES[rangeStart.getMonth()]} {rangeStart.getFullYear()}
-        </div>
-        <div style={{ display:"flex", gap:6 }}>
-          {[["◀ Préc.", () => setWeekOffset(w=>w-1)], ["Aujourd'hui", () => setWeekOffset(0)], ["Suiv. ▶", () => setWeekOffset(w=>w+1)]].map(([l, fn]) => (
-            <button key={l} onClick={fn}
-              style={{ padding:"7px 14px", background: l==="Aujourd'hui" && weekOffset===0 ? BLUE+"22" : DARK2, border:"1px solid "+(l==="Aujourd'hui" && weekOffset===0 ? BLUE : BRD), borderRadius:7, color: l==="Aujourd'hui" && weekOffset===0 ? BLUE : TXT2, fontSize:12, fontWeight:600, cursor:"pointer" }}>
-              {l}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Gantt table */}
-      <div style={{ background:DARK2, borderRadius:12, border:"1px solid "+BRD, overflow:"hidden" }}>
-        {/* Day header */}
-        <div style={{ display:"flex", borderBottom:"1px solid "+BRD, background:DARK, position:"sticky", top:0, zIndex:10 }}>
-          <div style={{ width:LABEL_W, flexShrink:0, padding:"10px 14px", borderRight:"1px solid "+BRD }}>
-            <span style={{ color:TXT3, fontSize:10, fontWeight:600, textTransform:"uppercase" }}>Collaborateur</span>
-          </div>
-          <div style={{ flex:1, display:"flex" }}>
-            {days.map((d, i) => {
-              const isToday   = d.getTime() === today.getTime();
-              const isWeekend = d.getDay()===0 || d.getDay()===6;
-              return (
-                <div key={i} style={{ flex:1, textAlign:"center", padding:"6px 2px", borderRight:"1px solid "+BRD+"44", background: isToday ? BLUE+"22" : "transparent" }}>
-                  <div style={{ color: isToday ? BLUE : isWeekend ? TXT3+"88" : TXT3, fontSize:9, fontWeight: isToday ? 700 : 400 }}>{DAY_NAMES[d.getDay()]}</div>
-                  <div style={{ color: isToday ? BLUE : isWeekend ? TXT3+"88" : TXT2, fontSize:11, fontWeight: isToday ? 700 : 500 }}>{d.getDate()}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Member rows */}
-        {members.length === 0 && (
-          <div style={{ padding:40, textAlign:"center", color:TXT3 }}>Aucun membre à afficher dans la vue planning.</div>
-        )}
-        {members.map((member, mi) => {
-          const rows = getMemberRows(member);
-          const rowCount = Math.max(1, rows.length);
-          const taskCount = (all[member.name]||[]).filter(t=>t.column!=="done").length;
-          return (
-            <div key={member.name} style={{ display:"flex", borderBottom:"1px solid "+BRD, background: mi%2===0 ? DARK2 : DARK }}>
-              {/* Label */}
-              <div style={{ width:LABEL_W, flexShrink:0, padding:"10px 14px", borderRight:"1px solid "+BRD, display:"flex", alignItems:"center", gap:8 }}>
-                <div style={{ width:28, height:28, borderRadius:99, background:member.isChef ? (member.pole==="Fluide"?BLUE:RED)+"44" : DARK3, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:10, fontWeight:800, flexShrink:0 }}>
-                  {member.name.split(" ").map(n=>n[0]).join("").slice(0,2)}
-                </div>
-                <div>
-                  <div style={{ color:TXT, fontSize:11, fontWeight:600, lineHeight:1.2 }}>{member.name.split(" ").slice(-1)[0]}</div>
-                  <div style={{ color:TXT3, fontSize:9 }}>{taskCount} tâche{taskCount!==1?"s":""}</div>
-                </div>
-              </div>
-              {/* Bars */}
-              <div style={{ flex:1, position:"relative", minHeight: rowCount * ROW_H + 8 }}>
-                {/* Background: weekend + today shading */}
-                {days.map((d, i) => {
-                  const isToday   = d.getTime() === today.getTime();
-                  const isWeekend = d.getDay()===0 || d.getDay()===6;
-                  if (!isToday && !isWeekend) return null;
-                  return <div key={i} style={{ position:"absolute", top:0, bottom:0, left:`${(i/TOTAL_DAYS)*100}%`, width:`${(1/TOTAL_DAYS)*100}%`, background: isToday ? BLUE+"1a" : BRD+"33", pointerEvents:"none" }} />;
-                })}
-                {/* Task bars */}
-                {rows.map((row, ri) => row.map(({ task, start, end, width }) => {
-                  const isOverdue = task.deadline && new Date(new Date(task.deadline).setHours(0,0,0,0)) < today;
-                  const color = isOverdue ? RED : prioColor[task.priority] || BLUE;
-                  const left  = `${(Math.max(0,start)/TOTAL_DAYS)*100}%`;
-                  const w     = `${(Math.min(width+1, TOTAL_DAYS-Math.max(0,start))/TOTAL_DAYS)*100}%`;
-                  return (
-                    <div key={task.id}
-                      title={`${task.title}${task.deadline?" → "+task.deadline:""}${isOverdue?" ⚠️ En retard":""}`}
-                      onMouseEnter={()=>setHovered(task.id)} onMouseLeave={()=>setHovered(null)}
-                      style={{ position:"absolute", left, width:w, top: 4+ri*ROW_H, height: ROW_H-6, background: color+(hovered===task.id ? "ee" : "bb"), borderRadius:4, display:"flex", alignItems:"center", paddingLeft:6, overflow:"hidden", cursor:"default", borderLeft: isOverdue ? "3px solid "+RED : "none", transition:"opacity .12s", boxShadow: hovered===task.id ? "0 2px 8px "+color+"55" : "none" }}>
-                      <span style={{ color:"#fff", fontSize:10, fontWeight:600, whiteSpace:"nowrap", textOverflow:"ellipsis", overflow:"hidden" }}>
-                        {isOverdue ? "⚠️ " : ""}{task.title}
-                      </span>
-                    </div>
-                  );
-                }))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Légende */}
-      <div style={{ display:"flex", gap:14, marginTop:10, flexWrap:"wrap", alignItems:"center" }}>
-        {[["En retard",RED],["Urgent",ORANGE],["Normal",GREEN],["Bas",BLUE]].map(([l,c])=>(
-          <div key={l} style={{ display:"flex", alignItems:"center", gap:5 }}>
-            <div style={{ width:12, height:12, borderRadius:3, background:c }} />
-            <span style={{ color:TXT3, fontSize:11 }}>{l}</span>
-          </div>
-        ))}
-        <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-          <div style={{ width:12, height:12, borderRadius:3, background:BLUE+"22", border:"1px solid "+BLUE }} />
-          <span style={{ color:TXT3, fontSize:11 }}>Aujourd'hui</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Décode le payload JWT sans vérification (usage client uniquement) ───
 function decodeJwtPayload(token) {
   try {
@@ -2296,8 +2175,6 @@ function App() {
     if (!payload || payload.exp * 1000 < Date.now()) { setToken(null); return null; }
     return payload;
   });
-  const [showLanding, setShowLanding] = useState(() => !getToken());
-  const [viewMode, setViewMode] = useState("kanban"); // "kanban" | "planning"
   const [all, setAll] = useState({});
   const [loading, setLoading] = useState(false);
   const [admin, setAdmin] = useState(false);
@@ -2309,63 +2186,6 @@ function App() {
   const [empList, setEmpList] = useState(DEFAULT_EMPLOYEES);
   const allRef = useRef(all);
   allRef.current = all;
-
-  // ─── Minuteur de pointage journalier ─────────────────────────
-  const [dailyTimer, setDailyTimer] = useState({ running: false, startedAt: null, seconds: 0 });
-
-  const fmtTime = (sec) => {
-    const h = Math.floor(sec / 3600).toString().padStart(2,"0");
-    const m = Math.floor((sec % 3600) / 60).toString().padStart(2,"0");
-    const s = (sec % 60).toString().padStart(2,"0");
-    return `${h}:${m}:${s}`;
-  };
-
-  // Charger le minuteur depuis localStorage lors du login
-  useEffect(() => {
-    if (!user) return;
-    const key = `dt_${user.name}_${new Date().toISOString().slice(0,10)}`;
-    try {
-      const saved = JSON.parse(localStorage.getItem(key) || "{}");
-      const s = saved.seconds || 0;
-      if (saved.running && saved.startedAt) {
-        const elapsed = Math.floor((Date.now() - saved.startedAt) / 1000);
-        setDailyTimer({ running: true, startedAt: saved.startedAt, seconds: s + elapsed });
-      } else {
-        setDailyTimer({ running: false, startedAt: null, seconds: s });
-      }
-    } catch { setDailyTimer({ running: false, startedAt: null, seconds: 0 }); }
-  }, [user?.name]);
-
-  // Sauvegarder le minuteur dans localStorage + serveur
-  const saveDailyTimer = useCallback((dt) => {
-    if (!user) return;
-    const dateStr = new Date().toISOString().slice(0,10);
-    const key = `dt_${user.name}_${dateStr}`;
-    localStorage.setItem(key, JSON.stringify(dt));
-    // Persistance serveur (best-effort)
-    authFetch(`/api/timer/daily/${encodeURIComponent(user.name)}`, {
-      method: "POST",
-      body: JSON.stringify({ date: dateStr, seconds: dt.seconds, running: dt.running, startedAt: dt.startedAt }),
-    }).catch(() => {});
-  }, [user?.name]);
-
-  const toggleDailyTimer = useCallback(() => {
-    setDailyTimer(prev => {
-      let next;
-      if (prev.running) {
-        const elapsed = prev.startedAt ? Math.floor((Date.now() - prev.startedAt) / 1000) : 0;
-        next = { running: false, startedAt: null, seconds: prev.seconds + elapsed };
-      } else {
-        next = { running: true, startedAt: Date.now(), seconds: prev.seconds };
-      }
-      saveDailyTimer(next);
-      return next;
-    });
-  }, [saveDailyTimer]);
-
-  const dailyDisplaySeconds = dailyTimer.running && dailyTimer.startedAt
-    ? dailyTimer.seconds + Math.floor((Date.now() - dailyTimer.startedAt) / 1000)
-    : dailyTimer.seconds;
   // ─── États Import Excel ───────────────────────────────────
   const [importModal, setImportModal] = useState(false);
   // ─── États Rentabilité ────────────────────────────────────
@@ -2377,6 +2197,24 @@ function App() {
   // ─── Mode sombre/clair ────────────────────────────────────
   const [isDark, setIsDark] = useState(() => localStorage.getItem('kbtheme') !== 'light');
   applyTheme(isDark);
+  // ─── Notifications ────────────────────────────────────────
+  const [notifs, setNotifs] = useState([]);
+  const [notifsOpen, setNotifsOpen] = useState(false);
+  const unseenCount = notifs.filter(n => !n.seen).length;
+
+  // Polling notifications toutes les 30s
+  useEffect(() => {
+    if (!user) return;
+    const poll = async () => { const data = await fetchNotifications(); setNotifs(data); };
+    poll(); // appel immédiat au login
+    const id = setInterval(poll, 30000);
+    return () => clearInterval(id);
+  }, [user]);
+
+  const handleMarkSeen = async (ids) => {
+    await markNotificationsSeen(ids);
+    setNotifs(prev => prev.map(n => (!ids || ids.includes(n.id)) ? { ...n, seen: true } : n));
+  };
   // ─── États IA ─────────────────────────────────────────────
   const [chatOpen, setChatOpen] = useState(false);
   const [workloadOpen, setWorkloadOpen] = useState(false);
@@ -2460,7 +2298,7 @@ function App() {
       for (const m of ms) ld[m.name] = await loadTasks(m.name);
       setAll(ld);
     } else if (user.isAdmin) {
-      const ms = empList.filter((e) => !e.isAdmin);
+      const ms = empList;
       const ld = {};
       for (const m of ms) ld[m.name] = await loadTasks(m.name);
       setAll(ld);
@@ -2492,8 +2330,8 @@ function App() {
         for (const m of ms) ld[m.name] = await loadTasks(m.name);
         setAll(ld);
       } else if (user.isAdmin) {
-        // Super Admin : charge toute l'équipe tech + l'espace Admin
-        const ms = empList.filter((e) => !e.isAdmin);
+        // Super Admin : charge tout le monde (équipe tech + Direction + admins)
+        const ms = empList;
         const ld = {};
         for (const m of ms) ld[m.name] = await loadTasks(m.name);
         setAll(ld);
@@ -2612,8 +2450,7 @@ function App() {
     return { [user.name]: all[user.name] || [] };
   };
 
-  if (!user && showLanding) return <LandingPage onLogin={() => setShowLanding(false)} />;
-  if (!user) return <LoginScreen onLogin={(u) => { setUser(u); setShowLanding(false); }} employees={empList} onBack={() => setShowLanding(true)} />;
+  if (!user) return <LoginScreen onLogin={setUser} employees={empList} />;
 
   const my = all[user.name] || [];
   const isDirectionUser = user.canViewKPI || user.canViewTJM || user.canViewAll;
@@ -2626,16 +2463,17 @@ function App() {
       ? empList.filter((e) => !e.isAdmin && e.pole !== "Direction")
       : empList.filter((e) => e.pole === user.pole && !e.isChef);
 
-  // Membres Direction visibles en vue équipe
+  // Membres Direction + Super Admins visibles en vue équipe
   const directionMembers = (user.isAdmin || user.pole === "Direction")
-    ? empList.filter((e) => e.pole === "Direction")
+    ? empList.filter((e) => e.pole === "Direction" || e.isAdmin)
     : [];
 
-  const pmFiltered = teamPole === "all" ? pm
-    : teamPole === "fluide" ? pm.filter((m) => m.pole === "Fluide")
-    : teamPole === "elec"   ? pm.filter((m) => m.pole === "Élec")
-    : teamPole === "com"    ? pm.filter((m) => m.pole === "Commercial")
-    : []; // "admin" → seulement l'espace Admin, pas les membres normaux
+  const pmFiltered = teamPole === "all"       ? pm
+    : teamPole === "fluide"    ? pm.filter((m) => m.pole === "Fluide")
+    : teamPole === "elec"      ? pm.filter((m) => m.pole === "Élec")
+    : teamPole === "com"       ? pm.filter((m) => m.pole === "Commercial")
+    : teamPole === "direction" ? empList.filter((m) => m.pole === "Direction")
+    : empList.filter((m) => m.isAdmin); // "admin" → Super Admins uniquement
 
   const fm = af === "all" ? pmFiltered : pmFiltered.filter((m) => {
     const t = all[m.name] || [];
@@ -2645,8 +2483,9 @@ function App() {
     return true;
   });
 
-  const showDirectionSection = (user.isAdmin || user.pole === "Direction") && directionMembers.length > 0 && (teamPole === "all" || teamPole === "admin");
-  const statsBase = teamPole === "admin" ? directionMembers : fm;
+  // Section spéciale "Espace Admin" uniquement en vue "Tous les pôles" (évite les doublons)
+  const showDirectionSection = (user.isAdmin || user.pole === "Direction") && directionMembers.length > 0 && teamPole === "all";
+  const statsBase = (teamPole === "admin" || teamPole === "direction") ? pmFiltered : fm;
   const apt = statsBase.flatMap((m) => all[m.name] || []);
   const tot = apt.length;
   const dn = apt.filter((t) => t.column === "done").length;
@@ -2669,19 +2508,8 @@ function App() {
           {user.pole === "Direction" && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: GREEN + "22", color: GREEN, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>}
           {my.some((t) => t.timerRunning) && <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 99, background: CYAN + "22", color: CYAN, fontWeight: 700, animation: "pulse 1.5s infinite" }}>⏱ Timer actif</span>}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {/* ── Minuteur de pointage ── */}
-          <button onClick={toggleDailyTimer}
-            style={{ padding:"8px 14px", background: dailyTimer.running ? CYAN+"22" : DARK2, border:"1px solid "+(dailyTimer.running ? CYAN : BRD), borderRadius:8, color: dailyTimer.running ? CYAN : TXT2, fontWeight:600, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", gap:6, minWidth:110 }}>
-            <span style={{ animation: dailyTimer.running ? "pulse 1.5s infinite" : "none" }}>⏱</span>
-            {dailyTimer.running ? fmtTime(dailyDisplaySeconds) : (dailyDisplaySeconds > 0 ? fmtTime(dailyDisplaySeconds) : "Pointer")}
-          </button>
-          {/* ── Toggle vue Kanban / Planning ── */}
-          <button onClick={() => setViewMode(m => m==="kanban" ? "planning" : "kanban")}
-            style={{ padding:"8px 14px", background: viewMode==="planning" ? PURPLE+"22" : DARK2, border:"1px solid "+(viewMode==="planning" ? PURPLE : BRD), borderRadius:8, color: viewMode==="planning" ? PURPLE : TXT2, fontWeight:600, fontSize:12, cursor:"pointer" }}>
-            {viewMode==="kanban" ? "📅 Planning" : "📋 Kanban"}
-          </button>
-          {canSeeTeam && viewMode==="kanban" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {canSeeTeam && (
             <button onClick={() => setAdmin(!admin)} style={{ padding: "8px 14px", background: admin ? ORANGE + "22" : DARK2, border: "1px solid " + (admin ? ORANGE : BRD), borderRadius: 8, color: admin ? ORANGE : TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
               {admin ? "👤 Mon tableau" : user.isAdmin ? "👥 Vue globale" : user.pole === "Direction" ? "👥 Vue Admin" : "👥 Vue équipe"}
             </button>
@@ -2714,17 +2542,26 @@ function App() {
           )}
           <button onClick={() => setChatOpen((v) => !v)} title="Agent IA — Peut créer et gérer les tâches" style={{ padding: "8px 14px", background: chatOpen ? BLUE + "33" : DARK2, border: "2px solid " + (chatOpen ? BLUE : BLUE + "55"), borderRadius: 8, color: chatOpen ? BLUE : BLUE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🤖 Agent IA</button>
           <button onClick={() => { const n=!isDark; localStorage.setItem('kbtheme',n?'dark':'light'); applyTheme(n); setIsDark(n); }} title={isDark?"Mode clair":"Mode sombre"} style={{ padding:"8px 14px", background:DARK2, border:"1px solid "+BRD, borderRadius:8, color:TXT2, fontWeight:600, fontSize:14, cursor:"pointer" }}>{isDark ? "☀️" : "🌙"}</button>
+          {/* ─── Cloche notifications ─── */}
+          <div style={{ position:"relative" }}>
+            <button onClick={() => { setNotifsOpen(v => !v); }} title="Notifications" style={{ padding:"8px 14px", background: notifsOpen ? BLUE+"22" : DARK2, border:"1px solid "+(notifsOpen ? BLUE+"66" : unseenCount > 0 ? BLUE+"55" : BRD), borderRadius:8, color: unseenCount > 0 ? BLUE : TXT2, fontWeight:600, fontSize:14, cursor:"pointer", position:"relative" }}>
+              🔔
+              {unseenCount > 0 && (
+                <span style={{ position:"absolute", top:-4, right:-4, minWidth:16, height:16, borderRadius:99, background:BLUE, color:"#fff", fontSize:9, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", padding:"0 4px", border:"2px solid "+DARK }}>
+                  {unseenCount > 9 ? "9+" : unseenCount}
+                </span>
+              )}
+            </button>
+          </div>
           <button onClick={() => setSettings(true)} style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>🔐</button>
           <button onClick={logout} style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>Déconnexion</button>
         </div>
       </div>
 
       {showBriefing && briefing && <DailyBriefingBanner briefing={briefing} onClose={() => setShowBriefing(false)} />}
-      {viewMode === "planning"
-        ? null /* GanttView est rendu séparément en bas */
-        : loading
-          ? <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ color: TXT2 }}>Chargement...</div></div>
-          : admin && canSeeTeam
+      {loading
+        ? <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ color: TXT2 }}>Chargement...</div></div>
+        : admin && canSeeTeam
           ? (
             <div style={{ flex: 1, overflow: "auto", padding: 20 }}>
               <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
@@ -2736,7 +2573,7 @@ function App() {
                 ))}
               </div>
               <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                {[{ id: "all", l: "Tous les pôles" }, { id: "fluide", l: "🔵 Fluide" }, { id: "elec", l: "🔴 Élec" }, { id: "com", l: "🟡 Commercial" }, { id: "admin", l: "🏢 Admin" }].map((f) => (
+                {[{ id: "all", l: "Tous les pôles" }, { id: "fluide", l: "🔵 Fluide" }, { id: "elec", l: "🔴 Élec" }, { id: "com", l: "🟡 Commercial" }, { id: "direction", l: "🟢 Direction" }, { id: "admin", l: "🛡️ Admin" }].map((f) => (
                   <button key={f.id} onClick={() => setTeamPole(f.id)} style={{ padding: "6px 14px", background: teamPole === f.id ? GREEN + "22" : DARK2, border: "1px solid " + (teamPole === f.id ? GREEN + "66" : BRD), borderRadius: 6, color: teamPole === f.id ? GREEN : TXT3, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{f.l}</button>
                 ))}
               </div>
@@ -2776,11 +2613,7 @@ function App() {
           )
       }
 
-      {/* ─── Vue Planning Gantt ─────────────────────────────────── */}
-      {viewMode === "planning" && (
-        <GanttView user={user} empList={empList} all={all} tick={tick} />
-      )}
-
+      {notifsOpen && <NotificationPanel notifs={notifs} onMarkSeen={handleMarkSeen} onClose={() => setNotifsOpen(false)} />}
       {settings && <SettingsModal user={user} onClose={() => setSettings(false)} />}
       {empModal && user.isAdmin && <EmployeesModal employees={empList} onSave={handleSaveEmployees} onClose={() => setEmpModal(false)} />}
       {profitabilityOpen && user.isAdmin && <ProfitabilityModal onClose={() => setProfitabilityOpen(false)} />}
