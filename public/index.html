@@ -38,7 +38,6 @@ const DEFAULT_PASSWORD = "kanban2026";
 const LOGO_SRC = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCAOcBo4DASIAAhEBAxEB/8QAHQABAAEFAQEBAAAAAAAAAAAAAAQCAwUGBwEICf/EAGcQAQABAwICBAMNDg4QBQUBAAABAgMEBREGIRIxUWEHE0EIFSIyNVJxgZGxstHSFBZCVVZzdHWSk6GzwcIjNjdTVGJygoOElLTD4hckJiszNENERWWVoqOk0+ElRmOl4xg4ZMTx8P/EABsBAQACAwEBAAAAAAAAAAAAAAADBAECBQYH/8QANhEBAAIBAgQEAwcDBQEBAQAAAAECAwQREiExUQUTMkEUM2EiQlJxgZGxBhWhIzTB0fAWJPH/2gAMAwEAAhEDEQA/APjIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHuwPB7s92BSKtnuwKBX0TogoFfROiCgV9E2BQKtnmwPB7s8AAAAA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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHuwPB7s92BSKtnuwKBX0TogoFfROiCgV9E2BQKtnmwPB7s8AAAAAAAAAAAAA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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA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";
 
 const COLS = [
-  { id: "backlog", title: "Backlog", color: TXT3, icon: "📋" },
   { id: "todo", title: "À faire", color: BLUE, icon: "📌" },
   { id: "in_progress", title: "En cours", color: ORANGE, icon: "⚡" },
   { id: "review", title: "En revue", color: PURPLE, icon: "🔍" },
@@ -80,6 +79,7 @@ const DEFAULT_EMPLOYEES = [
   { name: "M.O. HACHLEF", role: "Ingénieur Elec", pole: "Élec", isChef: false },
   { name: "ECHRIF Walid", role: "Admin", pole: "Admin", isChef: false, isAdmin: true },
   { name: "ECHRIF Youssef", role: "Admin", pole: "Admin", isChef: false, isAdmin: true },
+  { name: "IT SOZAIS", role: "Administrateur IT", pole: "Admin", isChef: false, isAdmin: true },
   { name: "Maroua HTIRA", role: "Assistante de direction", pole: "Direction", isChef: false, isAdmin: false, canViewKPI: true },
   { name: "Siwar HOSNI", role: "Responsable financière", pole: "Direction", isChef: false, isAdmin: false, canViewTJM: true },
   { name: "Marion CESA", role: "Resp. administrative et financière", pole: "Direction", isChef: true, isAdmin: false, canViewAll: true },
@@ -187,50 +187,39 @@ function NotificationPanel({ notifs, onMarkSeen, onClose }) {
   const unseen = notifs.filter(n => !n.seen).length;
   const fmtDate = (d) => {
     try {
-      const dt = new Date(d);
-      const now = new Date();
-      const diffMs = now - dt;
-      const diffMin = Math.floor(diffMs / 60000);
-      const diffH = Math.floor(diffMs / 3600000);
-      const diffD = Math.floor(diffMs / 86400000);
-      if (diffMin < 2)  return "à l'instant";
-      if (diffMin < 60) return `il y a ${diffMin} min`;
-      if (diffH < 24)   return `il y a ${diffH}h`;
-      return `il y a ${diffD}j`;
+      const dt = new Date(d), now = new Date(), diff = now - dt;
+      const m = Math.floor(diff/60000), h = Math.floor(diff/3600000), day = Math.floor(diff/86400000);
+      if (m < 2) return "à l'instant";
+      if (m < 60) return `il y a ${m} min`;
+      if (h < 24) return `il y a ${h}h`;
+      return `il y a ${day}j`;
     } catch { return ""; }
   };
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:2000 }}>
       <div onClick={e => e.stopPropagation()} style={{ position:"absolute", top:56, right:8, width:340, maxHeight:"70vh", background:DARK2, border:"1px solid "+BRD, borderRadius:14, boxShadow:"0 16px 48px rgba(0,0,0,0.6)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
-        {/* Header */}
         <div style={{ padding:"12px 16px", borderBottom:"1px solid "+BRD, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ color:TXT, fontWeight:700, fontSize:13 }}>🔔 Notifications</span>
             {unseen > 0 && <span style={{ fontSize:9, padding:"2px 7px", borderRadius:99, background:BLUE+"33", color:BLUE, fontWeight:700 }}>{unseen} nouvelle{unseen>1?"s":""}</span>}
           </div>
-          {unseen > 0 && (
-            <button onClick={() => onMarkSeen()} style={{ fontSize:10, padding:"4px 10px", background:"none", border:"1px solid "+BRD, borderRadius:6, color:TXT3, cursor:"pointer", fontWeight:600 }}>Tout marquer lu</button>
-          )}
+          {unseen > 0 && <button onClick={() => onMarkSeen()} style={{ fontSize:10, padding:"4px 10px", background:"none", border:"1px solid "+BRD, borderRadius:6, color:TXT3, cursor:"pointer", fontWeight:600 }}>Tout marquer lu</button>}
         </div>
-        {/* Liste */}
         <div style={{ overflowY:"auto", flex:1 }}>
-          {notifs.length === 0 ? (
-            <div style={{ padding:"32px 16px", textAlign:"center", color:TXT3, fontSize:12 }}>Aucune notification</div>
-          ) : notifs.map(n => (
-            <div key={n.id} style={{ padding:"11px 16px", borderBottom:"1px solid "+BRD+"55", background:n.seen ? "transparent" : BLUE+"09", display:"flex", gap:10, alignItems:"flex-start" }}>
-              {!n.seen && <div style={{ width:7, height:7, borderRadius:"50%", background:BLUE, marginTop:4, flexShrink:0 }} />}
-              {n.seen  && <div style={{ width:7, flexShrink:0 }} />}
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ color:TXT, fontSize:12, fontWeight:n.seen?400:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                  {n.type === 'new_task' ? '📌' : '🔄'} {n.taskTitle}
-                </div>
-                {n.project && <div style={{ color:BLUE, fontSize:10, textTransform:"uppercase", fontWeight:600, marginTop:1 }}>{n.project}</div>}
-                <div style={{ color:TXT3, fontSize:10, marginTop:2 }}>
-                  {n.type === 'new_task' ? 'Assignée par' : 'Déplacée par'} <strong style={{ color:TXT2 }}>{n.fromName}</strong> · {fmtDate(n.createdAt)}
+          {notifs.length === 0
+            ? <div style={{ padding:"32px 16px", textAlign:"center", color:TXT3, fontSize:12 }}>Aucune notification</div>
+            : notifs.map(n => (
+              <div key={n.id} style={{ padding:"11px 16px", borderBottom:"1px solid "+BRD+"55", background:n.seen?"transparent":BLUE+"09", display:"flex", gap:10, alignItems:"flex-start" }}>
+                {!n.seen && <div style={{ width:7, height:7, borderRadius:"50%", background:BLUE, marginTop:4, flexShrink:0 }} />}
+                {n.seen  && <div style={{ width:7, flexShrink:0 }} />}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ color:TXT, fontSize:12, fontWeight:n.seen?400:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>📌 {n.taskTitle}</div>
+                  {n.project && <div style={{ color:BLUE, fontSize:10, textTransform:"uppercase", fontWeight:600, marginTop:1 }}>{n.project}</div>}
+                  <div style={{ color:TXT3, fontSize:10, marginTop:2 }}>Assignée par <strong style={{ color:TXT2 }}>{n.fromName}</strong> · {fmtDate(n.createdAt)}</div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          }
         </div>
       </div>
     </div>
@@ -240,7 +229,7 @@ function NotificationPanel({ notifs, onMarkSeen, onClose }) {
 function exportToExcel(allTasks, empList) {
   const BOM = "\uFEFF";
   const SEP = ";";
-  const colLabel = { backlog: "Backlog", todo: "À faire", in_progress: "En cours", review: "En revue", done: "Terminé" };
+  const colLabel = { todo: "À faire", in_progress: "En cours", review: "En revue", done: "Terminé" };
   const prioLabel = { high: "Haute", medium: "Moyenne", low: "Basse" };
   const headers = ["Collaborateur", "Pôle", "Rôle", "Titre", "Projet", "Description", "Priorité", "Colonne", "Échéance", "H. estimées", "H. réalisées", "Dépassement", "Timer", "TJM (€/j)", "Coût MO (€)", "CA livrable (€)"];
   const rows = [];
@@ -345,9 +334,13 @@ function ActionCard({ action }) {
 
 // ─── Composant : Chatbot IA (Agent) ───────────────────────────
 function AIChatPanel({ user, onClose, onAction }) {
-  const [messages, setMessages] = useState([]);
+  const storageKey = 'aiChat_' + (user?.name || 'guest');
+  const [messages, setMessages] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch { return []; }
+  });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [minimized, setMinimized] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [agentName, setAgentName] = useState(() => localStorage.getItem('agentName') || 'SOZAIS IA');
   const [agentStyle, setAgentStyle] = useState(() => localStorage.getItem('agentStyle') || 'professionnel');
@@ -362,6 +355,9 @@ function AIChatPanel({ user, onClose, onAction }) {
   };
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, loading]);
+  useEffect(() => {
+    try { localStorage.setItem(storageKey, JSON.stringify(messages.slice(-100))); } catch {}
+  }, [messages]);
 
   const send = async () => {
     const text = input.trim();
@@ -388,23 +384,28 @@ function AIChatPanel({ user, onClose, onAction }) {
   ];
 
   return (
-    <div style={{ position: 'fixed', bottom: 20, right: 20, width: 400, maxHeight: '78vh', background: DARK2, border: '1px solid ' + BRD, borderRadius: 16, boxShadow: '0 24px 64px rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', zIndex: 3000 }}>
-      {/* Header */}
-      <div style={{ padding: '13px 16px', borderBottom: '1px solid ' + BRD, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: DARK3, borderRadius: '16px 16px 0 0' }}>
+    <div style={{ position: 'fixed', bottom: 20, right: 20, width: 400, maxHeight: minimized ? 'auto' : '78vh', background: DARK2, border: '1px solid ' + (minimized ? BLUE+'66' : BRD), borderRadius: minimized ? 12 : 16, boxShadow: '0 24px 64px rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', zIndex: 3000, transition: 'max-height 0.2s ease, border-radius 0.15s' }}>
+      {/* Header — cliquable pour réduire/agrandir */}
+      <div onClick={() => setMinimized(v => !v)} style={{ padding: '13px 16px', borderBottom: minimized ? 'none' : '1px solid ' + BRD, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: minimized ? BLUE+'18' : DARK3, borderRadius: minimized ? 12 : '16px 16px 0 0', cursor: 'pointer', userSelect: 'none' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 18 }}>{agentEmoji}</span>
           <div>
-            <div style={{ color: TXT, fontWeight: 700, fontSize: 13 }}>{agentName}</div>
-            <div style={{ color: GREEN, fontSize: 9, fontWeight: 600 }}>● {agentStyle} · créer · modifier · déplacer</div>
+            <div style={{ color: minimized ? BLUE : TXT, fontWeight: 700, fontSize: 13 }}>{agentName}</div>
+            <div style={{ color: minimized ? BLUE+'99' : GREEN, fontSize: 9, fontWeight: 600 }}>
+              {minimized ? '▲ Cliquer pour agrandir' : '● ' + agentStyle + ' · créer · modifier · déplacer'}
+            </div>
           </div>
         </div>
-        <div style={{ display:'flex', gap:4 }}>
+        <div style={{ display:'flex', gap:4 }} onClick={e => e.stopPropagation()}>
+          <button onClick={() => setMinimized(v => !v)} title={minimized ? "Agrandir" : "Réduire"} style={{ background:'none', border:'none', color: minimized ? BLUE : TXT3, fontSize:14, cursor:'pointer' }}>
+            {minimized ? '▲' : '▼'}
+          </button>
           <button onClick={() => setConfigOpen(v=>!v)} title="Personnaliser l'agent" style={{ background:'none', border:'none', color:configOpen?PURPLE:TXT3, fontSize:14, cursor:'pointer' }}>⚙️</button>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: TXT3, fontSize: 18, cursor: 'pointer' }}>✕</button>
+          <button onClick={onClose} title="Fermer" style={{ background: 'none', border: 'none', color: TXT3, fontSize: 18, cursor: 'pointer' }}>✕</button>
         </div>
       </div>
-      {/* Config panel */}
-      {configOpen && (
+      {/* Tout le contenu masqué quand réduit */}
+      {!minimized && configOpen && (
         <div style={{ padding:'12px 16px', borderBottom:'1px solid '+BRD, background:DARK4, display:'flex', flexDirection:'column', gap:8 }}>
           <div style={{ color:TXT2, fontSize:11, fontWeight:700, marginBottom:2 }}>🎨 Personnaliser l'agent</div>
           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
@@ -429,8 +430,8 @@ function AIChatPanel({ user, onClose, onAction }) {
         </div>
       )}
 
-      {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 160 }}>
+      {/* Messages + input : cachés quand réduit */}
+      {!minimized && <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 160 }}>
         {messages.length === 0 && (
           <div>
             <div style={{ color: TXT3, fontSize: 11, textAlign: 'center', marginBottom: 12, marginTop: 8 }}>
@@ -463,15 +464,15 @@ function AIChatPanel({ user, onClose, onAction }) {
           </div>
         )}
         <div ref={bottomRef} />
-      </div>
+      </div>}
 
-      {/* Input */}
-      <div style={{ padding: '10px 12px', borderTop: '1px solid ' + BRD, display: 'flex', gap: 7 }}>
+      {/* Input — caché quand réduit */}
+      {!minimized && <div style={{ padding: '10px 12px', borderTop: '1px solid ' + BRD, display: 'flex', gap: 7 }}>
         <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && send()}
           placeholder="Ex: Crée une tâche pour Ahmed sur le projet CVC..." style={{ ...iBase, flex: 1, fontSize: 12, padding: '8px 11px' }} />
         <button onClick={send} disabled={!input.trim() || loading}
           style={{ padding: '8px 14px', background: input.trim() && !loading ? BLUE : TXT3, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, cursor: input.trim() && !loading ? 'pointer' : 'not-allowed', fontSize: 14 }}>→</button>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -889,59 +890,84 @@ function ImportExcelModal({ employees, allTasks, onImport, onClose }) {
   );
 }
 
+// ─── Page d'accueil ───
+function LandingPage({ onLogin }) {
+  return (
+    <div style={{ minHeight: "100vh", background: DARK, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit','Segoe UI',sans-serif", position: "relative", overflow: "hidden" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+      <style>{"*{box-sizing:border-box;margin:0;padding:0}@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}"}</style>
+      <div style={{ position:"absolute", inset:0, backgroundImage:"radial-gradient(circle at 20% 50%, "+BLUE+"18 0%, transparent 50%), radial-gradient(circle at 80% 20%, "+PURPLE+"18 0%, transparent 40%)", pointerEvents:"none" }} />
+      <div style={{ animation:"fadeUp 0.6s ease", textAlign:"center", padding:"40px 24px", maxWidth:480, width:"100%", position:"relative" }}>
+        <div style={{ marginBottom:20 }}><Logo size={80} /></div>
+        <div style={{ color:TXT, fontSize:38, fontWeight:800, letterSpacing:-1.5, lineHeight:1.1 }}>Kanban SOZAIS</div>
+        <div style={{ color:TXT3, fontSize:15, marginTop:10, fontWeight:400, lineHeight:1.6 }}>
+          Gestion de projets &amp; équipes<br/>
+          <span style={{ color:BLUE, fontWeight:600 }}>Propulsé par l'IA</span>
+        </div>
+        <div style={{ display:"flex", gap:10, justifyContent:"center", marginTop:28, marginBottom:32, flexWrap:"wrap" }}>
+          {[["📐","Ingénierie"],["🤖","IA Intégrée"],["📅","Planning Gantt"],["⏱","Pointage"]].map(([ic,lb]) => (
+            <div key={lb} style={{ padding:"10px 16px", background:DARK2, border:"1px solid "+BRD, borderRadius:10, display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
+              <span style={{ fontSize:20 }}>{ic}</span>
+              <span style={{ color:TXT3, fontSize:9, fontWeight:600, textTransform:"uppercase", letterSpacing:.5 }}>{lb}</span>
+            </div>
+          ))}
+        </div>
+        <button onClick={onLogin} style={{ width:"100%", maxWidth:320, padding:"15px 0", background:BLUE, border:"none", borderRadius:12, color:"#fff", fontSize:16, fontWeight:700, cursor:"pointer", letterSpacing:0.3, boxShadow:"0 8px 32px "+BLUE+"55" }}>
+          Se connecter →
+        </button>
+        <div style={{ marginTop:24, color:TXT3, fontSize:11 }}>© 2026 SOZAIS · Version AI-First v2</div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Login ───
-function LoginScreen({ onLogin, employees }) {
-  const [step, setStep] = useState("select");
-  const [sel, setSel] = useState(null);
+function LoginScreen({ onLogin, employees, onBack }) {
+  const [step, setStep] = useState("login");
+  const [loginEmail, setLoginEmail] = useState("");
   const [pwd, setPwd] = useState("");
   const [nPwd, setNPwd] = useState("");
   const [cPwd, setCPwd] = useState("");
   const [email, setEmail] = useState("");
   const [err, setErr] = useState("");
-  const [search, setSearch] = useState("");
-  const [pf, setPf] = useState("all");
   const [busy, setBusy] = useState(false);
   const [resetSent, setResetSent] = useState(false);
-  // token JWT + user data temporaires (reçus après login, utilisés pour change-password et set-email)
   const [tempToken, setTempToken] = useState(null);
-  const [tempUser, setTempUser] = useState(null); // data.user du serveur (complet)
+  const [tempUser, setTempUser] = useState(null);
+
+  const matchedEmp = employees.find(e => e.email && e.email.toLowerCase() === loginEmail.trim().toLowerCase());
 
   const forgotPassword = async () => {
-    if (!sel) return;
+    if (!loginEmail.trim()) { setErr("Entrez d'abord votre email"); return; }
     setBusy(true);
     try {
       await fetch('/api/auth/forgot-password', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: sel.name }),
+        body: JSON.stringify({ email: loginEmail.trim() }),
       });
-      setResetSent(true);
-      setPwd(""); setErr("");
+      setResetSent(true); setErr("");
     } catch { setErr("Erreur réseau, réessayez."); }
     setBusy(false);
   };
 
-  const filtered = employees.filter((e) => {
-    const matchPole = pf === "all" || (pf === "fluide" && e.pole === "Fluide") || (pf === "elec" && e.pole === "Élec") || (pf === "com" && e.pole === "Commercial") || (pf === "admin" && e.isAdmin) || (pf === "direction" && e.pole === "Direction");
-    return matchPole && e.name.toLowerCase().includes(search.toLowerCase());
-  });
-
   const checkPwd = async () => {
+    if (!loginEmail.trim()) { setErr("Entrez votre adresse email"); return; }
+    if (!pwd) { setErr("Entrez votre mot de passe"); return; }
     setBusy(true); setErr("");
     try {
       const r = await fetch('/api/auth/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: sel.name, password: pwd }),
+        body: JSON.stringify({ email: loginEmail.trim(), password: pwd }),
       });
       const data = await r.json();
-      if (!r.ok) { setErr(data.error || "Mot de passe incorrect"); setBusy(false); return; }
+      if (!r.ok) { setErr(data.error || "Identifiants incorrects"); setBusy(false); return; }
       setTempToken(data.token);
-      setTempUser(data.user); // sauvegarder les données complètes du serveur
+      setTempUser(data.user);
       if (data.firstLogin) {
-        // Première connexion → changer le mot de passe obligatoire
         setStep("change"); setNPwd(""); setCPwd("");
       } else {
         setToken(data.token);
-        onLogin(data.user); // utiliser data.user (complet, depuis le serveur)
+        onLogin(data.user);
       }
     } catch { setErr("Erreur réseau, réessayez."); }
     setBusy(false);
@@ -959,8 +985,6 @@ function LoginScreen({ onLogin, employees }) {
         body: JSON.stringify({ newPassword: nPwd }),
       });
       if (!r.ok) { setErr((await r.json()).error || "Erreur"); setBusy(false); return; }
-      // Vérifier si l'utilisateur n'a pas encore d'email → étape email
-      // Utiliser tempUser (données du serveur) et non sel (DEFAULT_EMPLOYEES incomplet)
       if (!tempUser?.email) { setStep("email"); setEmail(""); }
       else { setToken(tempToken); onLogin(tempUser); }
     } catch { setErr("Erreur réseau"); }
@@ -977,92 +1001,94 @@ function LoginScreen({ onLogin, employees }) {
         body: JSON.stringify({ email: email.trim() }),
       });
       setToken(tempToken);
-      // Utiliser tempUser (complet depuis serveur) + email saisi
       onLogin({ ...tempUser, email: email.trim() });
     } catch { setErr("Erreur réseau"); }
     setBusy(false);
   };
 
+  const avatar = matchedEmp
+    ? matchedEmp.name.split(" ").map(n=>n[0]).join("").slice(0,2)
+    : (loginEmail.trim() ? loginEmail.trim().split("@")[0].split(".").map(n=>n[0]||"").join("").slice(0,2).toUpperCase() : "?");
+
   return (
     <div style={{ minHeight: "100vh", background: DARK, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit','Segoe UI',sans-serif" }}>
       <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
-      <style>{"@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}"}</style>
-      <div style={{ width: "100%", maxWidth: 460, padding: 24, animation: "fadeUp 0.4s ease" }}>
+      <style>{"@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}"}</style>
+      <div style={{ width: "100%", maxWidth: 440, padding: 24, animation: "fadeUp 0.4s ease" }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ marginBottom: 10 }}><Logo size={60} /></div>
-          <h1 style={{ color: TXT, fontSize: 22, fontWeight: 800, margin: 0 }}>Kanban Équipe</h1>
-          <p style={{ color: TXT3, fontSize: 13, marginTop: 4 }}>
-            {step === "select" && "Sélectionnez votre nom pour vous connecter"}
-            {step === "password" && ("Connexion — " + (sel && sel.name))}
-            {step === "change" && "Première connexion : créez votre mot de passe"}
-            {step === "email" && "Ajoutez votre adresse email (récupération de compte)"}
+          <div style={{ marginBottom: 10 }}><Logo size={56} /></div>
+          <h1 style={{ color: TXT, fontSize: 20, fontWeight: 800, margin: 0 }}>
+            {step === "login" && "Connexion"}
+            {step === "change" && "Changement de mot de passe"}
+            {step === "email" && "Ajout de l'email"}
+          </h1>
+          <p style={{ color: TXT3, fontSize: 12, marginTop: 4 }}>
+            {step === "login" && "Entrez vos identifiants pour accéder au tableau"}
+            {step === "change" && "Première connexion — créez votre mot de passe personnel"}
+            {step === "email" && "Ajoutez votre email pour récupérer votre compte"}
           </p>
         </div>
 
-        {step === "select" && (
-          <div>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="🔍 Rechercher..." style={{ ...iBase, marginBottom: 10 }} />
-            <div style={{ display: "flex", gap: 5, marginBottom: 14 }}>
-              {[{ id: "all", l: "Tous" }, { id: "fluide", l: "Fluide" }, { id: "elec", l: "Élec" }, { id: "com", l: "Commercial" }, { id: "admin", l: "Super Admin" }, { id: "direction", l: "Admin" }].map((f) => (
-                <button key={f.id} onClick={() => setPf(f.id)} style={{ flex: 1, padding: "7px 0", background: pf === f.id ? BLUE + "22" : DARK2, border: "1px solid " + (pf === f.id ? BLUE + "66" : BRD), borderRadius: 7, color: pf === f.id ? BLUE : TXT3, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{f.l}</button>
-              ))}
-            </div>
-            <div style={{ maxHeight: 380, overflowY: "auto", display: "flex", flexDirection: "column", gap: 3 }}>
-              {filtered.map((emp) => (
-                <button key={emp.name} onClick={() => { setSel(emp); setStep("password"); setPwd(""); setErr(""); setResetDone(false); }}
-                  style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 9, cursor: "pointer", textAlign: "left", width: "100%" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = DARK4; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = DARK2; }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 99, background: emp.isAdmin ? PURPLE + "44" : emp.pole === "Direction" ? GREEN + "44" : emp.isChef ? (emp.pole === "Fluide" ? BLUE : RED) : DARK3, border: "2px solid " + (emp.isAdmin ? PURPLE + "66" : emp.pole === "Direction" ? GREEN + "66" : (emp.pole === "Fluide" ? BLUE : RED) + "44"), display: "flex", alignItems: "center", justifyContent: "center", color: emp.isChef || emp.isAdmin || emp.pole === "Direction" ? "#fff" : TXT2, fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
-                    {emp.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: TXT, fontSize: 13, fontWeight: 600 }}>{emp.name}</div>
-                    <div style={{ color: TXT3, fontSize: 10 }}>{emp.role}</div>
-                  </div>
-                  {emp.isAdmin && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: PURPLE + "22", color: PURPLE, fontWeight: 700, textTransform: "uppercase" }}>Super Admin</span>}
-                  {emp.isChef && !emp.isAdmin && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: ORANGE + "22", color: ORANGE, fontWeight: 700, textTransform: "uppercase" }}>Chef</span>}
-                  {emp.pole === "Direction" && <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 99, background: GREEN + "22", color: GREEN, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>}
-                  {!emp.isAdmin && emp.pole !== "Direction" && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: (emp.pole === "Fluide" ? BLUE : RED) + "22", color: emp.pole === "Fluide" ? BLUE : RED, fontWeight: 600 }}>{emp.pole}</span>}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {step === "password" && (
+        {/* ── Formulaire login ── */}
+        {step === "login" && (
           <div style={{ animation: "fadeUp 0.3s ease" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: DARK2, border: "1px solid " + BRD, borderRadius: 10, marginBottom: 20 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 99, background: sel.isAdmin ? PURPLE + "44" : sel.isChef ? (sel.pole === "Fluide" ? BLUE : RED) : DARK3, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 14, fontWeight: 800 }}>
-                {sel.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-              </div>
-              <div><div style={{ color: TXT, fontSize: 15, fontWeight: 700 }}>{sel.name}</div><div style={{ color: TXT3, fontSize: 11 }}>{sel.role}</div></div>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={lBase}>Mot de passe</label>
-              <input type="password" value={pwd} onChange={(e) => { setPwd(e.target.value); setErr(""); }} onKeyDown={(e) => e.key === "Enter" && checkPwd()} placeholder="Mot de passe" autoFocus style={{ ...iBase, borderColor: err ? RED : BRD, animation: err ? "shake 0.3s" : "none" }} />
-            </div>
-            {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginBottom: 12 }}>⚠️ {err}</div>}
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => { setStep("select"); setErr(""); }} style={{ flex: 1, padding: "11px 0", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, cursor: "pointer" }}>← Retour</button>
-              <button onClick={checkPwd} disabled={busy || !pwd} style={{ flex: 2, padding: "11px 0", background: !pwd ? TXT3 : BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: pwd ? "pointer" : "not-allowed" }}>Se connecter</button>
-            </div>
-            {!resetSent ? (
-              <div style={{ marginTop: 16 }}>
-                <div style={{ padding: "10px 14px", background: BLUE + "11", border: "1px solid " + BLUE + "33", borderRadius: 8, marginBottom: 10 }}>
-                  <div style={{ color: BLUE, fontSize: 11, fontWeight: 600 }}>ℹ️ Première connexion ?</div>
-                  <div style={{ color: TXT2, fontSize: 11, marginTop: 3 }}>Mot de passe initial : <span style={{ color: TXT, fontWeight: 700, fontFamily: "monospace", background: DARK, padding: "1px 6px", borderRadius: 4 }}>{DEFAULT_PASSWORD}</span></div>
+            {loginEmail.trim() && (
+              <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", background:DARK2, border:"1px solid "+(matchedEmp ? BLUE+"44" : BRD), borderRadius:10, marginBottom:16, transition:"border-color .2s" }}>
+                <div style={{ width:38, height:38, borderRadius:99, background:matchedEmp ? (matchedEmp.isAdmin ? PURPLE+"44" : matchedEmp.pole==="Direction" ? GREEN+"44" : BLUE+"44") : DARK3, border:"2px solid "+(matchedEmp ? BLUE : BRD), display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:13, fontWeight:800 }}>
+                  {avatar}
                 </div>
-                <button onClick={forgotPassword} disabled={busy} style={{ width: "100%", padding: "9px 0", background: "transparent", border: "1px solid " + ORANGE + "44", borderRadius: 8, color: ORANGE, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                  🔑 Mot de passe oublié ? Recevoir un lien par email
-                </button>
-              </div>
-            ) : (
-              <div style={{ marginTop: 16, padding: "12px 14px", background: GREEN + "15", border: "1px solid " + GREEN + "44", borderRadius: 8 }}>
-                <div style={{ color: GREEN, fontSize: 12, fontWeight: 700, marginBottom: 4 }}>✉️ Lien envoyé !</div>
-                <div style={{ color: TXT2, fontSize: 11 }}>Si un email est associé à votre compte, vous recevrez un lien de réinitialisation.</div>
+                <div style={{ flex:1 }}>
+                  <div style={{ color:matchedEmp ? TXT : TXT2, fontSize:13, fontWeight:600 }}>{matchedEmp ? matchedEmp.name : loginEmail.trim()}</div>
+                  <div style={{ color:TXT3, fontSize:10 }}>{matchedEmp ? matchedEmp.role+" · "+matchedEmp.pole : "Email non reconnu dans la liste"}</div>
+                </div>
+                {matchedEmp && <span style={{ color:GREEN, fontSize:16 }}>✓</span>}
               </div>
             )}
+            <div style={{ marginBottom:12 }}>
+              <label style={lBase}>Adresse email</label>
+              <input
+                type="email"
+                value={loginEmail}
+                onChange={e => { setLoginEmail(e.target.value); setErr(""); setResetSent(false); }}
+                onKeyDown={e => e.key==="Enter" && document.getElementById("pwd-input") && document.getElementById("pwd-input").focus()}
+                placeholder="prenom.nom@sozais-ing.com"
+                autoFocus
+                style={{ ...iBase, borderColor: err && !loginEmail.trim() ? RED : BRD }}
+              />
+            </div>
+            <div style={{ marginBottom:16 }}>
+              <label style={lBase}>Mot de passe</label>
+              <input
+                id="pwd-input"
+                type="password"
+                value={pwd}
+                onChange={e => { setPwd(e.target.value); setErr(""); }}
+                onKeyDown={e => e.key==="Enter" && checkPwd()}
+                placeholder="••••••••"
+                style={{ ...iBase, borderColor: err ? RED : BRD, animation: err ? "shake 0.3s" : "none" }}
+              />
+            </div>
+            {err && <div style={{ color:RED, fontSize:12, fontWeight:600, marginBottom:12 }}>⚠️ {err}</div>}
+            <button onClick={checkPwd} disabled={busy || !loginEmail.trim() || !pwd}
+              style={{ width:"100%", padding:"12px 0", background:loginEmail.trim()&&pwd ? BLUE : TXT3, border:"none", borderRadius:8, color:"#fff", fontWeight:700, cursor:loginEmail.trim()&&pwd ? "pointer" : "not-allowed", fontSize:14, marginBottom:10 }}>
+              {busy ? "Connexion…" : "Se connecter →"}
+            </button>
+            <div style={{ padding:"10px 14px", background:BLUE+"11", border:"1px solid "+BLUE+"33", borderRadius:8, marginBottom:10 }}>
+              <div style={{ color:BLUE, fontSize:11, fontWeight:600 }}>ℹ️ Première connexion ?</div>
+              <div style={{ color:TXT2, fontSize:11, marginTop:3 }}>Connectez-vous avec votre email @sozais-ing.com. Mot de passe initial : <span style={{ color:TXT, fontWeight:700, fontFamily:"monospace", background:DARK, padding:"1px 6px", borderRadius:4 }}>{DEFAULT_PASSWORD}</span></div>
+            </div>
+            {!resetSent ? (
+              <button onClick={forgotPassword} disabled={busy}
+                style={{ width:"100%", padding:"9px 0", background:"transparent", border:"1px solid "+ORANGE+"44", borderRadius:8, color:ORANGE, fontSize:12, fontWeight:600, cursor:"pointer", marginBottom:8 }}>
+                🔑 Mot de passe oublié ? Recevoir un lien par email
+              </button>
+            ) : (
+              <div style={{ padding:"12px 14px", background:GREEN+"15", border:"1px solid "+GREEN+"44", borderRadius:8, marginBottom:8 }}>
+                <div style={{ color:GREEN, fontSize:12, fontWeight:700 }}>✉️ Lien envoyé !</div>
+                <div style={{ color:TXT2, fontSize:11 }}>Si un email est associé à votre compte, vous recevrez un lien de réinitialisation.</div>
+              </div>
+            )}
+            {onBack && <button onClick={onBack} style={{ width:"100%", padding:"8px 0", background:"transparent", border:"none", color:TXT3, fontSize:12, cursor:"pointer" }}>← Retour à l'accueil</button>}
           </div>
         )}
 
@@ -1254,6 +1280,14 @@ function Card({ task, onClick, owner, onTimerToggle, onDuplicate, onReassignDire
           {est > 0 && <div style={{ width: "100%", height: 3, background: DARK, borderRadius: 99, overflow: "hidden", marginTop: 3 }}><div style={{ width: Math.min(pct, 100) + "%", height: "100%", borderRadius: 99, background: over ? RED : pct > 80 ? ORANGE : GREEN, transition: "width 0.3s" }} /></div>}
         </div>
       </div>
+      {task.createdBy && (
+        <div style={{ marginTop: 7, display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ fontSize: 8, color: TXT3, fontWeight: 500 }}>✏️ Créé par</span>
+          <span style={{ fontSize: 8, color: TXT2, fontWeight: 700, background: DARK+"aa", padding:"1px 6px", borderRadius:99, border:"1px solid "+BRD }}>
+            {task.createdBy}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -1285,7 +1319,7 @@ function KCol({ col, tasks, owner, onAdd, onEdit, onDrop, ro, onTimerToggle, onD
 }
 
 // ─── Board ───
-function Board({ name, tasks, onUpdate, ro, showName, onToggleTimer, tick, poleMembers, onReassign, onPrioritize, prioritizing }) {
+function Board({ name, tasks, onUpdate, ro, showName, onToggleTimer, tick, poleMembers, onReassign, onPrioritize, prioritizing, creator }) {
   const [modal, setModal] = useState(null);
 
   const del = (id) => { onUpdate(name, tasks.filter((t) => t.id !== id)); setModal(null); };
@@ -1298,7 +1332,8 @@ function Board({ name, tasks, onUpdate, ro, showName, onToggleTimer, tick, poleM
   const save = (t) => {
     const target = t.assignedTo && t.assignedTo !== name ? t.assignedTo : null;
     const { assignedTo, ...rest } = t;
-    const clean = { ...rest, id: rest.id || genId(), createdAt: rest.createdAt || new Date().toISOString() };
+    const isNew = !tasks.find(x => x.id === rest.id);
+    const clean = { ...rest, id: rest.id || genId(), createdAt: rest.createdAt || new Date().toISOString(), createdBy: rest.createdBy || (isNew && creator ? creator : undefined) };
     if (target && onReassign) {
       onReassign(name, target, clean);
     } else {
@@ -1645,13 +1680,13 @@ function ProfitabilityModal({ onClose }) {
 
 // ─── EmployeesModal (admin only) ───
 function EmployeesModal({ employees, onSave, onClose }) {
-  const POLES = ["Fluide", "Élec", "Commercial"];
-  const [list, setList] = useState(employees.filter((e) => !e.isAdmin && e.pole !== "Direction"));
-  const [form, setForm] = useState({ name: "", role: "", pole: "Fluide", isChef: false, tjm: "" });
+  const POLES = ["Fluide", "Élec", "Commercial", "Direction", "Admin"];
+  const [list, setList] = useState([...employees]);
+  const [form, setForm] = useState({ name: "", role: "", pole: "Fluide", isChef: false, tjm: "", canViewKPI: false, canViewTJM: false, canViewAll: false });
   const [err, setErr] = useState("");
   const [resetMsg, setResetMsg] = useState("");
-  const adminList = employees.filter((e) => e.isAdmin);
-  const directionList = employees.filter((e) => e.pole === "Direction");
+  const [editName, setEditName] = useState(null);
+  const [editForm, setEditForm] = useState({});
 
   const resetPassword = async (name) => {
     if (!window.confirm(`Réinitialiser le mot de passe de "${name}" ? Il devra se reconnecter avec "kanban2026".`)) return;
@@ -1674,108 +1709,124 @@ function EmployeesModal({ employees, onSave, onClose }) {
     if (!form.name.trim()) { setErr("Nom requis"); return; }
     if (!form.role.trim()) { setErr("Rôle requis"); return; }
     if (list.find((e) => e.name.toLowerCase() === form.name.trim().toLowerCase())) { setErr("Ce nom existe déjà"); return; }
-    setList([...list, { name: form.name.trim(), role: form.role.trim(), pole: form.pole, isChef: form.isChef, isAdmin: false, tjm: parseFloat(form.tjm) || 0 }]);
-    setForm({ name: "", role: "", pole: "Fluide", isChef: false, tjm: "" });
+    const isAdminRole = form.pole === "Admin";
+    const newEmp = {
+      name: form.name.trim(), role: form.role.trim(), pole: form.pole,
+      isChef: form.isChef, isAdmin: isAdminRole, tjm: parseFloat(form.tjm) || 0,
+      ...(form.pole === "Direction" && { canViewKPI: form.canViewKPI, canViewTJM: form.canViewTJM, canViewAll: form.canViewAll }),
+    };
+    setList([...list, newEmp]);
+    setForm({ name: "", role: "", pole: "Fluide", isChef: false, tjm: "", canViewKPI: false, canViewTJM: false, canViewAll: false });
   };
 
-  const remove = (name) => setList(list.filter((e) => e.name !== name));
-
-  const save = () => {
-    const admins = employees.filter((e) => e.isAdmin);
-    onSave([...list, ...admins]);
+  const remove = (name) => {
+    if (!window.confirm(`Supprimer "${name}" ? Cette action est irréversible.`)) return;
+    setList(list.filter((e) => e.name !== name));
   };
 
-  const byPole = (p) => list.filter((e) => e.pole === p);
-  const updateTjm = (name, val) => setList(list.map((e) => e.name === name ? { ...e, tjm: parseFloat(val) || 0 } : e));
+  const startEdit = (emp) => { setEditName(emp.name); setEditForm({ ...emp, tjm: emp.tjm || "" }); };
+  const cancelEdit = () => setEditName(null);
+  const saveEdit = () => {
+    const isAdminRole = editForm.pole === "Admin";
+    setList(list.map((e) => e.name === editName ? { ...editForm, isAdmin: isAdminRole, tjm: parseFloat(editForm.tjm) || 0 } : e));
+    setEditName(null);
+  };
+
+  const save = () => onSave(list);
+
+  const byPole = (p) => p === "Admin" ? list.filter((e) => e.isAdmin) : list.filter((e) => e.pole === p && !e.isAdmin);
+
+  const poleColor = (p) => p === "Fluide" ? BLUE : p === "Élec" ? RED : p === "Commercial" ? ORANGE : p === "Direction" ? GREEN : PURPLE;
+  const poleIcon = (p) => p === "Fluide" ? "💧" : p === "Élec" ? "⚡" : p === "Commercial" ? "🤝" : p === "Direction" ? "🏢" : "🛡️";
+  const poleLabel = (p) => p === "Admin" ? "Super Admins" : `Pôle ${p}`;
+
+  // EditRow est inliné dans le .map() pour éviter le remontage React à chaque keystroke
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: DARK2, border: "1px solid " + BRD, borderRadius: 16, padding: 28, width: "100%", maxWidth: 600, maxHeight: "90vh", overflowY: "auto" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: DARK2, border: "1px solid " + BRD, borderRadius: 16, padding: 28, width: "100%", maxWidth: 640, maxHeight: "90vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
           <h2 style={{ color: TXT, fontSize: 18, fontWeight: 700, margin: 0 }}>👥 Gestion des collaborateurs</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", color: TXT3, fontSize: 22, cursor: "pointer" }}>✕</button>
         </div>
 
         {/* Liste par pôle */}
-        {POLES.map((pole) => (
-          <div key={pole} style={{ marginBottom: 18 }}>
-            <div style={{ color: pole === "Fluide" ? BLUE : RED, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-              {pole === "Fluide" ? "💧" : "⚡"} Pôle {pole} — {byPole(pole).length} membre{byPole(pole).length !== 1 ? "s" : ""}
+        {POLES.map((pole) => {
+          const members = byPole(pole);
+          const col = poleColor(pole);
+          return (
+            <div key={pole} style={{ marginBottom: 18 }}>
+              <div style={{ color: col, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
+                {poleIcon(pole)} {poleLabel(pole)} — {members.length} membre{members.length !== 1 ? "s" : ""}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {members.map((emp) => emp.name === editName ? (
+                  <div key={emp.name} style={{ padding: "10px 12px", background: DARK, borderRadius: 8, border: "1px solid " + poleColor(editForm.pole || emp.pole) + "66" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                      <div><label style={lBase}>Nom complet</label><input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} style={iBase} /></div>
+                      <div><label style={lBase}>Rôle / Poste</label><input value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })} style={iBase} /></div>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+                      <div>
+                        <label style={lBase}>Pôle</label>
+                        <select value={editForm.pole} onChange={(e) => setEditForm({ ...editForm, pole: e.target.value, isAdmin: e.target.value === "Admin" })} style={iBase}>
+                          {POLES.map((p) => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                      </div>
+                      <div><label style={lBase}>TJM (€/jour)</label><input type="number" min="0" step="50" value={editForm.tjm} onChange={(e) => setEditForm({ ...editForm, tjm: e.target.value })} style={iBase} /></div>
+                      <div style={{ display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 4 }}>
+                        {editForm.pole !== "Direction" && editForm.pole !== "Admin" && (
+                          <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", color: TXT2, fontSize: 12 }}>
+                            <input type="checkbox" checked={!!editForm.isChef} onChange={(e) => setEditForm({ ...editForm, isChef: e.target.checked })} style={{ accentColor: ORANGE }} />Chef
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                    {editForm.pole === "Direction" && (
+                      <div style={{ display: "flex", gap: 14, marginBottom: 8 }}>
+                        {[["canViewKPI","Voir KPI"],["canViewTJM","Voir TJM"],["canViewAll","Accès complet"]].map(([k,l]) => (
+                          <label key={k} style={{ display:"flex", alignItems:"center", gap:5, cursor:"pointer", color:TXT2, fontSize:12 }}>
+                            <input type="checkbox" checked={!!editForm[k]} onChange={(e) => setEditForm({ ...editForm, [k]: e.target.checked })} style={{ accentColor: GREEN }} />{l}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={saveEdit} style={{ flex:1, padding:"6px 0", background: GREEN, border:"none", borderRadius:6, color:"#fff", fontWeight:700, cursor:"pointer", fontSize:12 }}>✅ Valider</button>
+                      <button onClick={cancelEdit} style={{ padding:"6px 14px", background: DARK2, border:"1px solid "+BRD, borderRadius:6, color:TXT2, fontWeight:600, cursor:"pointer", fontSize:12 }}>Annuler</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={emp.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: DARK3, borderRadius: 8, border: "1px solid " + col + "33" }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 99, background: col + "33", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: col, flexShrink: 0 }}>
+                      {emp.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ color: TXT, fontSize: 12, fontWeight: 600 }}>{emp.name}</div>
+                      <div style={{ color: TXT3, fontSize: 10 }}>
+                        {emp.role}
+                        {emp.isChef ? " — Chef" : ""}
+                        {emp.isAdmin ? " — Super Admin" : ""}
+                        {emp.canViewAll ? " — Accès complet" : emp.canViewKPI ? " — KPI" : emp.canViewTJM ? " — TJM" : ""}
+                      </div>
+                    </div>
+                    {!emp.isAdmin && pole !== "Direction" && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ color: TXT3, fontSize: 10 }}>TJM€</span>
+                        <input type="number" min="0" step="50" value={emp.tjm || ""} onChange={(e) => setList(list.map((x) => x.name === emp.name ? { ...x, tjm: parseFloat(e.target.value) || 0 } : x))} placeholder="0"
+                          style={{ width: 66, padding: "3px 6px", background: DARK, border: "1px solid " + BRD, borderRadius: 6, color: TXT, fontSize: 11, outline: "none", textAlign: "right" }} />
+                      </div>
+                    )}
+                    <button onClick={() => startEdit(emp)} title="Modifier le profil" style={{ background: BLUE + "22", border: "1px solid " + BLUE + "44", borderRadius: 6, color: BLUE, fontSize: 11, fontWeight: 700, padding: "4px 8px", cursor: "pointer" }}>✏️</button>
+                    <button onClick={() => resetPassword(emp.name)} title="Réinitialiser le mot de passe" style={{ background: ORANGE + "22", border: "1px solid " + ORANGE + "44", borderRadius: 6, color: ORANGE, fontSize: 11, fontWeight: 700, padding: "4px 8px", cursor: "pointer" }}>🔑</button>
+                    <button onClick={() => remove(emp.name)} style={{ background: RED + "22", border: "1px solid " + RED + "44", borderRadius: 6, color: RED, fontSize: 11, fontWeight: 700, padding: "4px 9px", cursor: "pointer" }}>✕</button>
+                  </div>
+                ))}
+                {members.length === 0 && <div style={{ color: TXT3, fontSize: 12, padding: "8px 12px" }}>Aucun membre dans ce pôle.</div>}
+              </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {byPole(pole).map((emp) => (
-                <div key={emp.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: DARK3, borderRadius: 8, border: "1px solid " + BRD }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 99, background: emp.isChef ? (pole === "Fluide" ? BLUE : RED) + "33" : DARK4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: emp.isChef ? (pole === "Fluide" ? BLUE : RED) : TXT2, flexShrink: 0 }}>
-                    {emp.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: TXT, fontSize: 12, fontWeight: 600 }}>{emp.name}</div>
-                    <div style={{ color: TXT3, fontSize: 10 }}>{emp.role}{emp.isChef ? " — Chef" : ""}</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <span style={{ color: TXT3, fontSize: 10 }}>TJM€</span>
-                    <input
-                      type="number" min="0" step="50"
-                      value={emp.tjm || ""}
-                      onChange={(e) => updateTjm(emp.name, e.target.value)}
-                      placeholder="0"
-                      style={{ width: 72, padding: "3px 7px", background: DARK, border: "1px solid " + BRD, borderRadius: 6, color: TXT, fontSize: 11, outline: "none", textAlign: "right" }}
-                    />
-                  </div>
-                  <button onClick={() => resetPassword(emp.name)} title="Réinitialiser le mot de passe" style={{ background: ORANGE + "22", border: "1px solid " + ORANGE + "44", borderRadius: 6, color: ORANGE, fontSize: 11, fontWeight: 700, padding: "4px 8px", cursor: "pointer" }}>🔑</button>
-                  <button onClick={() => remove(emp.name)} style={{ background: RED + "22", border: "1px solid " + RED + "44", borderRadius: 6, color: RED, fontSize: 11, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>✕</button>
-                </div>
-              ))}
-              {byPole(pole).length === 0 && <div style={{ color: TXT3, fontSize: 12, padding: "8px 12px" }}>Aucun membre dans ce pôle.</div>}
-            </div>
-          </div>
-        ))}
-
-        {/* Admin (Direction) — reset uniquement */}
-        {directionList.length > 0 && (
-          <div style={{ marginBottom: 18 }}>
-            <div style={{ color: GREEN, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-              🏢 Admin — {directionList.length}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {directionList.map((emp) => (
-                <div key={emp.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: DARK3, borderRadius: 8, border: "1px solid " + GREEN + "44" }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 99, background: GREEN + "33", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: GREEN, flexShrink: 0 }}>
-                    {emp.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: TXT, fontSize: 12, fontWeight: 600 }}>{emp.name}</div>
-                    <div style={{ color: TXT3, fontSize: 10 }}>{emp.role} — {emp.canViewAll ? "Accès complet" : emp.canViewKPI ? "KPI uniquement" : emp.canViewTJM ? "TJM / Rentabilité" : ""}</div>
-                  </div>
-                  <button onClick={() => resetPassword(emp.name)} title="Réinitialiser le mot de passe" style={{ background: GREEN + "22", border: "1px solid " + GREEN + "44", borderRadius: 6, color: GREEN, fontSize: 11, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>🔑 Reset</button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Admins — reset uniquement */}
-        {adminList.length > 0 && (
-          <div style={{ marginBottom: 18 }}>
-            <div style={{ color: ORANGE, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>
-              🛡️ Super Admins — {adminList.length}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {adminList.map((emp) => (
-                <div key={emp.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", background: DARK3, borderRadius: 8, border: "1px solid " + ORANGE + "44" }}>
-                  <div style={{ width: 30, height: 30, borderRadius: 99, background: ORANGE + "33", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: ORANGE, flexShrink: 0 }}>
-                    {emp.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ color: TXT, fontSize: 12, fontWeight: 600 }}>{emp.name}</div>
-                    <div style={{ color: TXT3, fontSize: 10 }}>Super Admin</div>
-                  </div>
-                  <button onClick={() => resetPassword(emp.name)} title="Réinitialiser le mot de passe" style={{ background: ORANGE + "22", border: "1px solid " + ORANGE + "44", borderRadius: 6, color: ORANGE, fontSize: 11, fontWeight: 700, padding: "4px 10px", cursor: "pointer" }}>🔑 Reset</button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+          );
+        })}
 
         {/* Message de confirmation reset */}
         {resetMsg && (
@@ -1793,22 +1844,39 @@ function EmployeesModal({ employees, onSave, onClose }) {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
             <div>
-              <label style={lBase}>Pôle</label>
+              <label style={lBase}>Pôle / Catégorie</label>
               <select value={form.pole} onChange={(e) => setForm({ ...form, pole: e.target.value })} style={iBase}>
-                {POLES.map((p) => <option key={p} value={p}>{p}</option>)}
+                {POLES.map((p) => <option key={p} value={p}>{p === "Admin" ? "Admin (Super Admin)" : p}</option>)}
               </select>
             </div>
             <div>
               <label style={lBase}>TJM (€/jour)</label>
               <input type="number" min="0" step="50" value={form.tjm} onChange={(e) => setForm({ ...form, tjm: e.target.value })} placeholder="Ex: 400" style={iBase} />
             </div>
-            <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: 2 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: TXT2, fontSize: 13, fontWeight: 600 }}>
-                <input type="checkbox" checked={form.isChef} onChange={(e) => setForm({ ...form, isChef: e.target.checked })} style={{ width: 16, height: 16, accentColor: ORANGE }} />
-                Chef de pôle
-              </label>
+            <div style={{ display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 4, paddingBottom: 2 }}>
+              {form.pole !== "Direction" && form.pole !== "Admin" && (
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: TXT2, fontSize: 13, fontWeight: 600 }}>
+                  <input type="checkbox" checked={form.isChef} onChange={(e) => setForm({ ...form, isChef: e.target.checked })} style={{ width: 16, height: 16, accentColor: ORANGE }} />
+                  Chef de pôle
+                </label>
+              )}
             </div>
           </div>
+          {form.pole === "Direction" && (
+            <div style={{ display: "flex", gap: 16, marginTop: 10, padding: "10px 12px", background: GREEN + "11", borderRadius: 8, border: "1px solid " + GREEN + "33" }}>
+              <div style={{ color: GREEN, fontSize: 11, fontWeight: 700, marginRight: 6 }}>Accès :</div>
+              {[["canViewKPI","Voir KPI"],["canViewTJM","Voir TJM"],["canViewAll","Accès complet"]].map(([k,l]) => (
+                <label key={k} style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", color:TXT2, fontSize:12 }}>
+                  <input type="checkbox" checked={!!form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.checked })} style={{ accentColor: GREEN }} />{l}
+                </label>
+              ))}
+            </div>
+          )}
+          {form.pole === "Admin" && (
+            <div style={{ marginTop: 10, padding: "8px 12px", background: PURPLE + "11", borderRadius: 8, border: "1px solid " + PURPLE + "33", color: PURPLE, fontSize: 12, fontWeight: 600 }}>
+              🛡️ Ce collaborateur aura les droits Super Admin (accès total à toutes les fonctions).
+            </div>
+          )}
           {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginTop: 8 }}>⚠️ {err}</div>}
           <button onClick={add} style={{ width: "100%", marginTop: 12, padding: "9px 0", background: GREEN, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Ajouter</button>
         </div>
@@ -2157,6 +2225,191 @@ function KPIPickerModal({ employees, evaluator, criteria, onClose }) {
   );
 }
 
+// ─── Vue Planning Gantt ───────────────────────────────────────
+function GanttView({ user, empList, all, tick }) {
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [hovered, setHovered] = useState(null);
+  const [ganttPole, setGanttPole] = useState("all");
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const rangeStart = new Date(today); rangeStart.setDate(today.getDate() - 2 + weekOffset * 7);
+  const rangeEnd   = new Date(rangeStart); rangeEnd.setDate(rangeStart.getDate() + 20);
+  const TOTAL_DAYS = 21;
+
+  const days = [];
+  for (let d = new Date(rangeStart); d <= rangeEnd; d.setDate(d.getDate() + 1)) days.push(new Date(d));
+
+  const dayIdx = (date) => {
+    const d = new Date(date); d.setHours(0,0,0,0);
+    return Math.round((d - rangeStart) / 86400000);
+  };
+
+  const allMembers = user.pole === "Direction" ? []
+    : user.isAdmin
+      ? empList.filter(e => (!e.isAdmin && e.pole !== "Direction") || e.name === user.name)
+      : user.isChef
+        ? empList.filter(e => e.pole === user.pole)
+        : [empList.find(e => e.name === user.name)].filter(Boolean);
+
+  const members = ganttPole === "all" ? allMembers
+    : allMembers.filter(e => e.pole === ganttPole);
+
+  const ganttPoles = user.isAdmin
+    ? ["all", ...new Set(allMembers.map(e => e.pole).filter(Boolean))]
+    : [];
+
+  const prioColor = { high: RED, medium: ORANGE, low: GREEN };
+  const DAY_NAMES = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
+  const MONTH_NAMES = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
+  const ROW_H = 30;
+  const LABEL_W = 164;
+
+  const getMemberRows = (member) => {
+    const tasks = (all[member.name] || []).filter(t => t.column !== "done");
+    const sorted = [...tasks].sort((a,b) => {
+      if (!a.deadline) return 1; if (!b.deadline) return -1;
+      return new Date(a.deadline) - new Date(b.deadline);
+    });
+    const rows = [];
+    for (const task of sorted) {
+      const dlDate = task.deadline ? new Date(task.deadline) : null;
+      if (dlDate) dlDate.setHours(0,0,0,0);
+      const barStart = Math.max(0, dayIdx(today) - 1);
+      const barEnd   = dlDate ? Math.min(TOTAL_DAYS - 1, dayIdx(dlDate)) : Math.min(TOTAL_DAYS - 1, dayIdx(today) + 4);
+      const width = Math.max(1, barEnd - barStart);
+      let placed = false;
+      for (let r = 0; r < rows.length; r++) {
+        if (!rows[r].some(b => !(b.end < barStart || b.start > barEnd))) {
+          rows[r].push({ task, start: barStart, end: barEnd, width }); placed = true; break;
+        }
+      }
+      if (!placed) rows.push([{ task, start: barStart, end: barEnd, width }]);
+    }
+    return rows;
+  };
+
+  return (
+    <div style={{ flex:1, overflow:"auto", padding:"14px 20px" }}>
+      {/* Toolbar */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:8 }}>
+        <div style={{ color:TXT, fontSize:15, fontWeight:700 }}>
+          📅 Planning — {MONTH_NAMES[rangeStart.getMonth()]} {rangeStart.getFullYear()}
+        </div>
+        <div style={{ display:"flex", gap:6 }}>
+          {[["◀ Préc.", () => setWeekOffset(w=>w-1)], ["Aujourd'hui", () => setWeekOffset(0)], ["Suiv. ▶", () => setWeekOffset(w=>w+1)]].map(([l, fn]) => (
+            <button key={l} onClick={fn}
+              style={{ padding:"7px 14px", background: l==="Aujourd'hui" && weekOffset===0 ? BLUE+"22" : DARK2, border:"1px solid "+(l==="Aujourd'hui" && weekOffset===0 ? BLUE : BRD), borderRadius:7, color: l==="Aujourd'hui" && weekOffset===0 ? BLUE : TXT2, fontSize:12, fontWeight:600, cursor:"pointer" }}>
+              {l}
+            </button>
+          ))}
+        </div>
+      </div>
+      {/* Filtre pôle (Super Admin uniquement) */}
+      {ganttPoles.length > 0 && (
+        <div style={{ display:"flex", gap:6, marginBottom:12, flexWrap:"wrap" }}>
+          {ganttPoles.map(p => {
+            const col = p==="all" ? TXT2 : p==="Fluide" ? BLUE : p==="Élec" ? RED : p==="Commercial" ? ORANGE : PURPLE;
+            const label = p==="all" ? "Tous" : p==="Admin" ? "🛡️ Admin" : (p==="Fluide" ? "💧 " : p==="Élec" ? "⚡ " : p==="Commercial" ? "🤝 " : "") + p;
+            return (
+              <button key={p} onClick={() => setGanttPole(p)}
+                style={{ padding:"5px 13px", background: ganttPole===p ? col+"22" : DARK2, border:"1px solid "+(ganttPole===p ? col+"88" : BRD), borderRadius:99, color: ganttPole===p ? col : TXT3, fontSize:11, fontWeight:600, cursor:"pointer" }}>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Gantt table */}
+      <div style={{ background:DARK2, borderRadius:12, border:"1px solid "+BRD, overflow:"hidden" }}>
+        {/* Day header */}
+        <div style={{ display:"flex", borderBottom:"1px solid "+BRD, background:DARK, position:"sticky", top:0, zIndex:10 }}>
+          <div style={{ width:LABEL_W, flexShrink:0, padding:"10px 14px", borderRight:"1px solid "+BRD }}>
+            <span style={{ color:TXT3, fontSize:10, fontWeight:600, textTransform:"uppercase" }}>Collaborateur</span>
+          </div>
+          <div style={{ flex:1, display:"flex" }}>
+            {days.map((d, i) => {
+              const isToday   = d.getTime() === today.getTime();
+              const isWeekend = d.getDay()===0 || d.getDay()===6;
+              return (
+                <div key={i} style={{ flex:1, textAlign:"center", padding:"6px 2px", borderRight:"1px solid "+BRD+"44", background: isToday ? BLUE+"22" : "transparent" }}>
+                  <div style={{ color: isToday ? BLUE : isWeekend ? TXT3+"88" : TXT3, fontSize:9, fontWeight: isToday ? 700 : 400 }}>{DAY_NAMES[d.getDay()]}</div>
+                  <div style={{ color: isToday ? BLUE : isWeekend ? TXT3+"88" : TXT2, fontSize:11, fontWeight: isToday ? 700 : 500 }}>{d.getDate()}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Member rows */}
+        {members.length === 0 && (
+          <div style={{ padding:40, textAlign:"center", color:TXT3 }}>Aucun membre à afficher dans la vue planning.</div>
+        )}
+        {members.map((member, mi) => {
+          const rows = getMemberRows(member);
+          const rowCount = Math.max(1, rows.length);
+          const taskCount = (all[member.name]||[]).filter(t=>t.column!=="done").length;
+          return (
+            <div key={member.name} style={{ display:"flex", borderBottom:"1px solid "+BRD, background: mi%2===0 ? DARK2 : DARK }}>
+              {/* Label */}
+              <div style={{ width:LABEL_W, flexShrink:0, padding:"10px 14px", borderRight:"1px solid "+BRD, display:"flex", alignItems:"center", gap:8 }}>
+                <div style={{ width:28, height:28, borderRadius:99, background:member.isChef ? (member.pole==="Fluide"?BLUE:RED)+"44" : DARK3, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:10, fontWeight:800, flexShrink:0 }}>
+                  {member.name.split(" ").map(n=>n[0]).join("").slice(0,2)}
+                </div>
+                <div>
+                  <div style={{ color:TXT, fontSize:11, fontWeight:600, lineHeight:1.2 }}>{member.name.split(" ").slice(-1)[0]}</div>
+                  <div style={{ color:TXT3, fontSize:9 }}>{taskCount} tâche{taskCount!==1?"s":""}</div>
+                </div>
+              </div>
+              {/* Bars */}
+              <div style={{ flex:1, position:"relative", minHeight: rowCount * ROW_H + 8 }}>
+                {/* Background: weekend + today shading */}
+                {days.map((d, i) => {
+                  const isToday   = d.getTime() === today.getTime();
+                  const isWeekend = d.getDay()===0 || d.getDay()===6;
+                  if (!isToday && !isWeekend) return null;
+                  return <div key={i} style={{ position:"absolute", top:0, bottom:0, left:`${(i/TOTAL_DAYS)*100}%`, width:`${(1/TOTAL_DAYS)*100}%`, background: isToday ? BLUE+"1a" : BRD+"33", pointerEvents:"none" }} />;
+                })}
+                {/* Task bars */}
+                {rows.map((row, ri) => row.map(({ task, start, end, width }) => {
+                  const isOverdue = task.deadline && new Date(new Date(task.deadline).setHours(0,0,0,0)) < today;
+                  const color = isOverdue ? RED : prioColor[task.priority] || BLUE;
+                  const left  = `${(Math.max(0,start)/TOTAL_DAYS)*100}%`;
+                  const w     = `${(Math.min(width+1, TOTAL_DAYS-Math.max(0,start))/TOTAL_DAYS)*100}%`;
+                  return (
+                    <div key={task.id}
+                      title={`${task.title}${task.deadline?" → "+task.deadline:""}${isOverdue?" ⚠️ En retard":""}`}
+                      onMouseEnter={()=>setHovered(task.id)} onMouseLeave={()=>setHovered(null)}
+                      style={{ position:"absolute", left, width:w, top: 4+ri*ROW_H, height: ROW_H-6, background: color+(hovered===task.id ? "ee" : "bb"), borderRadius:4, display:"flex", alignItems:"center", paddingLeft:6, overflow:"hidden", cursor:"default", borderLeft: isOverdue ? "3px solid "+RED : "none", transition:"opacity .12s", boxShadow: hovered===task.id ? "0 2px 8px "+color+"55" : "none" }}>
+                      <span style={{ color:"#fff", fontSize:10, fontWeight:600, whiteSpace:"nowrap", textOverflow:"ellipsis", overflow:"hidden" }}>
+                        {isOverdue ? "⚠️ " : ""}{task.title}
+                      </span>
+                    </div>
+                  );
+                }))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Légende */}
+      <div style={{ display:"flex", gap:14, marginTop:10, flexWrap:"wrap", alignItems:"center" }}>
+        {[["En retard",RED],["Urgent",ORANGE],["Normal",GREEN],["Bas",BLUE]].map(([l,c])=>(
+          <div key={l} style={{ display:"flex", alignItems:"center", gap:5 }}>
+            <div style={{ width:12, height:12, borderRadius:3, background:c }} />
+            <span style={{ color:TXT3, fontSize:11 }}>{l}</span>
+          </div>
+        ))}
+        <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+          <div style={{ width:12, height:12, borderRadius:3, background:BLUE+"22", border:"1px solid "+BLUE }} />
+          <span style={{ color:TXT3, fontSize:11 }}>Aujourd'hui</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Décode le payload JWT sans vérification (usage client uniquement) ───
 function decodeJwtPayload(token) {
   try {
@@ -2175,17 +2428,78 @@ function App() {
     if (!payload || payload.exp * 1000 < Date.now()) { setToken(null); return null; }
     return payload;
   });
+  const [showLanding, setShowLanding] = useState(() => !getToken());
+  const [viewMode, setViewMode] = useState("kanban"); // "kanban" | "planning"
   const [all, setAll] = useState({});
   const [loading, setLoading] = useState(false);
   const [admin, setAdmin] = useState(false);
   const [af, setAf] = useState("all");
   const [teamPole, setTeamPole] = useState("all");
+  const [sideSearch, setSideSearch] = useState("");
+  const [sidePrio, setSidePrio] = useState("all");
   const [settings, setSettings] = useState(false);
   const [empModal, setEmpModal] = useState(false);
   const [tick, setTick] = useState(0);
   const [empList, setEmpList] = useState(DEFAULT_EMPLOYEES);
   const allRef = useRef(all);
   allRef.current = all;
+
+  // ─── Minuteur de pointage journalier ─────────────────────────
+  const [dailyTimer, setDailyTimer] = useState({ running: false, startedAt: null, seconds: 0 });
+
+  const fmtTime = (sec) => {
+    const h = Math.floor(sec / 3600).toString().padStart(2,"0");
+    const m = Math.floor((sec % 3600) / 60).toString().padStart(2,"0");
+    const s = (sec % 60).toString().padStart(2,"0");
+    return `${h}:${m}:${s}`;
+  };
+
+  // Charger le minuteur depuis localStorage lors du login
+  useEffect(() => {
+    if (!user) return;
+    const key = `dt_${user.name}_${new Date().toISOString().slice(0,10)}`;
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || "{}");
+      const s = saved.seconds || 0;
+      if (saved.running && saved.startedAt) {
+        const elapsed = Math.floor((Date.now() - saved.startedAt) / 1000);
+        setDailyTimer({ running: true, startedAt: saved.startedAt, seconds: s + elapsed });
+      } else {
+        setDailyTimer({ running: false, startedAt: null, seconds: s });
+      }
+    } catch { setDailyTimer({ running: false, startedAt: null, seconds: 0 }); }
+  }, [user?.name]);
+
+  // Sauvegarder le minuteur dans localStorage + serveur
+  const saveDailyTimer = useCallback((dt) => {
+    if (!user) return;
+    const dateStr = new Date().toISOString().slice(0,10);
+    const key = `dt_${user.name}_${dateStr}`;
+    localStorage.setItem(key, JSON.stringify(dt));
+    // Persistance serveur (best-effort)
+    authFetch(`/api/timer/daily/${encodeURIComponent(user.name)}`, {
+      method: "POST",
+      body: JSON.stringify({ date: dateStr, seconds: dt.seconds, running: dt.running, startedAt: dt.startedAt }),
+    }).catch(() => {});
+  }, [user?.name]);
+
+  const toggleDailyTimer = useCallback(() => {
+    setDailyTimer(prev => {
+      let next;
+      if (prev.running) {
+        const elapsed = prev.startedAt ? Math.floor((Date.now() - prev.startedAt) / 1000) : 0;
+        next = { running: false, startedAt: null, seconds: prev.seconds + elapsed };
+      } else {
+        next = { running: true, startedAt: Date.now(), seconds: prev.seconds };
+      }
+      saveDailyTimer(next);
+      return next;
+    });
+  }, [saveDailyTimer]);
+
+  const dailyDisplaySeconds = dailyTimer.running && dailyTimer.startedAt
+    ? dailyTimer.seconds + Math.floor((Date.now() - dailyTimer.startedAt) / 1000)
+    : dailyTimer.seconds;
   // ─── États Import Excel ───────────────────────────────────
   const [importModal, setImportModal] = useState(false);
   // ─── États Rentabilité ────────────────────────────────────
@@ -2195,28 +2509,25 @@ function App() {
   useEffect(() => { if (user) authFetch("/api/kpi/criteria").then(r=>r.json()).then(setKpiCriteria).catch(()=>{}); }, [user]);
   const [fixedCostsOpen, setFixedCostsOpen]       = useState(false);
   // ─── Mode sombre/clair ────────────────────────────────────
-  const [isDark, setIsDark] = useState(() => localStorage.getItem('kbtheme') !== 'light');
+  const [isDark, setIsDark] = useState(() => localStorage.getItem('kbtheme') === 'dark');
   applyTheme(isDark);
   // ─── Notifications ────────────────────────────────────────
   const [notifs, setNotifs] = useState([]);
   const [notifsOpen, setNotifsOpen] = useState(false);
   const unseenCount = notifs.filter(n => !n.seen).length;
-
-  // Polling notifications toutes les 30s
   useEffect(() => {
     if (!user) return;
-    const poll = async () => { const data = await fetchNotifications(); setNotifs(data); };
-    poll(); // appel immédiat au login
+    const poll = async () => { const d = await fetchNotifications(); setNotifs(d); };
+    poll();
     const id = setInterval(poll, 30000);
     return () => clearInterval(id);
   }, [user]);
-
   const handleMarkSeen = async (ids) => {
     await markNotificationsSeen(ids);
     setNotifs(prev => prev.map(n => (!ids || ids.includes(n.id)) ? { ...n, seen: true } : n));
   };
   // ─── États IA ─────────────────────────────────────────────
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
   const [workloadOpen, setWorkloadOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [prioritizing, setPrioritizing] = useState(null);
@@ -2245,7 +2556,8 @@ function App() {
 
   useEffect(() => { const id = setInterval(() => setTick((t) => t + 1), 1000); return () => clearInterval(id); }, []);
 
-  // ─── Pause automatique après 5 min d'inactivité ──────────
+  // ─── Pause automatique des timers de TÂCHES après 5 min d'inactivité ──────────
+  // Note : le minuteur de pointage journalier n'est PAS concerné (il continue même sans activité)
   useEffect(() => {
     const onActivity = () => { lastActivityRef.current = Date.now(); };
     window.addEventListener("mousemove", onActivity);
@@ -2298,7 +2610,8 @@ function App() {
       for (const m of ms) ld[m.name] = await loadTasks(m.name);
       setAll(ld);
     } else if (user.isAdmin) {
-      const ms = empList;
+      // Super Admin : charge toute l'équipe + ses propres tâches
+      const ms = empList.filter((e) => !e.isAdmin || e.name === user.name);
       const ld = {};
       for (const m of ms) ld[m.name] = await loadTasks(m.name);
       setAll(ld);
@@ -2330,8 +2643,8 @@ function App() {
         for (const m of ms) ld[m.name] = await loadTasks(m.name);
         setAll(ld);
       } else if (user.isAdmin) {
-        // Super Admin : charge tout le monde (équipe tech + Direction + admins)
-        const ms = empList;
+        // Super Admin : charge toute l'équipe + ses propres tâches
+        const ms = empList.filter((e) => !e.isAdmin || e.name === user.name);
         const ld = {};
         for (const m of ms) ld[m.name] = await loadTasks(m.name);
         setAll(ld);
@@ -2450,20 +2763,22 @@ function App() {
     return { [user.name]: all[user.name] || [] };
   };
 
-  if (!user) return <LoginScreen onLogin={setUser} employees={empList} />;
+  if (!user && showLanding) return <LandingPage onLogin={() => setShowLanding(false)} />;
+  if (!user) return <LoginScreen onLogin={(u) => { setUser(u); setShowLanding(false); }} employees={empList} onBack={() => setShowLanding(true)} />;
 
   const my = all[user.name] || [];
   const isDirectionUser = user.canViewKPI || user.canViewTJM || user.canViewAll;
   const canSeeTeam = user.isChef || user.isAdmin || isDirectionUser;
 
   // Direction users ne voient pas les boards de l'équipe technique (seulement leurs collègues Admin)
+  // Super Admin : inclus dans la liste pour voir son propre board (+ toute l'équipe)
   const pm = user.pole === "Direction"
     ? []
     : (user.isAdmin || user.canViewAll || user.canViewKPI || user.canViewTJM)
-      ? empList.filter((e) => !e.isAdmin && e.pole !== "Direction")
+      ? empList.filter((e) => (!e.isAdmin && e.pole !== "Direction") || e.name === user.name)
       : empList.filter((e) => e.pole === user.pole && !e.isChef);
 
-  // Membres Direction + Super Admins visibles en vue équipe
+  // Membres Direction visibles en vue équipe
   const directionMembers = (user.isAdmin || user.pole === "Direction")
     ? empList.filter((e) => e.pole === "Direction" || e.isAdmin)
     : [];
@@ -2473,7 +2788,7 @@ function App() {
     : teamPole === "elec"      ? pm.filter((m) => m.pole === "Élec")
     : teamPole === "com"       ? pm.filter((m) => m.pole === "Commercial")
     : teamPole === "direction" ? empList.filter((m) => m.pole === "Direction")
-    : empList.filter((m) => m.isAdmin); // "admin" → Super Admins uniquement
+    : empList.filter((e) => e.isAdmin); // "admin" → Super Admins
 
   const fm = af === "all" ? pmFiltered : pmFiltered.filter((m) => {
     const t = all[m.name] || [];
@@ -2483,7 +2798,6 @@ function App() {
     return true;
   });
 
-  // Section spéciale "Espace Admin" uniquement en vue "Tous les pôles" (évite les doublons)
   const showDirectionSection = (user.isAdmin || user.pole === "Direction") && directionMembers.length > 0 && teamPole === "all";
   const statsBase = (teamPole === "admin" || teamPole === "direction") ? pmFiltered : fm;
   const apt = statsBase.flatMap((m) => all[m.name] || []);
@@ -2491,77 +2805,284 @@ function App() {
   const dn = apt.filter((t) => t.column === "done").length;
   const activeTimers = apt.filter((t) => t.timerRunning).length;
 
+  // ── Stats sidebar (tâches personnelles) ──────────────────────
+  const myTot = my.length;
+  const myDone = my.filter(t => t.column === "done").length;
+  const myOverdue = my.filter(t => t.deadline && new Date(t.deadline) < new Date() && t.column !== "done").length;
+  const myPct = myTot > 0 ? Math.round(myDone / myTot * 100) : 0;
+
+  // ── Filtrage sidebar (search + priorité) ──────────────────────
+  const applyFilters = (tasks) => {
+    if (!sideSearch && sidePrio === "all") return tasks;
+    return tasks.filter(t => {
+      const ms = !sideSearch || t.title.toLowerCase().includes(sideSearch.toLowerCase()) || (t.project||"").toLowerCase().includes(sideSearch.toLowerCase());
+      const mp = sidePrio === "all" || t.priority === sidePrio;
+      return ms && mp;
+    });
+  };
+  const filteredMy = applyFilters(my);
+  const filteredAll = Object.fromEntries(Object.entries(all).map(([k,v]) => [k, applyFilters(v)]));
+
   return (
-    <div style={{ minHeight: "100vh", background: DARK, fontFamily: "'Outfit','Segoe UI',sans-serif", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", background: DARK, fontFamily: "'Outfit','Segoe UI',sans-serif", display: "grid", gridTemplateColumns: "220px 1fr", gridTemplateRows: "1fr" }}>
       <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
       <style>{"*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:" + BRD + ";border-radius:99px}select option{background:" + DARK + ";color:" + TXT + "}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}"}</style>
 
-      <div style={{ padding: "12px 24px", borderBottom: "1px solid " + BRD, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, position: "sticky", top: 0, zIndex: 100, background: DARK }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <Logo size={32} />
-          <div style={{ width: 1, height: 24, background: BRD }} />
-          <div>
-            <div style={{ color: TXT, fontSize: 14, fontWeight: 700 }}>{user.name}</div>
-            <div style={{ color: TXT3, fontSize: 11 }}>{user.role}</div>
-          </div>
-          {user.isAdmin && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: PURPLE + "22", color: PURPLE, fontWeight: 700, textTransform: "uppercase" }}>Super Admin</span>}
-          {user.pole === "Direction" && <span style={{ fontSize: 9, padding: "2px 9px", borderRadius: 99, background: GREEN + "22", color: GREEN, fontWeight: 700, textTransform: "uppercase" }}>Admin</span>}
-          {my.some((t) => t.timerRunning) && <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 99, background: CYAN + "22", color: CYAN, fontWeight: 700, animation: "pulse 1.5s infinite" }}>⏱ Timer actif</span>}
+      {/* ═══════════════ SIDEBAR ═══════════════ */}
+      <div style={{ background: DARK2, borderRight: "1px solid " + BRD, display: "flex", flexDirection: "column", height: "100vh", position: "sticky", top: 0, overflowY: "auto", zIndex: 100 }}>
+
+        {/* Logo */}
+        <div style={{ padding: "16px 14px 12px", borderBottom: "1px solid " + BRD, display: "flex", alignItems: "center", gap: 9 }}>
+          <Logo size={26} />
+          <span style={{ color: TXT, fontSize: 13, fontWeight: 700, letterSpacing: -0.3 }}>SOZAIS</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+
+        {/* User info */}
+        <div style={{ padding: "12px 14px", borderBottom: "1px solid " + BRD }}>
+          <div style={{ width: 34, height: 34, borderRadius: "50%", background: GREEN + "22", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 8 }}>
+            <span style={{ color: GREEN, fontWeight: 700, fontSize: 13 }}>{user.name.split(" ").map(w => w[0]).slice(0,2).join("")}</span>
+          </div>
+          <div style={{ color: TXT, fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>{user.name}</div>
+          <div style={{ color: TXT3, fontSize: 10, marginTop: 1 }}>{user.role}</div>
+          {user.isAdmin && <span style={{ display:"inline-block", marginTop:5, fontSize: 9, padding: "2px 7px", borderRadius: 99, background: PURPLE + "22", color: PURPLE, fontWeight: 700, textTransform: "uppercase" }}>Super Admin</span>}
+          {!user.isAdmin && user.pole === "Direction" && <span style={{ display:"inline-block", marginTop:5, fontSize: 9, padding: "2px 7px", borderRadius: 99, background: GREEN + "22", color: GREEN, fontWeight: 700, textTransform: "uppercase" }}>Direction</span>}
+        </div>
+
+        {/* ── Pointage ── */}
+        <div style={{ padding: "10px 14px", borderBottom: "1px solid " + BRD }}>
+          <div style={{ fontSize: 9, color: TXT3, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Pointage journalier</div>
+          <button onClick={toggleDailyTimer}
+            style={{ width:"100%", padding:"9px 12px", background: dailyTimer.running ? CYAN+"22" : DARK, border:"1px solid "+(dailyTimer.running ? CYAN : BRD), borderRadius:8, color: dailyTimer.running ? CYAN : TXT2, fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", gap:8, boxShadow: dailyTimer.running ? "0 0 10px "+CYAN+"33" : "none", transition:"all 0.2s" }}>
+            <span style={{ fontSize:14, animation: dailyTimer.running ? "pulse 1.5s infinite" : "none" }}>⏱</span>
+            <span style={{ fontFamily:"monospace", fontSize:13, letterSpacing:1 }}>
+              {dailyDisplaySeconds > 0 ? fmtTime(dailyDisplaySeconds) : (dailyTimer.running ? fmtTime(0) : "00:00:00")}
+            </span>
+            {my.some((t) => t.timerRunning) && <span style={{ marginLeft:"auto", fontSize:8, padding:"2px 6px", borderRadius:99, background:CYAN+"22", color:CYAN, fontWeight:700 }}>ACTIF</span>}
+          </button>
+        </div>
+
+        {/* ── Avancement ── */}
+        <div style={{ padding: "10px 14px", borderBottom: "1px solid " + BRD }}>
+          <div style={{ fontSize: 9, color: TXT3, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Avancement</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+            <span style={{ color: TXT2, fontSize: 11 }}>{myDone}/{myTot} tâches</span>
+            <span style={{ color: myPct >= 80 ? GREEN : myPct >= 40 ? ORANGE : TXT2, fontSize: 12, fontWeight: 800 }}>{myPct}%</span>
+          </div>
+          <div style={{ height: 5, background: DARK4, borderRadius: 99, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: myPct + "%", background: myPct >= 80 ? GREEN : myPct >= 40 ? ORANGE : BLUE, borderRadius: 99, transition: "width 0.4s" }} />
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 7 }}>
+            <div style={{ flex: 1, padding: "5px 8px", background: DARK, border: "1px solid " + BRD, borderRadius: 7, textAlign: "center" }}>
+              <div style={{ color: BLUE, fontSize: 14, fontWeight: 800 }}>{myTot - myDone}</div>
+              <div style={{ color: TXT3, fontSize: 9 }}>En cours</div>
+            </div>
+            <div style={{ flex: 1, padding: "5px 8px", background: DARK, border: "1px solid " + BRD, borderRadius: 7, textAlign: "center" }}>
+              <div style={{ color: GREEN, fontSize: 14, fontWeight: 800 }}>{myDone}</div>
+              <div style={{ color: TXT3, fontSize: 9 }}>Terminées</div>
+            </div>
+            {myOverdue > 0 && (
+              <div style={{ flex: 1, padding: "5px 8px", background: RED + "11", border: "1px solid " + RED + "44", borderRadius: 7, textAlign: "center" }}>
+                <div style={{ color: RED, fontSize: 14, fontWeight: 800 }}>{myOverdue}</div>
+                <div style={{ color: RED + "cc", fontSize: 9 }}>Retard</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Filtres ── */}
+        <div style={{ padding: "10px 14px", borderBottom: "1px solid " + BRD }}>
+          <div style={{ fontSize: 9, color: TXT3, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, marginBottom: 7 }}>Filtres</div>
+          <div style={{ position: "relative", marginBottom: 7 }}>
+            <span style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: TXT3 }}>🔍</span>
+            <input
+              value={sideSearch}
+              onChange={e => setSideSearch(e.target.value)}
+              placeholder="Rechercher une tâche..."
+              style={{ width: "100%", padding: "7px 10px 7px 26px", background: DARK, border: "1px solid " + (sideSearch ? BLUE + "88" : BRD), borderRadius: 7, color: TXT, fontSize: 11, outline: "none" }}
+            />
+            {sideSearch && <button onClick={() => setSideSearch("")} style={{ position:"absolute", right:7, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:TXT3, cursor:"pointer", fontSize:12 }}>✕</button>}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            {[{id:"all",l:"Tout"},{id:"high",l:"🔴 Haute"},{id:"medium",l:"🟡 Moy."},{id:"low",l:"🟢 Basse"}].map(p => (
+              <button key={p.id} onClick={() => setSidePrio(p.id)}
+                style={{ padding:"3px 9px", background: sidePrio===p.id ? BLUE+"22" : DARK, border:"1px solid "+(sidePrio===p.id ? BLUE+"66" : BRD), borderRadius:6, color: sidePrio===p.id ? BLUE : TXT3, fontSize:10, fontWeight: sidePrio===p.id ? 700 : 400, cursor:"pointer", transition:"all 0.15s" }}
+              >{p.l}</button>
+            ))}
+          </div>
+          {(sideSearch || sidePrio !== "all") && (
+            <button onClick={() => { setSideSearch(""); setSidePrio("all"); }} style={{ marginTop: 6, width:"100%", padding:"4px", background:"none", border:"1px dashed "+BRD, borderRadius:6, color:TXT3, fontSize:10, cursor:"pointer" }}>✕ Réinitialiser</button>
+          )}
+        </div>
+
+        {/* ── Navigation principale ── */}
+        <div style={{ padding: "10px 0", flex: 1 }}>
+          <div style={{ fontSize: 9, color: TXT3, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, padding: "0 14px", marginBottom: 4 }}>Vues</div>
+
+          {/* Mon tableau / Vue globale */}
+          <button onClick={() => setViewMode("kanban")}
+            style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background: viewMode==="kanban" && !admin ? GREEN+"15" : "none", border:"none", borderLeft:"3px solid "+(viewMode==="kanban" && !admin ? GREEN : "transparent"), color: viewMode==="kanban" && !admin ? GREEN : TXT2, fontWeight: viewMode==="kanban" && !admin ? 600 : 400, fontSize:13, cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
+            <span style={{ fontSize:15 }}>📋</span> Mon tableau
+          </button>
+
           {canSeeTeam && (
-            <button onClick={() => setAdmin(!admin)} style={{ padding: "8px 14px", background: admin ? ORANGE + "22" : DARK2, border: "1px solid " + (admin ? ORANGE : BRD), borderRadius: 8, color: admin ? ORANGE : TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>
-              {admin ? "👤 Mon tableau" : user.isAdmin ? "👥 Vue globale" : user.pole === "Direction" ? "👥 Vue Admin" : "👥 Vue équipe"}
+            <button onClick={() => { setViewMode("kanban"); setAdmin(true); }}
+              style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background: viewMode==="kanban" && admin ? ORANGE+"15" : "none", border:"none", borderLeft:"3px solid "+(viewMode==="kanban" && admin ? ORANGE : "transparent"), color: viewMode==="kanban" && admin ? ORANGE : TXT2, fontWeight: viewMode==="kanban" && admin ? 600 : 400, fontSize:13, cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
+              <span style={{ fontSize:15 }}>👥</span> {user.isAdmin ? "Vue globale" : user.pole === "Direction" ? "Vue Admin" : "Vue équipe"}
             </button>
           )}
-          <button onClick={() => exportToExcel(getExportData(), empList)} title="Exporter en Excel" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: GREEN, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📊 Export</button>
-          {(user.isAdmin || user.isChef) && (
-            <button onClick={() => setImportModal(true)} title="Importer une liste de livrables Excel" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + CYAN + "66", borderRadius: 8, color: CYAN, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📥 Import</button>
+
+          <button onClick={() => { setViewMode("planning"); setAdmin(false); }}
+            style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background: viewMode==="planning" ? PURPLE+"15" : "none", border:"none", borderLeft:"3px solid "+(viewMode==="planning" ? PURPLE : "transparent"), color: viewMode==="planning" ? PURPLE : TXT2, fontWeight: viewMode==="planning" ? 600 : 400, fontSize:13, cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
+            <span style={{ fontSize:15 }}>📅</span> Planning Gantt
+          </button>
+
+          <div style={{ fontSize: 9, color: TXT3, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, padding: "12px 14px 4px" }}>Outils</div>
+
+          <button onClick={() => setChatOpen((v) => !v)}
+            style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background: chatOpen ? BLUE+"15" : "none", border:"none", borderLeft:"3px solid "+(chatOpen ? BLUE : "transparent"), color: chatOpen ? BLUE : TXT2, fontWeight: chatOpen ? 600 : 400, fontSize:13, cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
+            <span style={{ fontSize:15 }}>🤖</span> Agent IA
+          </button>
+
+          {(user.isAdmin || user.isChef || user.canViewKPI || user.canViewAll) && (
+            <button onClick={() => setKpiOpen(true)}
+              style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background:"none", border:"none", borderLeft:"3px solid transparent", color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
+              <span style={{ fontSize:15 }}>📋</span> KPI
+            </button>
           )}
-          {user.isAdmin && (
-            <button onClick={() => setEmpModal(true)} title="Gérer les collaborateurs" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: CYAN, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>👥 Équipe</button>
-          )}
+
           {(user.isAdmin || user.canViewTJM || user.canViewAll) && (
-            <>
-              <button onClick={() => setProfitabilityOpen(true)} title="Tableau de rentabilité" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + GREEN + "66", borderRadius: 8, color: GREEN, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>💰 Rentabilité</button>
-            </>
+            <button onClick={() => setProfitabilityOpen(true)}
+              style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background:"none", border:"none", borderLeft:"3px solid transparent", color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
+              <span style={{ fontSize:15 }}>💰</span> Rentabilité
+            </button>
           )}
-          {(user.isAdmin || user.canViewAll) && (
-            <>
-              <button onClick={() => setFixedCostsOpen(true)} title="Frais fixes mensuels" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + ORANGE + "44", borderRadius: 8, color: ORANGE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚙️ Frais fixes</button>
-            </>
-          )}
+
           {(user.isAdmin || user.isChef || user.canViewAll) && (
             <>
-              <button onClick={() => setWorkloadOpen(true)} title="Analyse de charge IA" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + PURPLE + "66", borderRadius: 8, color: PURPLE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>⚡ Charge IA</button>
-              {(user.isAdmin || user.canViewAll) && <button onClick={() => setReportOpen(true)} title="Rapport hebdomadaire IA" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + ORANGE + "66", borderRadius: 8, color: ORANGE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📊 Rapport IA</button>}
+              <button onClick={() => setWorkloadOpen(true)}
+                style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background:"none", border:"none", borderLeft:"3px solid transparent", color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
+                <span style={{ fontSize:15 }}>⚡</span> Charge IA
+              </button>
+              {(user.isAdmin || user.canViewAll) && (
+                <button onClick={() => setReportOpen(true)}
+                  style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background:"none", border:"none", borderLeft:"3px solid transparent", color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
+                  <span style={{ fontSize:15 }}>📊</span> Rapport IA
+                </button>
+              )}
             </>
           )}
-          {(user.isAdmin || user.isChef || user.canViewKPI || user.canViewAll) && (
-            <button onClick={() => setKpiOpen(true)} title="Évaluations KPI des membres" style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + PURPLE + "66", borderRadius: 8, color: PURPLE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>📋 KPI</button>
+
+          {(user.isAdmin || user.canViewAll) && (
+            <button onClick={() => setFixedCostsOpen(true)}
+              style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background:"none", border:"none", borderLeft:"3px solid transparent", color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
+              <span style={{ fontSize:15 }}>⚙️</span> Frais fixes
+            </button>
           )}
-          <button onClick={() => setChatOpen((v) => !v)} title="Agent IA — Peut créer et gérer les tâches" style={{ padding: "8px 14px", background: chatOpen ? BLUE + "33" : DARK2, border: "2px solid " + (chatOpen ? BLUE : BLUE + "55"), borderRadius: 8, color: chatOpen ? BLUE : BLUE, fontWeight: 700, fontSize: 12, cursor: "pointer" }}>🤖 Agent IA</button>
-          <button onClick={() => { const n=!isDark; localStorage.setItem('kbtheme',n?'dark':'light'); applyTheme(n); setIsDark(n); }} title={isDark?"Mode clair":"Mode sombre"} style={{ padding:"8px 14px", background:DARK2, border:"1px solid "+BRD, borderRadius:8, color:TXT2, fontWeight:600, fontSize:14, cursor:"pointer" }}>{isDark ? "☀️" : "🌙"}</button>
-          {/* ─── Cloche notifications ─── */}
+
+          {/* ── Équipe en direct (admin / chef / direction) ── */}
+          {canSeeTeam && fm.length > 0 && (
+            <>
+              <div style={{ fontSize: 9, color: TXT3, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, padding: "12px 14px 4px" }}>Équipe</div>
+              <div style={{ padding: "0 8px 4px" }}>
+                {fm.slice(0, 10).map((m) => {
+                  const mt = all[m.name] || [];
+                  const md = mt.filter(t => t.column === "done").length;
+                  const minp = mt.filter(t => t.column === "in_progress").length;
+                  const mov = mt.filter(t => t.deadline && new Date(t.deadline) < new Date() && t.column !== "done").length;
+                  const mrun = mt.some(t => t.timerRunning);
+                  const mPct = mt.length > 0 ? Math.round(md / mt.length * 100) : 0;
+                  const initials = m.name.split(" ").map(w => w[0]).slice(0,2).join("").toUpperCase();
+                  return (
+                    <div key={m.name} style={{ display:"flex", alignItems:"center", gap:7, padding:"5px 6px", borderRadius:8, marginBottom:2, background: mrun ? CYAN+"0d" : "none", border:"1px solid "+(mrun ? CYAN+"33" : "transparent") }}>
+                      <div style={{ width:26, height:26, borderRadius:"50%", background: mrun ? CYAN+"22" : DARK4, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, position:"relative" }}>
+                        <span style={{ color: mrun ? CYAN : TXT3, fontSize:9, fontWeight:700 }}>{initials}</span>
+                        {mrun && <div style={{ position:"absolute", bottom:0, right:0, width:6, height:6, borderRadius:99, background:CYAN, border:"1px solid "+DARK2 }} />}
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ color: TXT2, fontSize:10, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{m.name.split(" ")[0]}</div>
+                        <div style={{ display:"flex", gap:4, marginTop:2 }}>
+                          <div style={{ height:3, flex:1, background:DARK4, borderRadius:99, overflow:"hidden" }}>
+                            <div style={{ height:"100%", width:mPct+"%", background: mPct>=80?GREEN:mPct>=40?ORANGE:BLUE, borderRadius:99 }} />
+                          </div>
+                          <span style={{ color:TXT3, fontSize:9 }}>{mPct}%</span>
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", gap:3, flexShrink:0 }}>
+                        {minp > 0 && <span style={{ fontSize:9, padding:"1px 5px", borderRadius:99, background:BLUE+"22", color:BLUE, fontWeight:700 }}>{minp}</span>}
+                        {mov > 0 && <span style={{ fontSize:9, padding:"1px 5px", borderRadius:99, background:RED+"22", color:RED, fontWeight:700 }}>⚠{mov}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+                {fm.length > 10 && <div style={{ color:TXT3, fontSize:9, padding:"3px 6px" }}>+{fm.length-10} autres</div>}
+              </div>
+            </>
+          )}
+
+          <div style={{ fontSize: 9, color: TXT3, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, padding: "12px 14px 4px" }}>Données</div>
+
+          <button onClick={() => exportToExcel(getExportData(), empList)}
+            style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background:"none", border:"none", borderLeft:"3px solid transparent", color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
+            <span style={{ fontSize:15 }}>📤</span> Export Excel
+          </button>
+
+          {(user.isAdmin || user.isChef) && (
+            <button onClick={() => setImportModal(true)}
+              style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background:"none", border:"none", borderLeft:"3px solid transparent", color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
+              <span style={{ fontSize:15 }}>📥</span> Import Excel
+            </button>
+          )}
+
+          {user.isAdmin && (
+            <button onClick={() => setEmpModal(true)}
+              style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background:"none", border:"none", borderLeft:"3px solid transparent", color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
+              <span style={{ fontSize:15 }}>👥</span> Équipe
+            </button>
+          )}
+        </div>
+
+        {/* ── Bas de sidebar : notifs + thème + compte ── */}
+        <div style={{ borderTop: "1px solid " + BRD, padding: "10px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+
+          {/* Notifications */}
           <div style={{ position:"relative" }}>
-            <button onClick={() => { setNotifsOpen(v => !v); }} title="Notifications" style={{ padding:"8px 14px", background: notifsOpen ? BLUE+"22" : DARK2, border:"1px solid "+(notifsOpen ? BLUE+"66" : unseenCount > 0 ? BLUE+"55" : BRD), borderRadius:8, color: unseenCount > 0 ? BLUE : TXT2, fontWeight:600, fontSize:14, cursor:"pointer", position:"relative" }}>
-              🔔
-              {unseenCount > 0 && (
-                <span style={{ position:"absolute", top:-4, right:-4, minWidth:16, height:16, borderRadius:99, background:BLUE, color:"#fff", fontSize:9, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", padding:"0 4px", border:"2px solid "+DARK }}>
-                  {unseenCount > 9 ? "9+" : unseenCount}
-                </span>
-              )}
+            <button onClick={() => setNotifsOpen(v => !v)}
+              style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"8px 10px", background: notifsOpen ? BLUE+"15" : "none", border:"1px solid "+(notifsOpen ? BLUE+"66" : unseenCount>0 ? BLUE+"44" : BRD), borderRadius:8, color: unseenCount>0 ? BLUE : TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
+              <span style={{ fontSize:15 }}>🔔</span>
+              <span style={{ flex:1, fontWeight: unseenCount>0 ? 600 : 400 }}>Notifications</span>
+              {unseenCount > 0 && <span style={{ minWidth:18, height:18, borderRadius:99, background:BLUE, color:"#fff", fontSize:9, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", padding:"0 4px" }}>{unseenCount > 9 ? "9+" : unseenCount}</span>}
             </button>
           </div>
-          <button onClick={() => setSettings(true)} style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>🔐</button>
-          <button onClick={logout} style={{ padding: "8px 14px", background: DARK2, border: "1px solid " + BRD, borderRadius: 8, color: TXT2, fontWeight: 600, fontSize: 12, cursor: "pointer" }}>Déconnexion</button>
+
+          {/* Paramètres */}
+          <button onClick={() => setSettings(true)}
+            style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"8px 10px", background:"none", border:"1px solid "+BRD, borderRadius:8, color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
+            <span style={{ fontSize:15 }}>🔐</span> Paramètres
+          </button>
+
+          {/* Toggle dark/light */}
+          <button onClick={() => { const n=!isDark; localStorage.setItem('kbtheme',n?'dark':'light'); applyTheme(n); setIsDark(n); }}
+            style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"8px 10px", background:"none", border:"1px solid "+BRD, borderRadius:8, color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
+            <span style={{ fontSize:15 }}>{isDark ? "☀️" : "🌙"}</span> {isDark ? "Mode clair" : "Mode nuit"}
+          </button>
+
+          {/* Déconnexion */}
+          <button onClick={logout}
+            style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"8px 10px", background:"none", border:"1px solid "+BRD, borderRadius:8, color:TXT3, fontSize:13, cursor:"pointer", textAlign:"left" }}>
+            <span style={{ fontSize:15 }}>🚪</span> Déconnexion
+          </button>
         </div>
       </div>
 
+      {/* ═══════════════ ZONE PRINCIPALE ═══════════════ */}
+      <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", overflow: "auto" }}>
+
       {showBriefing && briefing && <DailyBriefingBanner briefing={briefing} onClose={() => setShowBriefing(false)} />}
-      {loading
-        ? <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ color: TXT2 }}>Chargement...</div></div>
-        : admin && canSeeTeam
+      {viewMode === "planning"
+        ? null /* GanttView est rendu séparément en bas */
+        : loading
+          ? <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ color: TXT2 }}>Chargement...</div></div>
+          : admin && canSeeTeam
           ? (
             <div style={{ flex: 1, overflow: "auto", padding: 20 }}>
               <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
@@ -2584,7 +3105,7 @@ function App() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                 {fm.map((m) => (
-                  <Board key={m.name} name={m.name} tasks={all[m.name] || []} onUpdate={upd} ro={false} showName={true} onToggleTimer={toggleTimer} tick={tick} poleMembers={fm.filter((x) => x.name !== m.name)} onReassign={reassign} onPrioritize={handlePrioritize} prioritizing={prioritizing} />
+                  <Board key={m.name} name={m.name} tasks={filteredAll[m.name] || []} onUpdate={upd} ro={false} showName={true} onToggleTimer={toggleTimer} tick={tick} poleMembers={fm.filter((x) => x.name !== m.name)} onReassign={reassign} onPrioritize={handlePrioritize} prioritizing={prioritizing} creator={user.name} />
                 ))}
                 {fm.length === 0 && <div style={{ textAlign: "center", padding: 40, color: TXT3 }}>Aucun résultat.</div>}
               </div>
@@ -2599,7 +3120,7 @@ function App() {
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                     {directionMembers.map((m) => (
-                      <Board key={m.name} name={m.name} tasks={all[m.name] || []} onUpdate={upd} ro={false} showName={true} onToggleTimer={toggleTimer} tick={tick} poleMembers={null} onReassign={null} onPrioritize={handlePrioritize} prioritizing={prioritizing} />
+                      <Board key={m.name} name={m.name} tasks={filteredAll[m.name] || []} onUpdate={upd} ro={false} showName={true} onToggleTimer={toggleTimer} tick={tick} poleMembers={null} onReassign={null} onPrioritize={handlePrioritize} prioritizing={prioritizing} creator={user.name} />
                     ))}
                   </div>
                 </div>
@@ -2608,11 +3129,17 @@ function App() {
           )
           : (
             <div style={{ flex: 1, overflow: "auto", padding: 20 }}>
-              <Board name={user.name} tasks={my} onUpdate={upd} ro={false} showName={false} onToggleTimer={toggleTimer} tick={tick} poleMembers={null} onReassign={null} />
+              <Board name={user.name} tasks={filteredMy} onUpdate={upd} ro={false} showName={false} onToggleTimer={toggleTimer} tick={tick} poleMembers={null} onReassign={null} creator={user.name} />
             </div>
           )
       }
 
+      {/* ─── Vue Planning Gantt ─────────────────────────────────── */}
+      {viewMode === "planning" && (
+        <GanttView user={user} empList={empList} all={all} tick={tick} />
+      )}
+
+      </div>{/* fin zone principale */}
       {notifsOpen && <NotificationPanel notifs={notifs} onMarkSeen={handleMarkSeen} onClose={() => setNotifsOpen(false)} />}
       {settings && <SettingsModal user={user} onClose={() => setSettings(false)} />}
       {empModal && user.isAdmin && <EmployeesModal employees={empList} onSave={handleSaveEmployees} onClose={() => setEmpModal(false)} />}
