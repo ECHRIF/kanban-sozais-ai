@@ -1177,12 +1177,13 @@ app.post("/api/tasks/:ownerName", authenticate, async (req, res) => {
 app.get("/api/auth/users", async (req, res) => {
   try {
     const [rows] = await pool.query(
-      "SELECT name, role, pole, is_chef, is_admin, can_view_kpi, can_view_tjm, can_view_all FROM employees ORDER BY is_admin DESC, pole ASC, is_chef DESC, name ASC"
+      "SELECT name, role, pole, is_chef, is_admin, can_view_kpi, can_view_tjm, can_view_all, email FROM employees ORDER BY is_admin DESC, pole ASC, is_chef DESC, name ASC"
     );
     res.json(rows.map(r => ({
       name: r.name, role: r.role, pole: r.pole,
       isChef: !!r.is_chef, isAdmin: !!r.is_admin,
-      canViewKPI: !!r.can_view_kpi, canViewTJM: !!r.can_view_tjm, canViewAll: !!r.can_view_all
+      canViewKPI: !!r.can_view_kpi, canViewTJM: !!r.can_view_tjm, canViewAll: !!r.can_view_all,
+      email: r.email || null
     })));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
