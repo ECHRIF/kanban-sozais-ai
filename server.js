@@ -40,7 +40,7 @@ app.use(express.static(path.join(__dirname, "public")));
 // ─── Rate limiting ─────────────────────────────────────────────
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,   // 15 minutes
-  max: 15,                      // 15 tentatives par IP
+  max: 100,                     // 100 tentatives par IP (équipe sur même réseau)
   standardHeaders: true, legacyHeaders: false,
   message: { error: "Trop de tentatives. Réessayez dans 15 minutes." }
 });
