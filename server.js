@@ -1189,11 +1189,19 @@ app.get("/api/auth/users", async (req, res) => {
 
 // POST /api/auth/login
 app.post("/api/auth/login", loginLimiter, async (req, res) => {
-  const { name, password } = req.body;
-  if (!name || !password) return res.status(400).json({ error: "Nom et mot de passe requis" });
+  const { email, name, password } = req.body;
+  const identifier = (email || name || "").trim();
+  if (!identifier || !password) return res.status(400).json({ error: "Email et mot de passe requis" });
   try {
-    const [emps] = await pool.query("SELECT * FROM employees WHERE name = ?", [name]);
-    if (!emps.length) return res.status(401).json({ error: "Utilisateur inconnu" });
+    // Recherche par email d'abord, puis par nom en fallback
+    let emps;
+    if (email) {
+      [emps] = await pool.query("SELECT * FROM employees WHERE LOWER(email) = LOWER(?)", [identifier]);
+    }
+    if (!emps || !emps.length) {
+      [emps] = await pool.query("SELECT * FROM employees WHERE name = ?", [identifier]);
+    }
+    if (!emps.length) return res.status(401).json({ error: "Identifiant inconnu" });
     const emp = emps[0];
 
     const [pwds] = await pool.query("SELECT password FROM passwords WHERE name = ?", [name]);
