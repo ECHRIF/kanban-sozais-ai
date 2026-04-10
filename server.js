@@ -1588,7 +1588,37 @@ app.get("*", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+// ─── Seed : ajouter les membres manquants au démarrage ────────
+async function seedMissingEmployees() {
+  try {
+    const missing = [
+      // Pôle Commercial
+      ['Asma ATHIMNI',       'Directrice Commerciale', 'Commercial', 1, 0, 0, 0, 0],
+      ['Nourchene OUESLATI', 'Commerciale',             'Commercial', 0, 0, 0, 0, 0],
+      ['Warden EL FEKIH',    'Commercial',              'Commercial', 0, 0, 0, 0, 0],
+      // Pôle Direction
+      ['Maroua HTIRA',  'Assistante de direction',              'Direction', 0, 0, 1, 0, 0],
+      ['Siwar HOSNI',   'Responsable financière',               'Direction', 0, 0, 0, 1, 0],
+      ['Marion CESA',   'Resp. administrative et financière',   'Direction', 1, 0, 0, 0, 1],
+      // Admin supplémentaire
+      ['IT SOZAIS',     'Administrateur IT', 'Admin', 0, 1, 0, 0, 0],
+      ['ECHRIF Youssef','Admin',             'Admin', 0, 1, 0, 0, 0],
+    ];
+    for (const [name, role, pole, is_chef, is_admin, can_view_kpi, can_view_tjm, can_view_all] of missing) {
+      await pool.query(
+        `INSERT IGNORE INTO employees (name, role, pole, is_chef, is_admin, can_view_kpi, can_view_tjm, can_view_all)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [name, role, pole, is_chef, is_admin, can_view_kpi, can_view_tjm, can_view_all]
+      );
+    }
+    console.log("   ✅ Seed employés manquants OK");
+  } catch (e) {
+    console.warn("   ⚠️  Seed employés :", e.message);
+  }
+}
+
 app.listen(PORT, () => {
   console.log(`\n🚀 Kanban SOZAIS AI-First — http://localhost:${PORT}`);
   console.log(`   IA : ${groq ? "✅ Groq (LLaMA 3.3-70b) actif" : "❌ Clé GROQ_API_KEY manquante"}\n`);
+  seedMissingEmployees();
 });
