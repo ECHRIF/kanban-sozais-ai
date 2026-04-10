@@ -1194,18 +1194,40 @@ app.post("/api/auth/login", loginLimiter, async (req, res) => {
   const identifier = (email || name || "").trim();
   if (!identifier || !password) return res.status(400).json({ error: "Email et mot de passe requis" });
   try {
-    // Recherche par email d'abord, puis par nom en fallback
+    // Recherche par email d'abord, puis par nom, puis par correspondance email→nom
     let emps;
-    if (email) {
-      [emps] = await pool.query("SELECT * FROM employees WHERE LOWER(email) = LOWER(?)", [identifier]);
-    }
+    // 1) Recherche exacte par email stocké
+    [emps] = await pool.query("SELECT * FROM employees WHERE LOWER(email) = LOWER(?)", [identifier]);
+    // 2) Recherche exacte par nom
     if (!emps || !emps.length) {
       [emps] = await pool.query("SELECT * FROM employees WHERE name = ?", [identifier]);
     }
-    if (!emps.length) return res.status(401).json({ error: "Identifiant inconnu" });
+    // 3) Recherche intelligente : déduire initial + nom depuis la partie locale de l'email
+    //    ex. "m.amara@sozais-ing.com" → initial="m", surname="amara" → trouve "Majdi AMARA"
+    if (!emps || !emps.length) {
+      const localPart = identifier.includes("@") ? identifier.split("@")[0] : identifier;
+      const dotIdx = localPart.indexOf(".");
+      if (dotIdx > 0) {
+        const initial = localPart[0].toLowerCase();
+        const surnamePart = localPart.slice(dotIdx + 1).toLowerCase().replace(/[^a-z]/g, "");
+        const [candidates] = await pool.query(
+          `SELECT * FROM employees WHERE LOWER(REPLACE(REPLACE(name,' ',''),'-','')) LIKE ?`,
+          [`%${surnamePart}%`]
+        );
+        // Filtrer par initiale du prénom (premier ou dernier mot selon le format)
+        const matched = candidates.filter(e => {
+          const parts = e.name.trim().split(/\s+/);
+          return parts.some(p => p[0] && p[0].toLowerCase() === initial);
+        });
+        if (matched.length === 1) emps = matched;
+        else if (matched.length > 1) emps = [matched[0]]; // prendre le premier match
+      }
+    }
+    if (!emps || !emps.length) return res.status(401).json({ error: "Identifiant inconnu" });
     const emp = emps[0];
 
-    const [pwds] = await pool.query("SELECT password FROM passwords WHERE name = ?", [name]);
+    // Utiliser emp.name (nom réel en DB) pour chercher le mot de passe
+    const [pwds] = await pool.query("SELECT password FROM passwords WHERE name = ?", [emp.name]);
     let isValid = false, firstLogin = false;
 
     if (!pwds.length) {
@@ -1221,7 +1243,7 @@ app.post("/api/auth/login", loginLimiter, async (req, res) => {
         isValid = password === stored;
         if (isValid) {
           const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
-          await pool.query("UPDATE passwords SET password = ? WHERE name = ?", [hashed, name]);
+          await pool.query("UPDATE passwords SET password = ? WHERE name = ?", [hashed, emp.name]);
         }
       }
     }
@@ -1611,7 +1633,55 @@ async function seedMissingEmployees() {
         [name, role, pole, is_chef, is_admin, can_view_kpi, can_view_tjm, can_view_all]
       );
     }
-    console.log("   ✅ Seed employés manquants OK");
+
+    // ─── Seed emails : pattern prenom-initial.nom@sozais-ing.com ──
+    // Remplit uniquement les emails manquants (UPDATE si email IS NULL)
+    const emailsMap = [
+      ['Souha ARFAOUI',      's.arfaoui@sozais-ing.com'],
+      ['Imen AZAZA',         'i.azaza@sozais-ing.com'],
+      ['Souha BEN HASSEN',   's.benhassen@sozais-ing.com'],
+      ['Chadha DAOUIDI',     'c.daouidi@sozais-ing.com'],
+      ['Hamadi MTIRI',       'h.mtiri@sozais-ing.com'],
+      ['Abdelhak AMRI',      'a.amri@sozais-ing.com'],
+      ['Nesrine KAYEL',      'n.kayel@sozais-ing.com'],
+      ['Nadhir GHOUMA',      'n.ghouma@sozais-ing.com'],
+      ['Achraf SAOUDI',      'a.saoudi@sozais-ing.com'],
+      ['Tayeb KSENTINI',     't.ksentini@sozais-ing.com'],
+      ['Chadha SAADAOUI',    'c.saadaoui@sozais-ing.com'],
+      ['Shayma MASTOURI',    's.mastouri@sozais-ing.com'],
+      ['Rihab ATTIA',        'r.attia@sozais-ing.com'],
+      ['Fatma RHAIMI',       'f.rhaimi@sozais-ing.com'],
+      ['Sabah AJARRAR',      's.ajarrar@sozais-ing.com'],
+      ['Majdi AMARA',        'm.amara@sozais-ing.com'],
+      ['Yassine KHCHIMI',    'y.khchimi@sozais-ing.com'],
+      ['Rakia MANSOUR',      'r.mansour@sozais-ing.com'],
+      ['Safa SOUAYAH',       's.souayah@sozais-ing.com'],
+      ['Rima MABROUKI',      'r.mabrouki@sozais-ing.com'],
+      ['Mohamed KLII',       'm.klii@sozais-ing.com'],
+      ['Nadhmi JAMEL',       'n.jamel@sozais-ing.com'],
+      ['Walid GHARBI',       'w.gharbi@sozais-ing.com'],
+      ['Wissem BEN TAHER',   'w.bentaher@sozais-ing.com'],
+      ['Hamza BEN AHMED',    'h.benahmed@sozais-ing.com'],
+      ['Amine DRONGA',       'a.dronga@sozais-ing.com'],
+      ['Salma HANZOULI',     's.hanzouli@sozais-ing.com'],
+      ['M.O. HACHLEF',       'm.hachlef@sozais-ing.com'],
+      ['ECHRIF Walid',       'w.echrif@sozais-ing.com'],
+      ['ECHRIF Youssef',     'y.echrif@sozais-ing.com'],
+      ['Asma ATHIMNI',       'a.athimni@sozais-ing.com'],
+      ['Nourchene OUESLATI', 'n.oueslati@sozais-ing.com'],
+      ['Warden EL FEKIH',    'w.elfekih@sozais-ing.com'],
+      ['Maroua HTIRA',       'm.htira@sozais-ing.com'],
+      ['Siwar HOSNI',        's.hosni@sozais-ing.com'],
+      ['Marion CESA',        'm.cesa@sozais-ing.com'],
+      ['IT SOZAIS',          'it@sozais-ing.com'],
+    ];
+    for (const [name, email] of emailsMap) {
+      await pool.query(
+        `UPDATE employees SET email = ? WHERE name = ? AND (email IS NULL OR email = '')`,
+        [email, name]
+      );
+    }
+    console.log("   ✅ Seed employés manquants + emails OK");
   } catch (e) {
     console.warn("   ⚠️  Seed employés :", e.message);
   }
