@@ -2536,7 +2536,7 @@ function App() {
   const [showBriefing, setShowBriefing] = useState(true);
   const [inactivityPaused, setInactivityPaused] = useState(false);
   const lastActivityRef = useRef(Date.now());
-  const INACTIVITY_MS = 5 * 60 * 1000; // 5 minutes
+  const INACTIVITY_MS = 20 * 60 * 1000; // 20 minutes (ne se déclenche pas si page en arrière-plan)
 
   // Charger la liste minimale (sans auth) pour l'écran de login
   useEffect(() => {
@@ -2556,16 +2556,22 @@ function App() {
 
   useEffect(() => { const id = setInterval(() => setTick((t) => t + 1), 1000); return () => clearInterval(id); }, []);
 
-  // ─── Pause automatique des timers de TÂCHES après 5 min d'inactivité ──────────
-  // Note : le minuteur de pointage journalier n'est PAS concerné (il continue même sans activité)
+  // ─── Pause automatique des timers de TÂCHES après 20 min d'inactivité ─────────
+  // Note : la pause ne se déclenche PAS si la page est en arrière-plan (AutoCAD, Revit, Excel…)
+  // Quand l'utilisateur revient sur le navigateur, le compteur d'inactivité est réinitialisé.
   useEffect(() => {
     const onActivity = () => { lastActivityRef.current = Date.now(); };
-    window.addEventListener("mousemove", onActivity);
-    window.addEventListener("keydown",   onActivity);
-    window.addEventListener("click",     onActivity);
-    window.addEventListener("scroll",    onActivity);
+    // Réinitialiser le compteur dès que la page redevient visible (retour depuis un autre logiciel)
+    const onVisibility = () => { if (!document.hidden) lastActivityRef.current = Date.now(); };
+    window.addEventListener("mousemove",          onActivity);
+    window.addEventListener("keydown",            onActivity);
+    window.addEventListener("click",              onActivity);
+    window.addEventListener("scroll",             onActivity);
+    document.addEventListener("visibilitychange", onVisibility);
 
     const id = setInterval(() => {
+      // Ne jamais pauser si la page est en arrière-plan (utilisateur sur AutoCAD, Revit, etc.)
+      if (document.hidden) return;
       if (Date.now() - lastActivityRef.current < INACTIVITY_MS) return;
       const current = allRef.current;
       const hasRunning = Object.values(current).some((tasks) => tasks.some((t) => t.timerRunning));
@@ -2590,10 +2596,11 @@ function App() {
 
     return () => {
       clearInterval(id);
-      window.removeEventListener("mousemove", onActivity);
-      window.removeEventListener("keydown",   onActivity);
-      window.removeEventListener("click",     onActivity);
-      window.removeEventListener("scroll",    onActivity);
+      window.removeEventListener("mousemove",          onActivity);
+      window.removeEventListener("keydown",            onActivity);
+      window.removeEventListener("click",              onActivity);
+      window.removeEventListener("scroll",             onActivity);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
   useEffect(() => {
