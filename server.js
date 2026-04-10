@@ -44,7 +44,7 @@ const loginLimiter = rateLimit({
   standardHeaders: true, legacyHeaders: false,
   message: { error: "Trop de tentatives. Réessayez dans 15 minutes." }
 });
-const apiLimiter = rateLimit({ windowMs: 60 * 1000, max: 120 });
+const apiLimiter = rateLimit({ windowMs: 60 * 1000, max: 500 }); // équipe entière sur même IP
 app.use("/api/", apiLimiter);
 
 // ─── Middleware d'authentification JWT ────────────────────────
@@ -226,39 +226,39 @@ const pool = mysql.createPool({
 
     // ─── Données initiales employees ──────────────────────────
     const employeesData = [
-      ['Souha ARFAOUI',    'Cheffe Pôle Fluide',      'Fluide', 1, 0],
-      ['Imen AZAZA',       'Ingénieure fluide',        'Fluide', 0, 0],
-      ['Souha BEN HASSEN', 'Ingénieure fluide',        'Fluide', 0, 0],
-      ['Chadha DAOUIDI',   'Ingénieure fluide',        'Fluide', 0, 0],
-      ['Hamadi MTIRI',     'Projeteur fluide',         'Fluide', 0, 0],
-      ['Abdelhak AMRI',    'Technicien sup fluide',    'Fluide', 0, 0],
-      ['Nesrine KAYEL',    'Ingénieur fluide',         'Fluide', 0, 0],
-      ['Nadhir GHOUMA',    'Technicien sup fluide',    'Fluide', 0, 0],
-      ['Achraf SAOUDI',    'Ingénieur fluide',         'Fluide', 0, 0],
-      ['Tayeb KSENTINI',   'Ingénieur fluide',         'Fluide', 0, 0],
-      ['Chadha SAADAOUI',  'Ingénieur fluide',         'Fluide', 0, 0],
-      ['Shayma MASTOURI',  'Ingénieur fluide',         'Fluide', 0, 0],
-      ['Rihab ATTIA',      'Ingénieur fluide',         'Fluide', 0, 0],
-      ['Fatma RHAIMI',     'Ingénieur fluide',         'Fluide', 0, 0],
-      ['Sabah AJARRAR',    'Ingénieur fluide',         'Fluide', 0, 0],
-      ['Majdi AMARA',      'Chef Pôle Élec',           'Élec',   1, 0],
-      ['Yassine KHCHIMI',  'Ingénieur Elec',           'Élec',   0, 0],
-      ['Rakia MANSOUR',    'Ingénieur Elec',           'Élec',   0, 0],
-      ['Safa SOUAYAH',     'Ingénieur Elec',           'Élec',   0, 0],
-      ['Rima MABROUKI',    'Ingénieur Elec',           'Élec',   0, 0],
-      ['Mohamed KLII',     'Ingénieur Elec',           'Élec',   0, 0],
-      ['Nadhmi JAMEL',     'Ingénieur Elec',           'Élec',   0, 0],
-      ['Walid GHARBI',     'Ingénieur Elec',           'Élec',   0, 0],
-      ['Wissem BEN TAHER', 'Ingénieur Elec',           'Élec',   0, 0],
-      ['Hamza BEN AHMED',  'Technicien sup Elec',      'Élec',   0, 0],
-      ['Amine DRONGA',     'Ingénieur Elec',           'Élec',   0, 0],
-      ['Salma HANZOULI',   'Ingénieur Elec',           'Élec',   0, 0],
-      ['M.O. HACHLEF',     'Ingénieur Elec',           'Élec',   0, 0],
-      ['ECHRIF Walid',       'Admin',                    'Admin',      0, 1],
-      ['ECHRIF Youssef',     'Admin',                    'Admin',      0, 1],
-      ['Asma ATHIMNI',       'Directrice Commerciale',   'Commercial', 1, 0],
-      ['Nourchene OUESLATI', 'Commerciale',              'Commercial', 0, 0],
-      ['Warden EL FEKIH',    'Commercial',               'Commercial', 0, 0],
+      ['Souha ARFAOUI',      'Cheffe Pôle Fluide',      'Fluide', 1, 0],
+      ['Souha BEN HASSEN',   'Ingénieure fluide',       'Fluide', 0, 0],
+      ['Chadha DAOUIDI',     'Ingénieure fluide',       'Fluide', 0, 0],
+      ['Hamadi MTIRI',       'Projeteur fluide',        'Fluide', 0, 0],
+      ['Abdelhak AMRI',      'Technicien sup fluide',   'Fluide', 0, 0],
+      ['Nesrine KAYEL',      'Ingénieur fluide',        'Fluide', 0, 0],
+      ['Nadhir GHOUMA',      'Technicien sup fluide',   'Fluide', 0, 0],
+      ['Achraf SAOUDI',      'Ingénieur fluide',        'Fluide', 0, 0],
+      ['Tayeb KSENTINI',     'Ingénieur fluide',        'Fluide', 0, 0],
+      ['Chadha SAADAOUI',    'Ingénieur fluide',        'Fluide', 0, 0],
+      ['Shayma MASTOURI',    'Ingénieur fluide',        'Fluide', 0, 0],
+      ['Rihab ATTIA',        'Ingénieur fluide',        'Fluide', 0, 0],
+      ['Sabah AJARRAR',      'Ingénieur fluide',        'Fluide', 0, 0],
+      ['Emna GHRISSI',       'Ingénieure fluide',       'Fluide', 0, 0],
+      ['Eya JANDOUBI',       'Ingénieure fluide',       'Fluide', 0, 0],
+      ['Majdi AMARA',        'Chef Pôle Élec',          'Élec',   1, 0],
+      ['Yassine KHCHIMI',    'Ingénieur Elec',          'Élec',   0, 0],
+      ['Rakia MANSOUR',      'Ingénieur Elec',          'Élec',   0, 0],
+      ['Safa SOUAYAH',       'Ingénieur Elec',          'Élec',   0, 0],
+      ['Rima MABROUKI',      'Ingénieur Elec',          'Élec',   0, 0],
+      ['Mohamed KLII',       'Ingénieur Elec',          'Élec',   0, 0],
+      ['Nadhmi JAMEL',       'Ingénieur Elec',          'Élec',   0, 0],
+      ['Walid GHARBI',       'Ingénieur Elec',          'Élec',   0, 0],
+      ['Hamza BEN AHMED',    'Technicien sup Elec',     'Élec',   0, 0],
+      ['Amine DRONGA',       'Ingénieur Elec',          'Élec',   0, 0],
+      ['Salma HANZOULI',     'Ingénieur Elec',          'Élec',   0, 0],
+      ['M.O. HACHLEF',       'Ingénieur Elec',          'Élec',   0, 0],
+      ['Rebecca DRUKIER',    'Ingénieur Elec',          'Élec',   0, 0],
+      ['ECHRIF Walid',       'Admin',                   'Admin',      0, 1],
+      ['ECHRIF Youssef',     'Admin',                   'Admin',      0, 1],
+      ['Seif OUESLATI',      'Administrateur IT',       'Admin',      0, 1],
+      ['Asma ATHIMNI',       'Directrice Commerciale',  'Commercial', 1, 0],
+      ['Nourchene OUESLATI', 'Commerciale',             'Commercial', 0, 0],
     ];
     for (const emp of employeesData) {
       await conn.query(
@@ -1125,22 +1125,36 @@ app.post("/api/tasks/:ownerName", authenticate, async (req, res) => {
 
     await conn.beginTransaction();
 
-    // Récupérer les IDs existants avant suppression (pour détecter les nouvelles tâches)
+    // Récupérer les IDs existants + état timer actuel (pour protéger les timers en cours)
     const [existingRows] = await conn.query(
-      "SELECT id FROM tasks WHERE owner_name = ?", [ownerName]
+      "SELECT id, timer_running, timer_started_at, timer_seconds FROM tasks WHERE owner_name = ?",
+      [ownerName]
     );
-    const existingIds = new Set(existingRows.map(r => r.id));
+    const existingIds  = new Set(existingRows.map(r => r.id));
+    const runningInDB  = {};
+    existingRows.forEach(r => { if (r.timer_running) runningInDB[r.id] = r; });
+
+    // Seul le propriétaire peut arrêter son propre timer.
+    // Si un admin/chef sauvegarde une tâche avec timerRunning=false alors que le serveur
+    // l'a encore à true, on restaure l'état DB (évite la race condition).
+    const isOwner = actor === ownerName;
 
     await conn.query("DELETE FROM tasks WHERE owner_name = ?", [ownerName]);
     if (tasks && tasks.length > 0) {
-      const values = tasks.map(t => [
-        t.id, ownerName, t.title || "", t.project || "", t.description || "",
-        t.priority || "medium", t.column || "todo", t.deadline || null,
-        t.estimatedHours ? parseFloat(t.estimatedHours) : null,
-        t.timerSeconds || 0, t.timerRunning ? 1 : 0, t.timerStartedAt || null,
-        t.createdAt || new Date().toISOString(), parseFloat(t.revenueAmount) || 0,
-        t.createdBy || actor || null,
-      ]);
+      const values = tasks.map(t => {
+        const dbRunning = runningInDB[t.id];
+        const preserveTimer = dbRunning && !t.timerRunning && !isOwner;
+        return [
+          t.id, ownerName, t.title || "", t.project || "", t.description || "",
+          t.priority || "medium", t.column || "todo", t.deadline || null,
+          t.estimatedHours ? parseFloat(t.estimatedHours) : null,
+          preserveTimer ? dbRunning.timer_seconds : (t.timerSeconds || 0),
+          preserveTimer ? 1 : (t.timerRunning ? 1 : 0),
+          preserveTimer ? dbRunning.timer_started_at : (t.timerStartedAt || null),
+          t.createdAt || new Date().toISOString(), parseFloat(t.revenueAmount) || 0,
+          t.createdBy || actor || null,
+        ];
+      });
       await conn.query(
         `INSERT INTO tasks (id, owner_name, title, project, description, priority, column_id, deadline, estimated_hours, timer_seconds, timer_running, timer_started_at, created_at, revenue_amount, created_by) VALUES ?`,
         [values]
@@ -1613,6 +1627,15 @@ app.get("*", (req, res) => {
 // ─── Seed : ajouter les membres manquants au démarrage ────────
 async function seedMissingEmployees() {
   try {
+    // ─── Supprimer les employés qui ont quitté l'équipe ──────
+    const toDelete = ['Warden EL FEKIH', 'Imen AZAZA', 'Fatma RHAIMI', 'Wissem BEN TAHER', 'IT SOZAIS'];
+    for (const name of toDelete) {
+      await pool.query(
+        `DELETE FROM employees WHERE name = ? AND NOT EXISTS (SELECT 1 FROM tasks WHERE owner_name = ?)`,
+        [name, name]
+      );
+    }
+
     const missing = [
       // Pôle Commercial
       ['Asma ATHIMNI',       'Directrice Commerciale', 'Commercial', 1, 0, 0, 0, 0],
@@ -1623,7 +1646,7 @@ async function seedMissingEmployees() {
       ['Siwar HOSNI',   'Responsable financière',               'Direction', 0, 0, 0, 1, 0],
       ['Marion CESA',   'Resp. administrative et financière',   'Direction', 1, 0, 0, 0, 1],
       // Admin supplémentaire
-      ['IT SOZAIS',     'Administrateur IT', 'Admin', 0, 1, 0, 0, 0],
+      ['Seif OUESLATI', 'Administrateur IT', 'Admin', 0, 1, 0, 0, 0],
       ['ECHRIF Youssef','Admin',             'Admin', 0, 1, 0, 0, 0],
     ];
     for (const [name, role, pole, is_chef, is_admin, can_view_kpi, can_view_tjm, can_view_all] of missing) {
@@ -1638,7 +1661,6 @@ async function seedMissingEmployees() {
     // Remplit uniquement les emails manquants (UPDATE si email IS NULL)
     const emailsMap = [
       ['Souha ARFAOUI',      's.arfaoui@sozais-ing.com'],
-      ['Imen AZAZA',         'i.azaza@sozais-ing.com'],
       ['Souha BEN HASSEN',   's.benhassen@sozais-ing.com'],
       ['Chadha DAOUIDI',     'c.daouidi@sozais-ing.com'],
       ['Hamadi MTIRI',       'h.mtiri@sozais-ing.com'],
@@ -1650,8 +1672,9 @@ async function seedMissingEmployees() {
       ['Chadha SAADAOUI',    'c.saadaoui@sozais-ing.com'],
       ['Shayma MASTOURI',    's.mastouri@sozais-ing.com'],
       ['Rihab ATTIA',        'r.attia@sozais-ing.com'],
-      ['Fatma RHAIMI',       'f.rhaimi@sozais-ing.com'],
       ['Sabah AJARRAR',      's.ajarrar@sozais-ing.com'],
+      ['Emna GHRISSI',       'e.ghrissi@sozais-ing.com'],
+      ['Eya JANDOUBI',       'e.jandoubi@sozais-ing.com'],
       ['Majdi AMARA',        'm.amara@sozais-ing.com'],
       ['Yassine KHCHIMI',    'y.khchimi@sozais-ing.com'],
       ['Rakia MANSOUR',      'r.mansour@sozais-ing.com'],
@@ -1660,20 +1683,19 @@ async function seedMissingEmployees() {
       ['Mohamed KLII',       'm.klii@sozais-ing.com'],
       ['Nadhmi JAMEL',       'n.jamel@sozais-ing.com'],
       ['Walid GHARBI',       'w.gharbi@sozais-ing.com'],
-      ['Wissem BEN TAHER',   'w.bentaher@sozais-ing.com'],
       ['Hamza BEN AHMED',    'h.benahmed@sozais-ing.com'],
       ['Amine DRONGA',       'a.dronga@sozais-ing.com'],
       ['Salma HANZOULI',     's.hanzouli@sozais-ing.com'],
       ['M.O. HACHLEF',       'm.hachlef@sozais-ing.com'],
+      ['Rebecca DRUKIER',    'r.drukier@sozais-ing.com'],
       ['ECHRIF Walid',       'w.echrif@sozais-ing.com'],
       ['ECHRIF Youssef',     'y.echrif@sozais-ing.com'],
+      ['Seif OUESLATI',      'tech.info@sozais-ing.com'],
       ['Asma ATHIMNI',       'a.athimni@sozais-ing.com'],
       ['Nourchene OUESLATI', 'n.oueslati@sozais-ing.com'],
-      ['Warden EL FEKIH',    'w.elfekih@sozais-ing.com'],
       ['Maroua HTIRA',       'm.htira@sozais-ing.com'],
       ['Siwar HOSNI',        's.hosni@sozais-ing.com'],
       ['Marion CESA',        'm.cesa@sozais-ing.com'],
-      ['IT SOZAIS',          'it@sozais-ing.com'],
     ];
     for (const [name, email] of emailsMap) {
       await pool.query(

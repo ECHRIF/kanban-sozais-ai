@@ -2605,7 +2605,11 @@ function App() {
   }, []);
   useEffect(() => {
     if (tick % 10 !== 0 || tick === 0) return;
-    Object.entries(allRef.current).forEach(([n, t]) => { if (t.some((x) => x.timerRunning)) saveTasks(n, t); });
+    // Seul le propriétaire sauvegarde son propre timer (évite que l'admin écrase
+    // le timer d'un collègue avec une vue périmée)
+    if (!user) return;
+    const myTasks = allRef.current[user.name];
+    if (myTasks && myTasks.some((x) => x.timerRunning)) saveTasks(user.name, myTasks);
   }, [tick]);
 
   // ─── refetchAll : recharger toutes les tâches (après actions IA) ──
