@@ -17,7 +17,8 @@
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.6.5",
     "node-cron": "^3.0.3",
-    "nodemailer": "^6.9.14"
+    "nodemailer": "^6.9.14",
+    "resend": "^3.2.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

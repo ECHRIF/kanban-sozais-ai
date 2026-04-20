@@ -11,6 +11,7 @@ const cors       = require("cors");
 const path       = require("path");
 const Groq       = require("groq-sdk");
 const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 const cron       = require("node-cron");
 const bcrypt     = require("bcrypt");
 const jwt        = require("jsonwebtoken");
@@ -349,30 +350,25 @@ const groq = process.env.GROQ_API_KEY
   ? new Groq({ apiKey: process.env.GROQ_API_KEY })
   : null;
 
-// ─── Mailer ───────────────────────────────────────────────────
-let mailer = null;
-if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-  mailer = nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || "smtp.gmail.com",
-    port: parseInt(process.env.EMAIL_PORT || "587"),
-    secure: false,
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-  });
-  // Vérification SMTP au démarrage
-  mailer.verify((err) => {
-    if (err) {
-      console.warn("⚠️  Mailer SMTP — connexion échouée :", err.message);
-    } else {
-      console.log("✅ Mailer SMTP OK →", process.env.EMAIL_USER, `(${process.env.EMAIL_HOST || "smtp.gmail.com"}:${process.env.EMAIL_PORT || 587})`);
-    }
-  });
+// ─── Mailer (Resend API — HTTP, pas SMTP) ─────────────────────
+// Railway bloque les ports SMTP (587/465). On utilise l'API Resend
+// qui passe par HTTPS (port 443), toujours ouvert.
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
+
+if (resend) {
+  console.log("✅ Mailer Resend configuré (API HTTP)");
 } else {
-  console.warn("⚠️  Mailer non configuré — EMAIL_USER ou EMAIL_PASS manquant");
+  console.warn("⚠️  Mailer non configuré — RESEND_API_KEY manquant");
 }
+
+// Adresse d'envoi : domaine vérifié sur Resend, ou adresse par défaut
+const FROM_EMAIL = process.env.RESEND_FROM || "Kanban SOZAIS <onboarding@resend.dev>";
 
 // ─── Envoi email de notification (async, non-bloquant) ────────
 async function sendNotifEmail(recipient, taskTitle, project, fromName, type = 'new_task') {
-  if (!mailer) return;
+  if (!resend) return;
   try {
     const [rows] = await pool.query("SELECT email FROM employees WHERE name = ?", [recipient]);
     const email = rows[0]?.email;
@@ -402,12 +398,13 @@ async function sendNotifEmail(recipient, taskTitle, project, fromName, type = 'n
         <p style="margin-top:24px;font-size:10px;color:#334155">Vous recevez cet email car une tâche vous a été assignée sur le Kanban SOZAIS.</p>
       </div>`;
 
-    await mailer.sendMail({
-      from: `"Kanban SOZAIS" <${process.env.EMAIL_USER}>`,
+    const { error } = await resend.emails.send({
+      from: FROM_EMAIL,
       to: email,
       subject,
       html,
     });
+    if (error) throw new Error(error.message);
     console.log(`   📧 Notif email envoyée → ${email}`);
   } catch (e) {
     console.warn("   ⚠️  sendNotifEmail :", e.message);
