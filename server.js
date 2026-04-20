@@ -20,6 +20,10 @@ const crypto     = require("crypto");
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+// ─── Trust proxy (Railway / load-balancer) ────────────────────
+// Sans ça, express-rate-limit génère une ValidationError sur X-Forwarded-For
+app.set("trust proxy", 1);
+
 const JWT_SECRET      = process.env.JWT_SECRET || (() => { console.warn("⚠️  JWT_SECRET non défini — utilisation d'une clé temporaire (non sécurisé en production)"); return crypto.randomBytes(64).toString("hex"); })();
 const BCRYPT_ROUNDS   = 12;
 const DEFAULT_PASSWORD = "kanban2026";
@@ -346,14 +350,25 @@ const groq = process.env.GROQ_API_KEY
   : null;
 
 // ─── Mailer ───────────────────────────────────────────────────
-const mailer = (process.env.EMAIL_USER && process.env.EMAIL_PASS)
-  ? nodemailer.createTransport({
-      host: process.env.EMAIL_HOST || "smtp.gmail.com",
-      port: parseInt(process.env.EMAIL_PORT || "587"),
-      secure: false,
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-    })
-  : null;
+let mailer = null;
+if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+  mailer = nodemailer.createTransport({
+    host: process.env.EMAIL_HOST || "smtp.gmail.com",
+    port: parseInt(process.env.EMAIL_PORT || "587"),
+    secure: false,
+    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+  });
+  // Vérification SMTP au démarrage
+  mailer.verify((err) => {
+    if (err) {
+      console.warn("⚠️  Mailer SMTP — connexion échouée :", err.message);
+    } else {
+      console.log("✅ Mailer SMTP OK →", process.env.EMAIL_USER, `(${process.env.EMAIL_HOST || "smtp.gmail.com"}:${process.env.EMAIL_PORT || 587})`);
+    }
+  });
+} else {
+  console.warn("⚠️  Mailer non configuré — EMAIL_USER ou EMAIL_PASS manquant");
+}
 
 // ─── Envoi email de notification (async, non-bloquant) ────────
 async function sendNotifEmail(recipient, taskTitle, project, fromName, type = 'new_task') {
