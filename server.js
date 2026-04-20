@@ -216,12 +216,18 @@ const pool = mysql.createPool({
         INDEX idx_created (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
-    // Migration : ajouter created_by dans tasks si absent
+    // Migration : ajouter created_by et start_date dans tasks si absents
     const [cbCols] = await conn.query(
       `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tasks' AND COLUMN_NAME='created_by'`
     );
     if (cbCols[0].cnt === 0) {
       await conn.query(`ALTER TABLE tasks ADD COLUMN created_by VARCHAR(200) DEFAULT NULL`);
+    }
+    const [sdCols] = await conn.query(
+      `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tasks' AND COLUMN_NAME='start_date'`
+    );
+    if (sdCols[0].cnt === 0) {
+      await conn.query(`ALTER TABLE tasks ADD COLUMN start_date VARCHAR(20) DEFAULT NULL`);
     }
 
     // ─── Données initiales employees ──────────────────────────
@@ -1108,6 +1114,8 @@ app.get("/api/tasks/:ownerName", authenticate, async (req, res) => {
       timerStartedAt: r.timer_started_at ? Number(r.timer_started_at) : null,
       createdAt:      r.created_at     || new Date().toISOString(),
       revenueAmount:  parseFloat(r.revenue_amount) || 0,
+      startDate:      r.start_date     || "",
+      createdBy:      r.created_by     || "",
     }));
     res.json(tasks);
   } catch (err) {
@@ -1153,10 +1161,11 @@ app.post("/api/tasks/:ownerName", authenticate, async (req, res) => {
           preserveTimer ? dbRunning.timer_started_at : (t.timerStartedAt || null),
           t.createdAt || new Date().toISOString(), parseFloat(t.revenueAmount) || 0,
           t.createdBy || actor || null,
+          t.startDate || null,
         ];
       });
       await conn.query(
-        `INSERT INTO tasks (id, owner_name, title, project, description, priority, column_id, deadline, estimated_hours, timer_seconds, timer_running, timer_started_at, created_at, revenue_amount, created_by) VALUES ?`,
+        `INSERT INTO tasks (id, owner_name, title, project, description, priority, column_id, deadline, estimated_hours, timer_seconds, timer_running, timer_started_at, created_at, revenue_amount, created_by, start_date) VALUES ?`,
         [values]
       );
 

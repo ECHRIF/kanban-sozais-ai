@@ -1177,7 +1177,8 @@ function Modal({ task, onSave, onClose, onDelete, poleMembers }) {
               </select>
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 }}>
+            <div><label style={lBase}>Démarrage</label><input type="date" value={f.startDate || ""} onChange={(e) => setF({ ...f, startDate: e.target.value })} style={iBase} /></div>
             <div><label style={lBase}>Échéance</label><input type="date" value={f.deadline} onChange={(e) => setF({ ...f, deadline: e.target.value })} style={iBase} /></div>
             <div><label style={lBase}>Heures estimées</label><input type="number" value={f.estimatedHours} onChange={(e) => setF({ ...f, estimatedHours: e.target.value })} min="0" step="0.5" style={iBase} /></div>
           </div>
@@ -1263,6 +1264,7 @@ function Card({ task, onClick, owner, onTimerToggle, onDuplicate, onReassignDire
       )}
       <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", marginBottom: 6 }}>
         <span style={{ fontSize: 9, padding: "2px 7px", borderRadius: 99, background: (p ? p.color : TXT3) + "22", color: p ? p.color : TXT3, fontWeight: 600 }}>{p ? p.icon : ""} {p ? p.label : ""}</span>
+        {task.startDate && <span style={{ fontSize: 9, color: TXT3, fontWeight: 400 }}>🟢 {new Date(task.startDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}</span>}
         {task.deadline && <span style={{ fontSize: 9, color: od ? RED : TXT3, fontWeight: od ? 700 : 400 }}>{od ? "⚠️" : "📅"} {new Date(task.deadline).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}</span>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -2274,7 +2276,9 @@ function GanttView({ user, empList, all, tick }) {
     for (const task of sorted) {
       const dlDate = task.deadline ? new Date(task.deadline) : null;
       if (dlDate) dlDate.setHours(0,0,0,0);
-      const barStart = Math.max(0, dayIdx(today) - 1);
+      const sdDate = task.startDate ? new Date(task.startDate) : null;
+      if (sdDate) sdDate.setHours(0,0,0,0);
+      const barStart = sdDate ? Math.max(0, dayIdx(sdDate)) : Math.max(0, dayIdx(today) - 1);
       const barEnd   = dlDate ? Math.min(TOTAL_DAYS - 1, dayIdx(dlDate)) : Math.min(TOTAL_DAYS - 1, dayIdx(today) + 4);
       const width = Math.max(1, barEnd - barStart);
       let placed = false;
@@ -3032,17 +3036,10 @@ function App() {
 
           <div style={{ fontSize: 9, color: TXT3, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1, padding: "12px 14px 4px" }}>Données</div>
 
-          <button onClick={() => exportToExcel(getExportData(), empList)}
+          <button onClick={() => setImportModal(true)}
             style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background:"none", border:"none", borderLeft:"3px solid transparent", color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
-            <span style={{ fontSize:15 }}>📤</span> Export Excel
+            <span style={{ fontSize:15 }}>📥</span> Import Excel
           </button>
-
-          {(user.isAdmin || user.isChef) && (
-            <button onClick={() => setImportModal(true)}
-              style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background:"none", border:"none", borderLeft:"3px solid transparent", color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
-              <span style={{ fontSize:15 }}>📥</span> Import Excel
-            </button>
-          )}
 
           {user.isAdmin && (
             <button onClick={() => setEmpModal(true)}
@@ -3157,7 +3154,7 @@ function App() {
       {profitabilityOpen && user.isAdmin && <ProfitabilityModal onClose={() => setProfitabilityOpen(false)} />}
       {kpiOpen && (user.isAdmin || user.isChef) && <KPIPickerModal employees={empList} evaluator={user} criteria={kpiCriteria} onClose={() => setKpiOpen(false)} />}
       {fixedCostsOpen && user.isAdmin && <FixedCostsModal onClose={() => setFixedCostsOpen(false)} />}
-      {importModal && (user.isAdmin || user.isChef) && <ImportExcelModal employees={empList} allTasks={all} onImport={handleImport} onClose={() => setImportModal(false)} />}
+      {importModal && <ImportExcelModal employees={empList} allTasks={all} onImport={handleImport} onClose={() => setImportModal(false)} />}
       {workloadOpen && <WorkloadModal onClose={() => setWorkloadOpen(false)} />}
       {reportOpen && <ReportModal onClose={() => setReportOpen(false)} />}
       {chatOpen && <AIChatPanel user={user} onClose={() => setChatOpen(false)} onAction={refetchAll} />}
