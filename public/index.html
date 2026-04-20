@@ -1295,7 +1295,7 @@ function Card({ task, onClick, owner, onTimerToggle, onDuplicate, onReassignDire
 }
 
 // ─── Column ───
-function KCol({ col, tasks, owner, onAdd, onEdit, onDrop, ro, onTimerToggle, onDuplicate, tick }) {
+function KCol({ col, tasks, owner, onAdd, onEdit, onDrop, ro, onTimerToggle, onDuplicate, onReassignDirect, poleMembers, tick }) {
   const [ov, setOv] = useState(false);
   const ct = tasks.filter((t) => t.column === col.id);
   return (
@@ -1313,7 +1313,7 @@ function KCol({ col, tasks, owner, onAdd, onEdit, onDrop, ro, onTimerToggle, onD
       </div>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 7, padding: 2, borderRadius: 8, minHeight: 80, background: ov ? col.color + "11" : "transparent", border: ov ? "1px dashed " + col.color + "55" : "1px dashed transparent" }}>
         {ct.map((t) => (
-          <Card key={t.id} task={t} onClick={ro ? () => {} : onEdit} owner={owner} onTimerToggle={ro ? () => {} : onTimerToggle} onDuplicate={ro ? () => {} : onDuplicate} tick={tick} />
+          <Card key={t.id} task={t} onClick={ro ? () => {} : onEdit} owner={owner} onTimerToggle={ro ? () => {} : onTimerToggle} onDuplicate={ro ? () => {} : onDuplicate} onReassignDirect={ro ? () => {} : onReassignDirect} poleMembers={ro ? null : poleMembers} tick={tick} />
         ))}
       </div>
     </div>
@@ -3128,7 +3128,7 @@ function App() {
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                     {directionMembers.map((m) => (
-                      <Board key={m.name} name={m.name} tasks={filteredAll[m.name] || []} onUpdate={upd} ro={false} showName={true} onToggleTimer={toggleTimer} tick={tick} poleMembers={null} onReassign={null} onPrioritize={handlePrioritize} prioritizing={prioritizing} creator={user.name} />
+                      <Board key={m.name} name={m.name} tasks={filteredAll[m.name] || []} onUpdate={upd} ro={false} showName={true} onToggleTimer={toggleTimer} tick={tick} poleMembers={empList.filter(e => e.name !== m.name)} onReassign={reassign} onPrioritize={handlePrioritize} prioritizing={prioritizing} creator={user.name} />
                     ))}
                   </div>
                 </div>
@@ -3137,7 +3137,7 @@ function App() {
           )
           : (
             <div style={{ flex: 1, overflow: "auto", padding: 20 }}>
-              <Board name={user.name} tasks={filteredMy} onUpdate={upd} ro={false} showName={false} onToggleTimer={toggleTimer} tick={tick} poleMembers={null} onReassign={null} creator={user.name} />
+              <Board name={user.name} tasks={filteredMy} onUpdate={upd} ro={false} showName={false} onToggleTimer={toggleTimer} tick={tick} poleMembers={empList.filter(e => e.name !== user.name)} onReassign={reassign} creator={user.name} />
             </div>
           )
       }
