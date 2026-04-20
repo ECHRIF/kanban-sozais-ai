@@ -355,6 +355,50 @@ const mailer = (process.env.EMAIL_USER && process.env.EMAIL_PASS)
     })
   : null;
 
+// ─── Envoi email de notification (async, non-bloquant) ────────
+async function sendNotifEmail(recipient, taskTitle, project, fromName, type = 'new_task') {
+  if (!mailer) return;
+  try {
+    const [rows] = await pool.query("SELECT email FROM employees WHERE name = ?", [recipient]);
+    const email = rows[0]?.email;
+    if (!email) return;
+
+    const subject = type === 'new_task'
+      ? `📋 Nouvelle tâche assignée : ${taskTitle}`
+      : `🔔 Kanban SOZAIS : notification`;
+
+    const projectLine = project ? `<p style="margin:0 0 8px;color:#94a3b8;font-size:13px;">📁 Projet : <strong style="color:#e2e8f0">${project}</strong></p>` : '';
+
+    const html = `
+      <div style="font-family:sans-serif;background:#0f172a;color:#e2e8f0;padding:32px;border-radius:12px;max-width:500px;margin:auto">
+        <div style="font-size:22px;font-weight:700;margin-bottom:4px">Kanban <span style="color:#38bdf8">SOZAIS</span></div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:24px;border-bottom:1px solid #1e293b;padding-bottom:16px">Gestion de projets & équipes</div>
+
+        <div style="background:#1e293b;border-radius:10px;padding:20px;margin-bottom:20px;border-left:4px solid #38bdf8">
+          <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#f1f5f9">📋 ${taskTitle}</p>
+          ${projectLine}
+          <p style="margin:0;color:#94a3b8;font-size:13px">✏️ Assignée par <strong style="color:#e2e8f0">${fromName}</strong></p>
+        </div>
+
+        <a href="${APP_URL}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+          Ouvrir le Kanban →
+        </a>
+
+        <p style="margin-top:24px;font-size:10px;color:#334155">Vous recevez cet email car une tâche vous a été assignée sur le Kanban SOZAIS.</p>
+      </div>`;
+
+    await mailer.sendMail({
+      from: `"Kanban SOZAIS" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject,
+      html,
+    });
+    console.log(`   📧 Notif email envoyée → ${email}`);
+  } catch (e) {
+    console.warn("   ⚠️  sendNotifEmail :", e.message);
+  }
+}
+
 function requireAI(res) {
   if (!groq) {
     res.status(503).json({ error: "Clé GROQ_API_KEY manquante dans .env" });
@@ -1169,7 +1213,7 @@ app.post("/api/tasks/:ownerName", authenticate, async (req, res) => {
         [values]
       );
 
-      // Créer des notifications pour les nouvelles tâches ajoutées par quelqu'un d'autre
+      // Créer des notifications + envoyer emails pour les nouvelles tâches assignées
       if (actor && actor !== ownerName) {
         const newTasks = tasks.filter(t => !existingIds.has(t.id));
         if (newTasks.length > 0) {
@@ -1180,6 +1224,10 @@ app.post("/api/tasks/:ownerName", authenticate, async (req, res) => {
             `INSERT INTO notifications (recipient, type, task_id, task_title, project, from_name) VALUES ?`,
             [notifValues]
           );
+          // Envoi email (async — ne bloque pas la réponse HTTP)
+          for (const t of newTasks) {
+            sendNotifEmail(ownerName, t.title || "Sans titre", t.project || "", actor, 'new_task');
+          }
         }
       }
     }
