@@ -2679,13 +2679,24 @@ function App() {
     setAll((p) => { saveTasks(n, tasks); return { ...p, [n]: tasks }; });
   }, []);
 
-  const reassign = useCallback((fromName, toName, task) => {
+  const reassign = useCallback(async (fromName, toName, task) => {
+    try {
+      // Appel API ciblé : UPDATE owner_name uniquement, sans écraser les tâches existantes
+      await authFetch(`/api/tasks/${encodeURIComponent(task.id)}/reassign`, {
+        method: 'PATCH',
+        body: JSON.stringify({ newOwner: toName }),
+      });
+    } catch (e) { console.error("reassign failed", e); return; }
+
+    // Mettre à jour l'état local
     setAll((prev) => {
       const fromTasks = (prev[fromName] || []).filter((t) => t.id !== task.id);
-      const toTasks = [...(prev[toName] || []), task];
-      saveTasks(fromName, fromTasks);
-      saveTasks(toName, toTasks);
-      return { ...prev, [fromName]: fromTasks, [toName]: toTasks };
+      // Si les tâches de la cible sont déjà chargées, on les met à jour localement
+      const prevTo = prev[toName];
+      const toTasks = prevTo ? [...prevTo.filter(t => t.id !== task.id), { ...task, owner_name: toName }] : undefined;
+      const next = { ...prev, [fromName]: fromTasks };
+      if (toTasks !== undefined) next[toName] = toTasks;
+      return next;
     });
   }, []);
 

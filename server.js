@@ -1180,6 +1180,42 @@ app.get("/api/tasks/:ownerName", authenticate, async (req, res) => {
   }
 });
 
+// ─── PATCH /api/tasks/:taskId/reassign ───────────────────────────────────────
+// Réaffecte une tâche à un nouveau propriétaire sans toucher aux autres tâches.
+// Body: { newOwner: "Nom Prenom" }
+app.patch("/api/tasks/:taskId/reassign", authenticate, async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { newOwner } = req.body;
+    const actor = req.user?.name || null;
+    if (!newOwner) return res.status(400).json({ error: "newOwner requis" });
+
+    const [rows] = await pool.query("SELECT * FROM tasks WHERE id = ?", [taskId]);
+    if (!rows.length) return res.status(404).json({ error: "Tâche introuvable" });
+    const task = rows[0];
+    const oldOwner = task.owner_name;
+
+    const [emp] = await pool.query("SELECT name FROM employees WHERE name = ?", [newOwner]);
+    if (!emp.length) return res.status(404).json({ error: `Collaborateur introuvable: "${newOwner}"` });
+
+    await pool.query("UPDATE tasks SET owner_name = ? WHERE id = ?", [newOwner, taskId]);
+
+    // Notification + email au nouveau propriétaire
+    if (actor && actor !== newOwner) {
+      await pool.query(
+        `INSERT INTO notifications (recipient, type, task_id, task_title, project, from_name) VALUES (?, 'new_task', ?, ?, ?, ?)`,
+        [newOwner, taskId, task.title || "Sans titre", task.project || "", actor]
+      );
+      sendNotifEmail(newOwner, task.title || "Sans titre", task.project || "", actor, 'new_task');
+    }
+
+    res.json({ ok: true, taskId, from: oldOwner, to: newOwner, title: task.title });
+  } catch (err) {
+    console.error("PATCH /api/tasks/reassign", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/api/tasks/:ownerName", authenticate, async (req, res) => {
   const conn = await pool.getConnection();
   try {
