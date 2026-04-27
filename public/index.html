@@ -2789,6 +2789,55 @@ function App() {
     return { [user.name]: all[user.name] || [] };
   };
 
+  // ── Export Excel (Super Admin uniquement) ──────────────────
+  const exportExcel = () => {
+    const colLabels = { todo: "À faire", in_progress: "En cours", review: "En révision", done: "Terminé" };
+    const prioLabels = { low: "Basse", medium: "Moyenne", high: "Haute", urgent: "Urgente" };
+    const fmtSeconds = (s) => {
+      const h = Math.floor((s || 0) / 3600);
+      const m = Math.floor(((s || 0) % 3600) / 60);
+      return h > 0 ? `${h}h${m.toString().padStart(2,"0")}` : `${m}min`;
+    };
+
+    const rows = [];
+    Object.entries(all).forEach(([ownerName, tasks]) => {
+      const emp = empList.find(e => e.name === ownerName);
+      (tasks || []).forEach(t => {
+        rows.push({
+          "Collaborateur":       ownerName,
+          "Pôle":                emp ? emp.pole : "",
+          "Titre":               t.title || "",
+          "Projet":              t.project || "",
+          "Description":         t.description || "",
+          "Priorité":            prioLabels[t.priority] || t.priority || "",
+          "Statut":              colLabels[t.column] || t.column || "",
+          "Date début":          t.startDate ? new Date(t.startDate).toLocaleDateString("fr-FR") : "",
+          "Échéance":            t.deadline ? new Date(t.deadline).toLocaleDateString("fr-FR") : "",
+          "Heures estimées":     t.estimatedHours ? parseFloat(t.estimatedHours) : "",
+          "Temps passé":         t.timerSeconds ? fmtSeconds(t.timerSeconds) : "0min",
+          "Créé par":            t.createdBy || "",
+          "Date de création":    t.createdAt ? new Date(t.createdAt).toLocaleDateString("fr-FR") : "",
+          "En retard":           t.deadline && new Date(t.deadline) < new Date() && t.column !== "done" ? "Oui" : "Non",
+        });
+      });
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    // Largeurs de colonnes
+    ws["!cols"] = [
+      { wch: 24 }, { wch: 12 }, { wch: 35 }, { wch: 20 }, { wch: 40 },
+      { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 },
+      { wch: 12 }, { wch: 22 }, { wch: 16 }, { wch: 10 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Tâches SOZAIS");
+
+    const date = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `Kanban_SOZAIS_${date}.xlsx`);
+  };
+
   if (!user && showLanding) return <LandingPage onLogin={() => setShowLanding(false)} />;
   if (!user) return <LoginScreen onLogin={(u) => { setUser(u); setShowLanding(false); }} employees={empList} onBack={() => setShowLanding(true)} />;
 
@@ -3051,6 +3100,13 @@ function App() {
             style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background:"none", border:"none", borderLeft:"3px solid transparent", color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
             <span style={{ fontSize:15 }}>📥</span> Import Excel
           </button>
+
+          {user.isAdmin && (
+            <button onClick={exportExcel}
+              style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background:"none", border:"none", borderLeft:"3px solid transparent", color:GREEN, fontSize:13, cursor:"pointer", textAlign:"left", fontWeight:600 }}>
+              <span style={{ fontSize:15 }}>📤</span> Export Excel
+            </button>
+          )}
 
           {user.isAdmin && (
             <button onClick={() => setEmpModal(true)}
