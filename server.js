@@ -221,18 +221,21 @@ const pool = mysql.createPool({
         INDEX idx_created (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
-    // Migration : ajouter created_by et start_date dans tasks si absents
-    const [cbCols] = await conn.query(
-      `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tasks' AND COLUMN_NAME='created_by'`
-    );
-    if (cbCols[0].cnt === 0) {
-      await conn.query(`ALTER TABLE tasks ADD COLUMN created_by VARCHAR(200) DEFAULT NULL`);
-    }
-    const [sdCols] = await conn.query(
-      `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tasks' AND COLUMN_NAME='start_date'`
-    );
-    if (sdCols[0].cnt === 0) {
-      await conn.query(`ALTER TABLE tasks ADD COLUMN start_date VARCHAR(20) DEFAULT NULL`);
+    // Migration : ajouter les colonnes manquantes dans tasks
+    const taskMigrations = [
+      ['project',    `ALTER TABLE tasks ADD COLUMN project    VARCHAR(300) DEFAULT ''`],
+      ['created_by', `ALTER TABLE tasks ADD COLUMN created_by VARCHAR(200) DEFAULT NULL`],
+      ['start_date', `ALTER TABLE tasks ADD COLUMN start_date VARCHAR(20)  DEFAULT NULL`],
+    ];
+    for (const [col, sql] of taskMigrations) {
+      const [rows] = await conn.query(
+        `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tasks' AND COLUMN_NAME=?`,
+        [col]
+      );
+      if (rows[0].cnt === 0) {
+        await conn.query(sql);
+        console.log(`✅ Migration tasks: ajout colonne ${col}`);
+      }
     }
 
     // ─── Données initiales employees ──────────────────────────
