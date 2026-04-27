@@ -2682,27 +2682,30 @@ function App() {
   useEffect(() => { sidePrioRef.current   = sidePrio;   }, [sidePrio]);
 
   const upd = useCallback((n, newTasks) => {
-    setAll((p) => {
-      const existing = p[n] || [];
-      const search = sideSearchRef.current;
-      const prio   = sidePrioRef.current;
+    // Lire l'état courant via allRef (toujours à jour) — évite les closures périmées
+    const existing = allRef.current[n] || [];
+    const search = sideSearchRef.current;
+    const prio   = sidePrioRef.current;
 
-      // Reconstruire quelles tâches le Board pouvait voir (filtre actif)
-      const wasVisible = (t) => {
-        const ms = !search || t.title.toLowerCase().includes(search.toLowerCase()) || (t.project || "").toLowerCase().includes(search.toLowerCase());
-        const mp = prio === "all" || t.priority === prio;
-        return ms && mp;
-      };
-      const visibleIds = new Set(existing.filter(wasVisible).map(t => t.id));
+    // Reconstruire quelles tâches le Board pouvait voir (filtre actif)
+    const wasVisible = (t) => {
+      const ms = !search || (t.title || "").toLowerCase().includes(search.toLowerCase()) || (t.project || "").toLowerCase().includes(search.toLowerCase());
+      const mp = prio === "all" || t.priority === prio;
+      return ms && mp;
+    };
+    const visibleIds = new Set(existing.filter(wasVisible).map(t => t.id));
 
-      // Conserver les tâches que le Board ne voyait pas (hors filtre) — elles n'ont pas changé
-      const hidden = existing.filter(t => !visibleIds.has(t.id));
+    // Conserver les tâches que le Board ne voyait pas (hors filtre) — elles n'ont pas changé
+    const hidden = existing.filter(t => !visibleIds.has(t.id));
 
-      // Fusionner : modifications du Board + tâches cachées préservées
-      const merged = [...newTasks, ...hidden];
-      saveTasks(n, merged);
-      return { ...p, [n]: merged };
-    });
+    // Fusionner : modifications du Board + tâches cachées préservées
+    const merged = [...newTasks, ...hidden];
+
+    // saveTasks DOIT être appelé en dehors du setAll updater — en React 18 concurrent mode,
+    // les updaters peuvent s'exécuter plusieurs fois (pureté requise), donc tout effet de bord
+    // (appel réseau, sauvegarde) doit être hors du updater pour être fiable.
+    saveTasks(n, merged);
+    setAll((p) => ({ ...p, [n]: merged }));
   }, []);
 
   const reassign = useCallback(async (fromName, toName, task) => {
