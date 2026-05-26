@@ -1122,9 +1122,9 @@ async function generateAndSendReport() {
   });
 
   const reportText = response.choices[0].message.content;
-  if (mailer && process.env.REPORT_EMAIL) {
-    await mailer.sendMail({
-      from:    process.env.EMAIL_USER,
+  if (resend && process.env.REPORT_EMAIL) {
+    await resend.emails.send({
+      from:    FROM_EMAIL,
       to:      process.env.REPORT_EMAIL,
       subject: `📊 Rapport hebdomadaire SOZAIS — ${today}`,
       text:    reportText,
@@ -1138,7 +1138,7 @@ app.post("/api/ai/weekly-report", authenticate, async (req, res) => {
   if (!requireAI(res)) return;
   try {
     const report = await generateAndSendReport();
-    res.json({ report, sent: !!(mailer && process.env.REPORT_EMAIL) });
+    res.json({ report, sent: !!(resend && process.env.REPORT_EMAIL) });
   } catch (err) {
     console.error("POST /api/ai/weekly-report", err);
     res.status(500).json({ error: err.message });
