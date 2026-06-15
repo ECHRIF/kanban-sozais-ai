@@ -1122,23 +1122,30 @@ async function generateAndSendReport() {
   });
 
   const reportText = response.choices[0].message.content;
+  let emailResult = null;
   if (resend && process.env.REPORT_EMAIL) {
-    await resend.emails.send({
+    emailResult = await resend.emails.send({
       from:    FROM_EMAIL,
       to:      process.env.REPORT_EMAIL,
       subject: `📊 Rapport hebdomadaire SOZAIS — ${today}`,
       text:    reportText,
       html:    `<pre style="font-family:Arial,sans-serif;white-space:pre-wrap;line-height:1.6">${reportText}</pre>`,
     });
+    console.log("📧 Resend result:", JSON.stringify(emailResult));
   }
-  return reportText;
+  return { reportText, emailResult };
 }
 
 app.post("/api/ai/weekly-report", authenticate, async (req, res) => {
   if (!requireAI(res)) return;
   try {
-    const report = await generateAndSendReport();
-    res.json({ report, sent: !!(resend && process.env.REPORT_EMAIL) });
+    const { reportText, emailResult } = await generateAndSendReport();
+    res.json({
+      report: reportText,
+      sent: !!(resend && process.env.REPORT_EMAIL),
+      resend: emailResult,
+      to: process.env.REPORT_EMAIL || null
+    });
   } catch (err) {
     console.error("POST /api/ai/weekly-report", err);
     res.status(500).json({ error: err.message });
