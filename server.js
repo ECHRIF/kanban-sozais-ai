@@ -223,6 +223,22 @@ const pool = mysql.createPool({
         INDEX idx_created (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS report_snapshots (
+        id                INT UNSIGNED   AUTO_INCREMENT NOT NULL,
+        snapshot_date     VARCHAR(20)    NOT NULL,
+        owner_name        VARCHAR(200)   NOT NULL,
+        done_count        INT            DEFAULT 0,
+        in_progress_count INT            DEFAULT 0,
+        overdue_count     INT            DEFAULT 0,
+        total_count       INT            DEFAULT 0,
+        hours_total       DECIMAL(8,1)   DEFAULT 0,
+        created_at        DATETIME       DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_snapshot (snapshot_date, owner_name),
+        INDEX idx_owner (owner_name)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
     // Migration : ajouter les colonnes manquantes dans tasks
     const taskMigrations = [
       ['project',    `ALTER TABLE tasks ADD COLUMN project    VARCHAR(300) DEFAULT ''`],
@@ -441,6 +457,52 @@ async function getAllData() {
     });
   });
   return { employees, byOwner };
+}
+
+// ─── Liste des pôles distincts présents dans l'équipe ──────────
+function getPoles(employees) {
+  const order = ["Fluide", "Élec"]; // ordre d'affichage privilégié
+  const all = [...new Set(employees.map(e => e.pole).filter(Boolean))];
+  return [
+    ...order.filter(p => all.includes(p)),
+    ...all.filter(p => !order.includes(p)).sort(),
+  ];
+}
+
+// ─── Snapshots hebdomadaires (pour comparaison semaine vs semaine) ─
+async function getPreviousSnapshot(beforeDateKey) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT * FROM report_snapshots WHERE snapshot_date < ? ORDER BY snapshot_date DESC LIMIT 500`,
+      [beforeDateKey]
+    );
+    if (!rows.length) return null;
+    const lastDate = rows[0].snapshot_date;
+    const byOwner = {};
+    rows.filter(r => r.snapshot_date === lastDate).forEach(r => { byOwner[r.owner_name] = r; });
+    return { date: lastDate, byOwner };
+  } catch (err) {
+    console.error("⚠️ getPreviousSnapshot:", err.message);
+    return null;
+  }
+}
+
+async function saveSnapshot(dateKey, metrics) {
+  try {
+    for (const m of metrics) {
+      await pool.query(
+        `INSERT INTO report_snapshots
+           (snapshot_date, owner_name, done_count, in_progress_count, overdue_count, total_count, hours_total)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           done_count=VALUES(done_count), in_progress_count=VALUES(in_progress_count),
+           overdue_count=VALUES(overdue_count), total_count=VALUES(total_count), hours_total=VALUES(hours_total)`,
+        [dateKey, m.name, m.done, m.inProgress, m.overdue, m.total, m.hours.toFixed(1)]
+      );
+    }
+  } catch (err) {
+    console.error("⚠️ saveSnapshot:", err.message);
+  }
 }
 
 // ─── Génération ID ────────────────────────────────────────────
@@ -1089,45 +1151,185 @@ app.post("/api/ai/prioritize/:ownerName", authenticate, async (req, res) => {
 
 // ─── API : Rapport hebdomadaire ───────────────────────────────
 // ─── Génération Excel ────────────────────────────────────────────
-async function generateExcelReport(employees, byOwner, today) {
+async function generateExcelReport(employees, byOwner, today, ctx = {}) {
+  const { metrics = [], team = {}, previous = null, topPerformer = null, overloaded = [] } = ctx;
+  const metricsByName = {};
+  metrics.forEach(m => { metricsByName[m.name] = m; });
+
   const wb = new ExcelJS.Workbook();
   wb.creator = "Kanban SOZAIS AI";
   wb.created = new Date();
 
-  // ── Feuille Résumé ──────────────────────────────────────────────
+  const NAVY = "FF1E3A5F", ACCENT = "FF2E6DA4", GREEN = "FF1F7A4D", RED = "FFC0392B";
+
+  // ════════════════════════════════════════════════════════════
+  // Feuille 1 : Tableau de bord
+  // ════════════════════════════════════════════════════════════
+  const dash = wb.addWorksheet("Tableau de bord");
+  dash.columns = [{ width: 3 }, { width: 32 }, { width: 22 }, { width: 22 }, { width: 3 }];
+
+  dash.mergeCells("B2:D2");
+  dash.getCell("B2").value = "📊 Rapport hebdomadaire SOZAIS";
+  dash.getCell("B2").font = { bold: true, size: 18, color: { argb: "FFFFFFFF" } };
+  dash.getCell("B2").fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
+  dash.getCell("B2").alignment = { horizontal: "center", vertical: "middle" };
+  dash.getRow(2).height = 30;
+
+  dash.mergeCells("B3:D3");
+  dash.getCell("B3").value = today;
+  dash.getCell("B3").font = { italic: true, size: 11, color: { argb: "FF666666" } };
+  dash.getCell("B3").alignment = { horizontal: "center" };
+
+  const kpiRows = [
+    ["Taux de complétion global",        `${team.completionRate ?? 0}%`,              ACCENT],
+    ["Tâches terminées cette semaine",   `${team.doneThisWeek ?? 0}`,                  GREEN],
+    ["Heures travaillées cette semaine", `${(team.hoursThisWeek ?? 0).toFixed(1)} h`,  ACCENT],
+    ["Tâches en retard (équipe)",        `${team.totalOverdue ?? 0}`,                  team.totalOverdue ? RED : GREEN],
+  ];
+  let r = 5;
+  kpiRows.forEach(([label, value, color]) => {
+    dash.getCell(`B${r}`).value = label;
+    dash.getCell(`B${r}`).font = { size: 12, color: { argb: "FF333333" } };
+    dash.getCell(`C${r}`).value = value;
+    dash.getCell(`C${r}`).font = { bold: true, size: 16, color: { argb: color } };
+    dash.getCell(`C${r}`).alignment = { horizontal: "center" };
+    dash.getRow(r).height = 22;
+    r += 1;
+  });
+
+  r += 1;
+  dash.mergeCells(`B${r}:D${r}`);
+  dash.getCell(`B${r}`).value = "🏆 Meilleur performeur de la semaine";
+  dash.getCell(`B${r}`).font = { bold: true, size: 12, color: { argb: NAVY } };
+  r += 1;
+  dash.getCell(`B${r}`).value = topPerformer
+    ? `${topPerformer.name} — ${topPerformer.doneThisWeek} tâche(s) terminée(s)`
+    : "Aucune tâche terminée cette semaine";
+  dash.getCell(`B${r}`).font = { size: 12 };
+  r += 2;
+
+  dash.mergeCells(`B${r}:D${r}`);
+  dash.getCell(`B${r}`).value = "⚠️ Alertes de surcharge (plus de 40h cette semaine)";
+  dash.getCell(`B${r}`).font = { bold: true, size: 12, color: { argb: NAVY } };
+  r += 1;
+  if (overloaded.length) {
+    overloaded.forEach(m => {
+      dash.getCell(`B${r}`).value = `${m.name} — ${m.hoursThisWeek.toFixed(1)}h cette semaine`;
+      dash.getCell(`B${r}`).font = { size: 12, color: { argb: RED } };
+      r += 1;
+    });
+  } else {
+    dash.getCell(`B${r}`).value = "Aucune surcharge détectée.";
+    dash.getCell(`B${r}`).font = { size: 12, color: { argb: GREEN } };
+    r += 1;
+  }
+  r += 1;
+
+  dash.mergeCells(`B${r}:D${r}`);
+  dash.getCell(`B${r}`).value = previous
+    ? `Comparé au rapport du ${previous.date}`
+    : "Premier rapport — pas d'historique de comparaison encore.";
+  dash.getCell(`B${r}`).font = { italic: true, size: 11, color: { argb: "FF666666" } };
+
+  // ════════════════════════════════════════════════════════════
+  // Feuille 2 : Résumé
+  // ════════════════════════════════════════════════════════════
   const ws = wb.addWorksheet("Résumé");
   ws.columns = [
-    { header: "Collaborateur", key: "name",    width: 25 },
-    { header: "Pôle",         key: "pole",    width: 12 },
-    { header: "Rôle",         key: "role",    width: 18 },
-    { header: "Terminées",    key: "done",    width: 12 },
-    { header: "En cours",     key: "inprog",  width: 12 },
-    { header: "Total tâches", key: "total",   width: 13 },
-    { header: "En retard",    key: "overdue", width: 12 },
-    { header: "Heures trav.", key: "hours",   width: 14 },
+    { header: "Collaborateur",       key: "name",      width: 25 },
+    { header: "Pôle",                key: "pole",      width: 12 },
+    { header: "Rôle",                key: "role",      width: 18 },
+    { header: "Terminées",           key: "done",      width: 12 },
+    { header: "Terminées (semaine)", key: "doneWeek",  width: 17 },
+    { header: "En cours",            key: "inprog",    width: 12 },
+    { header: "Total tâches",        key: "total",     width: 13 },
+    { header: "En retard",           key: "overdue",   width: 12 },
+    { header: "Heures (total)",      key: "hours",     width: 14 },
+    { header: "Heures (semaine)",    key: "hoursWeek", width: 15 },
+    { header: "Taux complétion %",   key: "rate",      width: 16 },
   ];
 
-  // Style header
   ws.getRow(1).eachCell(cell => {
     cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
     cell.alignment = { horizontal: "center" };
   });
+  ws.views = [{ state: "frozen", ySplit: 1 }];
 
   employees.forEach(e => {
     const tasks   = byOwner[e.name] || [];
     const done    = tasks.filter(t => t.column === "done").length;
     const inProg  = tasks.filter(t => t.column === "in_progress").length;
     const overdue = tasks.filter(t => t.deadline && new Date(t.deadline) < new Date() && t.column !== "done").length;
-    const hours   = (tasks.reduce((s, t) => s + (t.timerSeconds || 0), 0) / 3600).toFixed(1);
-    const row = ws.addRow({ name: e.name, pole: e.pole, role: e.role, done, inprog: inProg, total: tasks.length, overdue, hours: parseFloat(hours) });
+    const hours   = tasks.reduce((s, t) => s + (t.timerSeconds || 0), 0) / 3600;
+    const m = metricsByName[e.name];
+    const doneWeek  = m ? m.doneThisWeek  : done;
+    const hoursWeek = m ? m.hoursThisWeek : hours;
+    const rate      = m ? m.completionRate : (tasks.length ? Math.round((done / tasks.length) * 100) : 0);
+
+    const row = ws.addRow({
+      name: e.name, pole: e.pole, role: e.role,
+      done, doneWeek, inprog: inProg, total: tasks.length, overdue,
+      hours: Math.round(hours * 10) / 10, hoursWeek: Math.round(hoursWeek * 10) / 10, rate,
+    });
     if (overdue > 0) row.getCell("overdue").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFE0E0" } };
     if (done > 0)    row.getCell("done").fill    = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0F0E0" } };
   });
 
-  // ── Feuilles par pôle ──────────────────────────────────────────
-  for (const pole of ["Fluide", "Élec"]) {
-    const wsPole = wb.addWorksheet(`Pôle ${pole}`);
+  ws.autoFilter = { from: "A1", to: "K1" };
+
+  const lastRow = employees.length + 1;
+  if (lastRow > 1) {
+    ws.addConditionalFormatting({
+      ref: `J2:J${lastRow}`,
+      rules: [{ type: "dataBar", cfvo: [{ type: "min" }, { type: "max" }], color: { argb: "FF638EC6" } }],
+    });
+    ws.addConditionalFormatting({
+      ref: `K2:K${lastRow}`,
+      rules: [{
+        type: "colorScale",
+        cfvo: [{ type: "min" }, { type: "percentile", value: 50 }, { type: "max" }],
+        color: [{ argb: "FFFF6B6B" }, { argb: "FFFFE066" }, { argb: "FF63C384" }],
+      }],
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // Feuille 3 : Classement (top performeurs)
+  // ════════════════════════════════════════════════════════════
+  const ranking = wb.addWorksheet("Classement");
+  ranking.columns = [
+    { header: "Rang",                key: "rank",      width: 8 },
+    { header: "Collaborateur",       key: "name",      width: 25 },
+    { header: "Pôle",                key: "pole",      width: 12 },
+    { header: "Terminées (semaine)", key: "doneWeek",  width: 18 },
+    { header: "Heures (semaine)",    key: "hoursWeek", width: 16 },
+    { header: "Taux complétion %",   key: "rate",      width: 16 },
+  ];
+  ranking.getRow(1).eachCell(cell => {
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ACCENT } };
+    cell.alignment = { horizontal: "center" };
+  });
+  ranking.views = [{ state: "frozen", ySplit: 1 }];
+
+  const sortedMetrics = [...metrics].sort((a, b) => b.doneThisWeek - a.doneThisWeek);
+  sortedMetrics.forEach((m, i) => {
+    const row = ranking.addRow({
+      rank: i + 1, name: m.name, pole: m.pole,
+      doneWeek: m.doneThisWeek, hoursWeek: Math.round(m.hoursThisWeek * 10) / 10, rate: m.completionRate,
+    });
+    if (i === 0)      row.getCell("rank").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFD700" } };
+    else if (i === 1) row.getCell("rank").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFC0C0C0" } };
+    else if (i === 2) row.getCell("rank").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFCD7F32" } };
+    if (m.hoursThisWeek > 40) row.getCell("hoursWeek").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFE0E0" } };
+  });
+
+  // ════════════════════════════════════════════════════════════
+  // Feuilles par pôle (dynamiques — tous les pôles réels)
+  // ════════════════════════════════════════════════════════════
+  for (const pole of getPoles(employees)) {
+    const wsPole = wb.addWorksheet(`Pôle ${pole}`.slice(0, 31));
     wsPole.columns = [
       { header: "Collaborateur", key: "name",     width: 25 },
       { header: "Titre tâche",   key: "title",    width: 35 },
@@ -1137,8 +1339,9 @@ async function generateExcelReport(employees, byOwner, today) {
     ];
     wsPole.getRow(1).eachCell(cell => {
       cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2E6DA4" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ACCENT } };
     });
+    wsPole.views = [{ state: "frozen", ySplit: 1 }];
     employees.filter(e => e.pole === pole).forEach(e => {
       (byOwner[e.name] || []).forEach(t => {
         wsPole.addRow({ name: e.name, title: t.title, column: t.column, priority: t.priority, deadline: t.deadline || "" });
@@ -1151,17 +1354,58 @@ async function generateExcelReport(employees, byOwner, today) {
 }
 
 // ─── Génération PowerPoint ────────────────────────────────────────
-async function generatePptReport(employees, byOwner, today, reportText) {
+async function generatePptReport(employees, byOwner, today, reportText, ctx = {}) {
+  const { metrics = [], team = {}, previous = null, topPerformer = null, overloaded = [] } = ctx;
+  const metricsByName = {};
+  metrics.forEach(m => { metricsByName[m.name] = m; });
+
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE";
   pptx.title = `Rapport SOZAIS — ${today}`;
 
-  const BLUE = "1E3A5F", LIGHT = "F0F4F8", WHITE = "FFFFFF", ACCENT = "2E6DA4";
+  const BLUE = "1E3A5F", LIGHT = "F0F4F8", WHITE = "FFFFFF", ACCENT = "2E6DA4", GREEN = "1F7A4D", RED = "C0392B";
 
+  // ── Slide titre ─────────────────────────────────────────────
   const titleSlide = pptx.addSlide();
   titleSlide.background = { color: BLUE };
   titleSlide.addText(`📊 Rapport Hebdomadaire`, { x: 1, y: 1.5, w: 11, h: 1.2, fontSize: 36, bold: true, color: WHITE, align: "center" });
   titleSlide.addText(`Équipe SOZAIS — ${today}`, { x: 1, y: 2.9, w: 11, h: 0.8, fontSize: 22, color: "B0C4DE", align: "center" });
+
+  // ── Slide Tableau de bord (KPI cards) ──────────────────────────
+  const dashSlide = pptx.addSlide();
+  dashSlide.background = { color: LIGHT };
+  dashSlide.addText("Tableau de bord", { x: 0.5, y: 0.3, w: 12, h: 0.7, fontSize: 24, bold: true, color: BLUE });
+
+  const kpiCards = [
+    { label: "Taux de complétion",      value: `${team.completionRate ?? 0}%`,             color: ACCENT },
+    { label: "Terminées cette semaine", value: `${team.doneThisWeek ?? 0}`,                 color: GREEN },
+    { label: "Heures cette semaine",    value: `${(team.hoursThisWeek ?? 0).toFixed(1)}h`,  color: ACCENT },
+    { label: "Tâches en retard",        value: `${team.totalOverdue ?? 0}`,                 color: team.totalOverdue ? RED : GREEN },
+  ];
+  const cardW = 2.9, gap = 0.25, startX = 0.5, cardY = 1.3, cardH = 1.6;
+  kpiCards.forEach((k, i) => {
+    const x = startX + i * (cardW + gap);
+    dashSlide.addShape(pptx.ShapeType.roundRect, { x, y: cardY, w: cardW, h: cardH, fill: { color: k.color }, line: { color: k.color }, rectRadius: 0.08 });
+    dashSlide.addText(k.value, { x, y: cardY + 0.15, w: cardW, h: 0.8, fontSize: 30, bold: true, color: WHITE, align: "center" });
+    dashSlide.addText(k.label, { x, y: cardY + 0.95, w: cardW, h: 0.5, fontSize: 12, color: WHITE, align: "center" });
+  });
+
+  dashSlide.addText(
+    topPerformer
+      ? `🏆 Meilleur performeur : ${topPerformer.name} (${topPerformer.doneThisWeek} tâche(s) terminée(s) cette semaine)`
+      : `🏆 Aucune tâche terminée cette semaine`,
+    { x: 0.5, y: 3.3, w: 12, h: 0.5, fontSize: 14, color: "333333", bold: true }
+  );
+  dashSlide.addText(
+    overloaded.length
+      ? `⚠️ Surcharge (>40h) : ${overloaded.map(m => `${m.name} (${m.hoursThisWeek.toFixed(1)}h)`).join(", ")}`
+      : `✅ Aucune surcharge détectée cette semaine`,
+    { x: 0.5, y: 3.8, w: 12, h: 0.6, fontSize: 14, color: overloaded.length ? RED : GREEN }
+  );
+  dashSlide.addText(
+    previous ? `Comparé au rapport du ${previous.date}` : `Premier rapport — pas d'historique encore`,
+    { x: 0.5, y: 4.5, w: 12, h: 0.4, fontSize: 11, italic: true, color: "777777" }
+  );
 
   // ── Slide Résumé exécutif ──────────────────────────────────────
   const execSlide = pptx.addSlide();
@@ -1170,8 +1414,46 @@ async function generatePptReport(employees, byOwner, today, reportText) {
   const execLines = reportText.split("\n").filter(l => l.trim()).slice(0, 6).join("\n");
   execSlide.addText(execLines, { x: 0.5, y: 1.1, w: 12, h: 4.5, fontSize: 14, color: "333333", valign: "top", wrap: true });
 
-  // ── Slides par pôle ──────────────────────────────────────────
-  for (const pole of ["Fluide", "Élec"]) {
+  // ── Slide Répartition des statuts (camembert) ──────────────────
+  const statusSlide = pptx.addSlide();
+  statusSlide.background = { color: WHITE };
+  statusSlide.addText("Répartition des tâches par statut", { x: 0.5, y: 0.2, w: 12, h: 0.7, fontSize: 22, bold: true, color: BLUE });
+  const remaining = Math.max(0, (team.totalTasks ?? 0) - (team.totalDone ?? 0) - (team.totalInProgress ?? 0));
+  statusSlide.addChart(
+    pptx.ChartType.pie,
+    [{ name: "Statuts", labels: ["Terminées", "En cours", "En retard", "Restantes"], values: [team.totalDone ?? 0, team.totalInProgress ?? 0, team.totalOverdue ?? 0, remaining] }],
+    { x: 3, y: 1.2, w: 7, h: 4.3, showLegend: true, legendPos: "r", chartColors: [GREEN, ACCENT, RED, "B0B0B0"] }
+  );
+
+  // ── Slide Heures par pôle (barres) ──────────────────────────────
+  const poles = getPoles(employees);
+  const hoursByPole = poles.map(p => metrics.filter(m => m.pole === p).reduce((s, m) => s + m.hours, 0));
+  const barSlide = pptx.addSlide();
+  barSlide.background = { color: WHITE };
+  barSlide.addText("Heures cumulées par pôle", { x: 0.5, y: 0.2, w: 12, h: 0.7, fontSize: 22, bold: true, color: BLUE });
+  barSlide.addChart(
+    pptx.ChartType.bar,
+    [{ name: "Heures", labels: poles, values: hoursByPole.map(h => Math.round(h * 10) / 10) }],
+    { x: 1, y: 1.1, w: 11, h: 4.3, barDir: "col", chartColors: [ACCENT] }
+  );
+
+  // ── Slide Évolution vs semaine précédente ───────────────────────
+  if (previous) {
+    const evoSlide = pptx.addSlide();
+    evoSlide.background = { color: LIGHT };
+    evoSlide.addText("Évolution vs semaine précédente", { x: 0.5, y: 0.2, w: 12, h: 0.7, fontSize: 22, bold: true, color: BLUE });
+    evoSlide.addText(`Comparaison avec le rapport du ${previous.date}`, { x: 0.5, y: 0.95, w: 12, h: 0.4, fontSize: 12, italic: true, color: "666666" });
+
+    const topMovers = [...metrics].sort((a, b) => b.doneThisWeek - a.doneThisWeek).slice(0, 8);
+    evoSlide.addChart(
+      pptx.ChartType.bar,
+      [{ name: "Tâches terminées cette semaine", labels: topMovers.map(m => m.name), values: topMovers.map(m => m.doneThisWeek) }],
+      { x: 0.7, y: 1.5, w: 11.5, h: 4, barDir: "col", chartColors: [GREEN] }
+    );
+  }
+
+  // ── Slides par pôle (dynamiques) ─────────────────────────────────
+  for (const pole of poles) {
     const poleEmps = employees.filter(e => e.pole === pole);
     const slide = pptx.addSlide();
     slide.background = { color: WHITE };
@@ -1180,6 +1462,7 @@ async function generatePptReport(employees, byOwner, today, reportText) {
     const rows = [
       [{ text: "Collaborateur", options: { bold: true, color: WHITE, fill: ACCENT } },
        { text: "Terminées",    options: { bold: true, color: WHITE, fill: ACCENT } },
+       { text: "Sem.",         options: { bold: true, color: WHITE, fill: ACCENT } },
        { text: "En cours",     options: { bold: true, color: WHITE, fill: ACCENT } },
        { text: "En retard",    options: { bold: true, color: WHITE, fill: ACCENT } },
        { text: "Heures",       options: { bold: true, color: WHITE, fill: ACCENT } }],
@@ -1190,9 +1473,10 @@ async function generatePptReport(employees, byOwner, today, reportText) {
       const inProg  = tasks.filter(t => t.column === "in_progress").length;
       const overdue = tasks.filter(t => t.deadline && new Date(t.deadline) < new Date() && t.column !== "done").length;
       const hours   = (tasks.reduce((s, t) => s + (t.timerSeconds || 0), 0) / 3600).toFixed(1);
-      rows.push([e.name, String(done), String(inProg), String(overdue), `${hours}h`]);
+      const m = metricsByName[e.name];
+      rows.push([e.name, String(done), String(m ? m.doneThisWeek : 0), String(inProg), String(overdue), `${hours}h`]);
     });
-    slide.addTable(rows, { x: 0.5, y: 1.1, w: 12, colW: [4, 2, 2, 2, 2], fontSize: 13, border: { pt: 1, color: "CCCCCC" } });
+    slide.addTable(rows, { x: 0.5, y: 1.1, w: 12, colW: [3.5, 1.7, 1.5, 1.7, 1.7, 1.9], fontSize: 13, border: { pt: 1, color: "CCCCCC" } });
   }
 
   // ── Slide Points d'attention ──────────────────────────────────
@@ -1204,7 +1488,10 @@ async function generatePptReport(employees, byOwner, today, reportText) {
     (byOwner[e.name] || []).filter(t => t.deadline && new Date(t.deadline) < new Date() && t.column !== "done")
       .forEach(t => overdueTasks.push(`⚠️  ${e.name} — "${t.title}" (échéance: ${t.deadline})`));
   });
-  attnSlide.addText(overdueTasks.length ? overdueTasks.join("\n") : "✅ Aucune tâche en retard cette semaine.", {
+  if (overloaded.length) {
+    overloaded.forEach(m => overdueTasks.push(`🔥 ${m.name} — surcharge : ${m.hoursThisWeek.toFixed(1)}h cette semaine`));
+  }
+  attnSlide.addText(overdueTasks.length ? overdueTasks.join("\n") : "✅ Aucune tâche en retard ni surcharge cette semaine.", {
     x: 0.5, y: 1.1, w: 12, h: 4.5, fontSize: 13, color: "333333", valign: "top", wrap: true
   });
 
@@ -1214,47 +1501,102 @@ async function generatePptReport(employees, byOwner, today, reportText) {
 
 async function generateAndSendReport() {
   const { employees, byOwner } = await getAllData();
-  const today = new Date().toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const todayDate = new Date();
+  const today     = todayDate.toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const dateKey   = todayDate.toISOString().slice(0, 10);
 
-  const dataStr = employees.map(e => {
-    const tasks    = byOwner[e.name] || [];
-    const done     = tasks.filter(t => t.column === "done").length;
-    const inProg   = tasks.filter(t => t.column === "in_progress").length;
-    const overdue  = tasks.filter(t => t.deadline && new Date(t.deadline) < new Date() && t.column !== "done");
-    const workedH  = tasks.reduce((s, t) => s + (t.timerSeconds || 0) / 3600, 0);
-    return (
-      `${e.name} (${e.role}, ${e.pole}): ` +
-      `${done} terminées, ${inProg} en cours, ${tasks.length - done} restantes, ` +
-      `${overdue.length} en retard, ${workedH.toFixed(1)}h travaillées. ` +
-      `Retards: ${overdue.map(t => '"' + t.title + '"').join(", ") || "aucun"}`
-    );
-  }).join("\n");
+  // ── Métriques détaillées par collaborateur ────────────────────
+  const metrics = employees.map(e => {
+    const tasks        = byOwner[e.name] || [];
+    const done          = tasks.filter(t => t.column === "done").length;
+    const inProgress    = tasks.filter(t => t.column === "in_progress").length;
+    const overdueTasks  = tasks.filter(t => t.deadline && new Date(t.deadline) < new Date() && t.column !== "done");
+    const hours         = tasks.reduce((s, t) => s + (t.timerSeconds || 0), 0) / 3600;
+    return {
+      name: e.name, pole: e.pole, role: e.role,
+      done, inProgress, overdue: overdueTasks.length,
+      overdueList: overdueTasks.map(t => t.title),
+      total: tasks.length, hours,
+    };
+  });
+
+  // ── Comparaison avec le snapshot précédent (semaine dernière) ──
+  const previous = await getPreviousSnapshot(dateKey);
+  metrics.forEach(m => {
+    const prev = previous?.byOwner?.[m.name];
+    m.doneThisWeek   = prev ? Math.max(0, m.done  - prev.done_count)              : m.done;
+    m.hoursThisWeek  = prev ? Math.max(0, m.hours - parseFloat(prev.hours_total)) : m.hours;
+    m.completionRate = m.total ? Math.round((m.done / m.total) * 100) : 0;
+  });
+
+  // ── Agrégats équipe ─────────────────────────────────────────────
+  const team = {
+    totalDone:       metrics.reduce((s, m) => s + m.done, 0),
+    totalInProgress: metrics.reduce((s, m) => s + m.inProgress, 0),
+    totalOverdue:    metrics.reduce((s, m) => s + m.overdue, 0),
+    totalTasks:      metrics.reduce((s, m) => s + m.total, 0),
+    totalHours:      metrics.reduce((s, m) => s + m.hours, 0),
+    doneThisWeek:    metrics.reduce((s, m) => s + m.doneThisWeek, 0),
+    hoursThisWeek:   metrics.reduce((s, m) => s + m.hoursThisWeek, 0),
+  };
+  team.completionRate = team.totalTasks ? Math.round((team.totalDone / team.totalTasks) * 100) : 0;
+
+  const topPerformer = metrics.filter(m => m.doneThisWeek > 0).sort((a, b) => b.doneThisWeek - a.doneThisWeek)[0] || null;
+  const overloaded   = metrics.filter(m => m.hoursThisWeek > 40);
+
+  const dataStr = metrics.map(m =>
+    `${m.name} (${m.role}, ${m.pole}): ${m.done} terminées au total dont ${m.doneThisWeek} cette semaine, ` +
+    `${m.inProgress} en cours, ${m.total - m.done} restantes, ${m.overdue} en retard, ` +
+    `${m.hours.toFixed(1)}h cumulées dont ${m.hoursThisWeek.toFixed(1)}h cette semaine, taux de complétion ${m.completionRate}%. ` +
+    `Retards: ${m.overdueList.map(t => '"' + t + '"').join(", ") || "aucun"}`
+  ).join("\n");
+
+  const comparisonStr = previous
+    ? `Comparaison vs rapport du ${previous.date} : ${team.doneThisWeek} tâches terminées par l'équipe cette semaine, ` +
+      `${team.hoursThisWeek.toFixed(1)}h travaillées cette semaine, taux de complétion global ${team.completionRate}%.`
+    : `Aucun rapport précédent en base — première analyse hebdomadaire, pas de comparaison possible encore.`;
+
+  const alertStr = overloaded.length
+    ? `Surcharge détectée (plus de 40h cette semaine) : ${overloaded.map(m => `${m.name} (${m.hoursThisWeek.toFixed(1)}h)`).join(", ")}.`
+    : `Aucune surcharge détectée cette semaine.`;
 
   const response = await groq.chat.completions.create({
     model:      "llama-3.3-70b-versatile",
-    max_tokens: 2000,
+    max_tokens: 2200,
     messages: [{
       role:    "user",
-      content: `Génère un rapport hebdomadaire professionnel pour l'équipe SOZAIS — ${today}.\n\n` +
-               `Données :\n${dataStr}\n\n` +
+      content: `Génère un rapport hebdomadaire professionnel et analytique pour l'équipe SOZAIS — ${today}.\n\n` +
+               `Données par collaborateur :\n${dataStr}\n\n` +
+               `${comparisonStr}\n${alertStr}\n` +
+               `Meilleur performeur de la semaine : ${topPerformer ? topPerformer.name + " (" + topPerformer.doneThisWeek + " tâche(s) terminée(s))" : "aucune tâche terminée cette semaine"}.\n\n` +
                `Structure requise :\n` +
-               `1. Résumé exécutif (2-3 phrases)\n` +
+               `1. Résumé exécutif (taux de complétion global, tendance vs semaine précédente si disponible)\n` +
                `2. Performance Pôle Fluide\n` +
                `3. Performance Pôle Élec\n` +
-               `4. Points d'attention (retards, surcharges)\n` +
-               `5. Recommandations pour la semaine suivante\n\n` +
-               `Style professionnel, en français.`,
+               `4. Tendances de la semaine (progression ou ralentissement par rapport à la semaine précédente)\n` +
+               `5. Points d'attention (retards et surcharges nominatives)\n` +
+               `6. Recommandations concrètes et actionnables pour la semaine suivante\n\n` +
+               `Style professionnel, factuel, en français. Appuie-toi précisément sur les chiffres fournis, évite les généralités.`,
     }],
   });
 
   const reportText = response.choices[0].message.content;
+
+  // ── Sauvegarde du snapshot de cette semaine (comparaison future) ─
+  await saveSnapshot(dateKey, metrics);
+
   let emailResult = null;
   if (resend && process.env.REPORT_EMAIL) {
     // Génération des pièces jointes
+    const ctx = { metrics, team, previous, topPerformer, overloaded };
     const [xlsxAttach, pptxAttach] = await Promise.all([
-      generateExcelReport(employees, byOwner, today),
-      generatePptReport(employees, byOwner, today, reportText),
+      generateExcelReport(employees, byOwner, today, ctx),
+      generatePptReport(employees, byOwner, today, reportText, ctx),
     ]);
+
+    const trendBadge = previous
+      ? `${team.completionRate}% de complétion · ${team.doneThisWeek} tâche(s) terminée(s) cette semaine`
+      : `${team.completionRate}% de complétion (premier rapport, pas encore d'historique)`;
 
     emailResult = await resend.emails.send({
       from:    FROM_EMAIL,
@@ -1263,7 +1605,7 @@ async function generateAndSendReport() {
       text:    reportText,
       html:    `<div style="font-family:Arial,sans-serif;line-height:1.6;max-width:700px">
         <h2 style="color:#1E3A5F">📊 Rapport Hebdomadaire SOZAIS</h2>
-        <p style="color:#666">${today}</p>
+        <p style="color:#666">${today} · ${trendBadge}</p>
         <hr/>
         <pre style="white-space:pre-wrap;font-size:14px">${reportText}</pre>
         <hr/>
