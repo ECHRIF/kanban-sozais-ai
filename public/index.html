@@ -2447,6 +2447,8 @@ function App() {
   const [empList, setEmpList] = useState(DEFAULT_EMPLOYEES);
   const allRef = useRef(all);
   allRef.current = all;
+  const empListRef = useRef(empList);
+  empListRef.current = empList;
 
   // ─── Minuteur de pointage journalier ─────────────────────────
   const [dailyTimer, setDailyTimer] = useState({ running: false, startedAt: null, seconds: 0 });
@@ -2549,14 +2551,40 @@ function App() {
     }).catch(() => {});
   }, []);
 
-  // Recharger la liste complète (avec auth, inclut TJM + email) après login
+  // ─── Chargement initial : employés PUIS tâches (ordre garanti, pas de re-run) ──
+  // IMPORTANT : ne pas séparer en deux useEffect([user]) + useEffect([user, empList])
+  // car setEmpList() déclencherait un reload des tâches APRÈS que l'utilisateur
+  // a créé une carte → race condition → la carte disparaît si saveTasks n'a pas fini.
   useEffect(() => {
     if (!user) return;
     (async () => {
+      setLoading(true);
+      // 1. Charger la liste complète des employés (avec auth)
       const stored = await loadEmployees();
+      const emps = (stored && stored.length > 0) ? stored : empListRef.current;
       if (stored && stored.length > 0) setEmpList(stored);
+      // 2. Charger les tâches avec la liste à jour
+      if (user.pole === "Direction") {
+        const ms = emps.filter((e) => e.pole === "Direction");
+        const ld = {};
+        for (const m of ms) ld[m.name] = await loadTasks(m.name);
+        setAll(ld);
+      } else if (user.isAdmin) {
+        const ms = emps.filter((e) => !e.isAdmin || e.name === user.name);
+        const ld = {};
+        for (const m of ms) ld[m.name] = await loadTasks(m.name);
+        setAll(ld);
+      } else if (user.isChef) {
+        const ms = emps.filter((e) => e.pole === user.pole);
+        const ld = {};
+        for (const m of ms) ld[m.name] = await loadTasks(m.name);
+        setAll(ld);
+      } else {
+        setAll({ [user.name]: await loadTasks(user.name) });
+      }
+      setLoading(false);
     })();
-  }, [user]);
+  }, [user]); // ← uniquement user : setEmpList() ne re-déclenche plus ce chargement
 
   useEffect(() => { const id = setInterval(() => setTick((t) => t + 1), 1000); return () => clearInterval(id); }, []);
 
@@ -2647,33 +2675,6 @@ function App() {
     aiBriefing(user.name).then((b) => { if (b) setBriefing(b); }).catch(() => {});
   }, [user]);
 
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      setLoading(true);
-      if (user.pole === "Direction") {
-        // Utilisateur Admin (Direction) : charge toutes les tâches Direction (y compris les siennes)
-        const ms = empList.filter((e) => e.pole === "Direction");
-        const ld = {};
-        for (const m of ms) ld[m.name] = await loadTasks(m.name);
-        setAll(ld);
-      } else if (user.isAdmin) {
-        // Super Admin : charge toute l'équipe + ses propres tâches
-        const ms = empList.filter((e) => !e.isAdmin || e.name === user.name);
-        const ld = {};
-        for (const m of ms) ld[m.name] = await loadTasks(m.name);
-        setAll(ld);
-      } else if (user.isChef) {
-        const ms = empList.filter((e) => e.pole === user.pole);
-        const ld = {};
-        for (const m of ms) ld[m.name] = await loadTasks(m.name);
-        setAll(ld);
-      } else {
-        setAll({ [user.name]: await loadTasks(user.name) });
-      }
-      setLoading(false);
-    })();
-  }, [user, empList]);
 
   // Refs pour accéder aux filtres actifs sans les mettre en dépendance de useCallback
   const sideSearchRef = useRef(sideSearch);

@@ -17,6 +17,8 @@ const bcrypt     = require("bcrypt");
 const jwt        = require("jsonwebtoken");
 const rateLimit  = require("express-rate-limit");
 const crypto     = require("crypto");
+const ExcelJS    = require("exceljs");
+const PptxGenJS  = require("pptxgenjs");
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -1086,6 +1088,130 @@ app.post("/api/ai/prioritize/:ownerName", authenticate, async (req, res) => {
 });
 
 // ─── API : Rapport hebdomadaire ───────────────────────────────
+// ─── Génération Excel ────────────────────────────────────────────
+async function generateExcelReport(employees, byOwner, today) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Kanban SOZAIS AI";
+  wb.created = new Date();
+
+  // ── Feuille Résumé ──────────────────────────────────────────────
+  const ws = wb.addWorksheet("Résumé");
+  ws.columns = [
+    { header: "Collaborateur", key: "name",    width: 25 },
+    { header: "Pôle",         key: "pole",    width: 12 },
+    { header: "Rôle",         key: "role",    width: 18 },
+    { header: "Terminées",    key: "done",    width: 12 },
+    { header: "En cours",     key: "inprog",  width: 12 },
+    { header: "Total tâches", key: "total",   width: 13 },
+    { header: "En retard",    key: "overdue", width: 12 },
+    { header: "Heures trav.", key: "hours",   width: 14 },
+  ];
+
+  // Style header
+  ws.getRow(1).eachCell(cell => {
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
+    cell.alignment = { horizontal: "center" };
+  });
+
+  employees.forEach(e => {
+    const tasks   = byOwner[e.name] || [];
+    const done    = tasks.filter(t => t.column === "done").length;
+    const inProg  = tasks.filter(t => t.column === "in_progress").length;
+    const overdue = tasks.filter(t => t.deadline && new Date(t.deadline) < new Date() && t.column !== "done").length;
+    const hours   = (tasks.reduce((s, t) => s + (t.timerSeconds || 0), 0) / 3600).toFixed(1);
+    const row = ws.addRow({ name: e.name, pole: e.pole, role: e.role, done, inprog: inProg, total: tasks.length, overdue, hours: parseFloat(hours) });
+    if (overdue > 0) row.getCell("overdue").fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFE0E0" } };
+    if (done > 0)    row.getCell("done").fill    = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE0F0E0" } };
+  });
+
+  // ── Feuilles par pôle ──────────────────────────────────────────
+  for (const pole of ["Fluide", "Élec"]) {
+    const wsPole = wb.addWorksheet(`Pôle ${pole}`);
+    wsPole.columns = [
+      { header: "Collaborateur", key: "name",     width: 25 },
+      { header: "Titre tâche",   key: "title",    width: 35 },
+      { header: "Statut",        key: "column",   width: 14 },
+      { header: "Priorité",      key: "priority", width: 12 },
+      { header: "Échéance",      key: "deadline", width: 14 },
+    ];
+    wsPole.getRow(1).eachCell(cell => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2E6DA4" } };
+    });
+    employees.filter(e => e.pole === pole).forEach(e => {
+      (byOwner[e.name] || []).forEach(t => {
+        wsPole.addRow({ name: e.name, title: t.title, column: t.column, priority: t.priority, deadline: t.deadline || "" });
+      });
+    });
+  }
+
+  const buf = await wb.xlsx.writeBuffer();
+  return { content: buf.toString("base64"), filename: `Rapport_SOZAIS_${today.replace(/\s/g, "_")}.xlsx` };
+}
+
+// ─── Génération PowerPoint ────────────────────────────────────────
+async function generatePptReport(employees, byOwner, today, reportText) {
+  const pptx = new PptxGenJS();
+  pptx.layout = "LAYOUT_WIDE";
+  pptx.title = `Rapport SOZAIS — ${today}`;
+
+  const BLUE = "1E3A5F", LIGHT = "F0F4F8", WHITE = "FFFFFF", ACCENT = "2E6DA4";
+
+  const titleSlide = pptx.addSlide();
+  titleSlide.background = { color: BLUE };
+  titleSlide.addText(`📊 Rapport Hebdomadaire`, { x: 1, y: 1.5, w: 11, h: 1.2, fontSize: 36, bold: true, color: WHITE, align: "center" });
+  titleSlide.addText(`Équipe SOZAIS — ${today}`, { x: 1, y: 2.9, w: 11, h: 0.8, fontSize: 22, color: "B0C4DE", align: "center" });
+
+  // ── Slide Résumé exécutif ──────────────────────────────────────
+  const execSlide = pptx.addSlide();
+  execSlide.background = { color: LIGHT };
+  execSlide.addText("Résumé exécutif", { x: 0.5, y: 0.3, w: 12, h: 0.7, fontSize: 24, bold: true, color: BLUE });
+  const execLines = reportText.split("\n").filter(l => l.trim()).slice(0, 6).join("\n");
+  execSlide.addText(execLines, { x: 0.5, y: 1.1, w: 12, h: 4.5, fontSize: 14, color: "333333", valign: "top", wrap: true });
+
+  // ── Slides par pôle ──────────────────────────────────────────
+  for (const pole of ["Fluide", "Élec"]) {
+    const poleEmps = employees.filter(e => e.pole === pole);
+    const slide = pptx.addSlide();
+    slide.background = { color: WHITE };
+    slide.addText(`Pôle ${pole}`, { x: 0.5, y: 0.2, w: 12, h: 0.7, fontSize: 22, bold: true, color: BLUE });
+
+    const rows = [
+      [{ text: "Collaborateur", options: { bold: true, color: WHITE, fill: ACCENT } },
+       { text: "Terminées",    options: { bold: true, color: WHITE, fill: ACCENT } },
+       { text: "En cours",     options: { bold: true, color: WHITE, fill: ACCENT } },
+       { text: "En retard",    options: { bold: true, color: WHITE, fill: ACCENT } },
+       { text: "Heures",       options: { bold: true, color: WHITE, fill: ACCENT } }],
+    ];
+    poleEmps.forEach(e => {
+      const tasks   = byOwner[e.name] || [];
+      const done    = tasks.filter(t => t.column === "done").length;
+      const inProg  = tasks.filter(t => t.column === "in_progress").length;
+      const overdue = tasks.filter(t => t.deadline && new Date(t.deadline) < new Date() && t.column !== "done").length;
+      const hours   = (tasks.reduce((s, t) => s + (t.timerSeconds || 0), 0) / 3600).toFixed(1);
+      rows.push([e.name, String(done), String(inProg), String(overdue), `${hours}h`]);
+    });
+    slide.addTable(rows, { x: 0.5, y: 1.1, w: 12, colW: [4, 2, 2, 2, 2], fontSize: 13, border: { pt: 1, color: "CCCCCC" } });
+  }
+
+  // ── Slide Points d'attention ──────────────────────────────────
+  const attnSlide = pptx.addSlide();
+  attnSlide.background = { color: LIGHT };
+  attnSlide.addText("Points d'attention", { x: 0.5, y: 0.2, w: 12, h: 0.7, fontSize: 22, bold: true, color: BLUE });
+  const overdueTasks = [];
+  employees.forEach(e => {
+    (byOwner[e.name] || []).filter(t => t.deadline && new Date(t.deadline) < new Date() && t.column !== "done")
+      .forEach(t => overdueTasks.push(`⚠️  ${e.name} — "${t.title}" (échéance: ${t.deadline})`));
+  });
+  attnSlide.addText(overdueTasks.length ? overdueTasks.join("\n") : "✅ Aucune tâche en retard cette semaine.", {
+    x: 0.5, y: 1.1, w: 12, h: 4.5, fontSize: 13, color: "333333", valign: "top", wrap: true
+  });
+
+  const buf = await pptx.write({ outputType: "nodebuffer" });
+  return { content: buf.toString("base64"), filename: `Rapport_SOZAIS_${today.replace(/\s/g, "_")}.pptx` };
+}
+
 async function generateAndSendReport() {
   const { employees, byOwner } = await getAllData();
   const today = new Date().toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
@@ -1124,14 +1250,32 @@ async function generateAndSendReport() {
   const reportText = response.choices[0].message.content;
   let emailResult = null;
   if (resend && process.env.REPORT_EMAIL) {
+    // Génération des pièces jointes
+    const [xlsxAttach, pptxAttach] = await Promise.all([
+      generateExcelReport(employees, byOwner, today),
+      generatePptReport(employees, byOwner, today, reportText),
+    ]);
+
     emailResult = await resend.emails.send({
       from:    FROM_EMAIL,
       to:      process.env.REPORT_EMAIL,
       subject: `📊 Rapport hebdomadaire SOZAIS — ${today}`,
       text:    reportText,
-      html:    `<pre style="font-family:Arial,sans-serif;white-space:pre-wrap;line-height:1.6">${reportText}</pre>`,
+      html:    `<div style="font-family:Arial,sans-serif;line-height:1.6;max-width:700px">
+        <h2 style="color:#1E3A5F">📊 Rapport Hebdomadaire SOZAIS</h2>
+        <p style="color:#666">${today}</p>
+        <hr/>
+        <pre style="white-space:pre-wrap;font-size:14px">${reportText}</pre>
+        <hr/>
+        <p style="color:#888;font-size:12px">Rapport généré automatiquement par Kanban SOZAIS AI — 2 pièces jointes : Excel + PowerPoint</p>
+      </div>`,
+      attachments: [
+        { filename: xlsxAttach.filename, content: xlsxAttach.content },
+        { filename: pptxAttach.filename, content: pptxAttach.content },
+      ],
     });
     console.log("📧 Resend result:", JSON.stringify(emailResult));
+    if (emailResult.error) console.error("❌ Resend error:", emailResult.error);
   }
   return { reportText, emailResult };
 }
