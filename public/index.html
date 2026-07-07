@@ -96,12 +96,36 @@ function getToken() { return sessionStorage.getItem('_kbt') || ''; }
 function setToken(t) { if (t) sessionStorage.setItem('_kbt', t); else sessionStorage.removeItem('_kbt'); }
 
 // authFetch : ajoute automatiquement le header Authorization
+// FIX "cartes qui disparaissent" : une session peut devenir invalide sans que
+// l'utilisateur le sache (redémarrage serveur, token expiré). Avant, les 401
+// étaient ignorés : le tableau se chargeait vide et les sauvegardes échouaient
+// en silence → cartes perdues. Désormais, tout 401 déconnecte immédiatement
+// avec un message clair, AVANT que l'utilisateur ne travaille dans le vide.
+let _kbSessionExpired = false;
 async function authFetch(url, opts = {}) {
   const token = getToken();
-  return fetch(url, {
+  const r = await fetch(url, {
     ...opts,
     headers: { 'Content-Type': 'application/json', ...(opts.headers || {}), ...(token ? { Authorization: 'Bearer ' + token } : {}) }
   });
+  if (r.status === 401 && !_kbSessionExpired) {
+    _kbSessionExpired = true;
+    setToken(null);
+    alert("⚠️ Votre session a expiré ou n'est plus valide.\nVeuillez vous reconnecter. Les modifications non enregistrées devront être refaites.");
+    window.location.reload();
+  }
+  return r;
+}
+
+// Alerte de sauvegarde échouée (limitée à 1 toutes les 30 s pour éviter le spam)
+let _kbLastSaveAlert = 0;
+function _kbSaveFailed(status) {
+  console.error('saveTasks/saveEmployees failed — HTTP', status);
+  const now = Date.now();
+  if (now - _kbLastSaveAlert > 30000 && !_kbSessionExpired) {
+    _kbLastSaveAlert = now;
+    alert("⚠️ Échec de l'enregistrement sur le serveur (" + status + ").\nVos dernières modifications ne sont PAS sauvegardées. Vérifiez votre connexion puis réessayez.");
+  }
 }
 
 // ─── Helpers API REST → MySQL (via serveur Express) ───
@@ -114,11 +138,12 @@ async function loadTasks(name) {
 }
 async function saveTasks(name, tasks) {
   try {
-    await authFetch('/api/tasks/' + encodeURIComponent(name), {
+    const r = await authFetch('/api/tasks/' + encodeURIComponent(name), {
       method: 'POST',
       body: JSON.stringify(tasks),
     });
-  } catch (e) { console.error(e); }
+    if (!r.ok) _kbSaveFailed(r.status);   // FIX : plus d'échec silencieux
+  } catch (e) { console.error(e); _kbSaveFailed('réseau'); }
 }
 async function loadEmployees() {
   try {
@@ -129,10 +154,11 @@ async function loadEmployees() {
 }
 async function saveEmployees(list) {
   try {
-    await authFetch('/api/employees', {
+    const r = await authFetch('/api/employees', {
       method: 'POST',
       body: JSON.stringify(list),
     });
+    if (!r.ok) _kbSaveFailed(r.status);
   } catch (e) { console.error(e); }
 }
 

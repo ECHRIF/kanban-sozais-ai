@@ -27,7 +27,18 @@ const PORT = process.env.PORT || 3000;
 // Sans ça, express-rate-limit génère une ValidationError sur X-Forwarded-For
 app.set("trust proxy", 1);
 
-const JWT_SECRET      = process.env.JWT_SECRET || (() => { console.warn("⚠️  JWT_SECRET non défini — utilisation d'une clé temporaire (non sécurisé en production)"); return crypto.randomBytes(64).toString("hex"); })();
+// FIX "cartes qui disparaissent" : l'ancien fallback générait un secret ALÉATOIRE
+// à chaque démarrage → chaque redémarrage/redéploiement invalidait toutes les
+// sessions actives. Le front ne détectant pas le 401, le tableau se chargeait
+// vide et saveTasks échouait en silence → cartes jamais enregistrées en BDD.
+// Le fallback est désormais STABLE (dérivé de la config DB). Définissez quand
+// même JWT_SECRET dans les variables d'environnement (Railway → Variables).
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  console.warn("⚠️  JWT_SECRET non défini — fallback stable dérivé de la config DB. Définissez JWT_SECRET en production !");
+  return crypto.createHash("sha256")
+    .update(`kanban-sozais-jwt-v1|${process.env.DB_HOST || "localhost"}|${process.env.DB_NAME || "kanban_sozais"}|${process.env.DB_PASSWORD || ""}`)
+    .digest("hex");
+})();
 const BCRYPT_ROUNDS   = 12;
 const DEFAULT_PASSWORD = "kanban2026";
 const APP_URL         = process.env.APP_URL || "https://kanban-sozais-ai-production.up.railway.app";
@@ -362,7 +373,12 @@ const pool = mysql.createPool({
     console.log("✅ Tables & données initiales OK");
     conn.release();
   } catch (err) {
+    // FIX : ne jamais tourner en mode "amnésique" — sans MySQL, rien n'est
+    // persisté et toutes les cartes créées sont perdues au redémarrage.
+    // On arrête le process ; Railway/nodemon le relancera automatiquement.
     console.error("❌ MySQL init:", err.message);
+    console.error("❌ Base de données inaccessible — arrêt du serveur (vérifiez DB_HOST / DB_USER / DB_PASSWORD / DB_NAME).");
+    process.exit(1);
   }
 })();
 
@@ -1871,7 +1887,7 @@ app.post("/api/auth/login", loginLimiter, async (req, res) => {
       canViewKPI: !!emp.can_view_kpi, canViewTJM: !!emp.can_view_tjm, canViewAll: !!emp.can_view_all,
       email: emp.email || null
     };
-    const token = jwt.sign(user, JWT_SECRET, { expiresIn: "8h" });
+    const token = jwt.sign(user, JWT_SECRET, { expiresIn: "12h" });
     res.json({ token, user, firstLogin });
   } catch (err) {
     console.error("POST /api/auth/login", err);
@@ -2312,6 +2328,7 @@ async function seedMissingEmployees() {
 
 app.listen(PORT, () => {
   console.log(`\n🚀 Kanban SOZAIS AI-First — http://localhost:${PORT}`);
+  console.log(`   JWT : ${process.env.JWT_SECRET ? "✅ JWT_SECRET défini" : "⚠️  fallback stable (définissez JWT_SECRET)"}`);
   console.log(`   IA : ${groq ? "✅ Groq (LLaMA 3.3-70b) actif" : "❌ Clé GROQ_API_KEY manquante"}\n`);
   seedMissingEmployees();
 });
