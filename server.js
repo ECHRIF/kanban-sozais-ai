@@ -306,7 +306,6 @@ const pool = mysql.createPool({
       ['Rihab ATTIA',        'Ingénieur fluide',        'Fluide', 0, 0],
       ['Sabah AJARRAR',      'Ingénieur fluide',        'Fluide', 0, 0],
       ['Emna GHRISSI',       'Ingénieure Elec',         'Élec',   0, 0],
-      ['Eya JANDOUBI',       'Ingénieure Elec',         'Élec',   0, 0],
       ['Majdi AMARA',        'Chef Pôle Élec',          'Élec',   1, 0],
       ['Yassine KHCHIMI',    'Ingénieur Elec',          'Élec',   0, 0],
       ['Rakia MANSOUR',      'Ingénieur Elec',          'Élec',   0, 0],
@@ -319,7 +318,6 @@ const pool = mysql.createPool({
       ['Amine DRONGA',       'Ingénieur Elec',          'Élec',   0, 0],
       ['Salma HANZOULI',     'Ingénieur Elec',          'Élec',   0, 0],
       ['M.O. HACHLEF',       'Ingénieur Elec',          'Élec',   0, 0],
-      ['Rebecca DRUKIER',    'Ingénieur Elec',          'Élec',   0, 0],
       ['ECHRIF Walid',       'Admin',                   'Admin',      0, 1],
       ['ECHRIF Youssef',     'Admin',                   'Admin',      0, 1],
       ['Seif OUESLATI',      'Administrateur IT',       'Admin',      0, 1],
@@ -2046,12 +2044,16 @@ app.post("/api/employees", authenticate, requireAdmin, async (req, res) => {
   try {
     const employees = req.body;
     await conn.beginTransaction();
+    // FIX : préserver les emails existants — avant, la réécriture de la liste
+    // effaçait la colonne email de tous les employés non-admin.
+    const [emailRows] = await conn.query("SELECT name, email FROM employees WHERE email IS NOT NULL AND email != ''");
+    const emailByName = Object.fromEntries(emailRows.map(r => [r.name, r.email]));
     // Supprimer uniquement les employés non-admin et non-Direction
     await conn.query("DELETE FROM employees WHERE is_admin = 0 AND can_view_kpi = 0 AND can_view_tjm = 0 AND can_view_all = 0");
     const nonAdmins = employees.filter(e => !e.isAdmin && !e.canViewKPI && !e.canViewTJM && !e.canViewAll);
     if (nonAdmins.length > 0) {
-      const values = nonAdmins.map(e => [e.name, e.role, e.pole, e.isChef ? 1 : 0, 0, parseFloat(e.tjm) || 0, 0, 0, 0]);
-      await conn.query("INSERT INTO employees (name, role, pole, is_chef, is_admin, tjm, can_view_kpi, can_view_tjm, can_view_all) VALUES ?", [values]);
+      const values = nonAdmins.map(e => [e.name, e.role, e.pole, e.isChef ? 1 : 0, 0, parseFloat(e.tjm) || 0, 0, 0, 0, e.email || emailByName[e.name] || null]);
+      await conn.query("INSERT INTO employees (name, role, pole, is_chef, is_admin, tjm, can_view_kpi, can_view_tjm, can_view_all, email) VALUES ?", [values]);
     }
     await conn.commit();
     res.json({ ok: true });
@@ -2059,6 +2061,17 @@ app.post("/api/employees", authenticate, requireAdmin, async (req, res) => {
     await conn.rollback();
     res.status(500).json({ error: err.message });
   } finally { conn.release(); }
+});
+
+// PATCH /api/employees/:name/email — définir le mail pro d'un compte (admin)
+app.patch("/api/employees/:name/email", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Email invalide" });
+    const [r] = await pool.query("UPDATE employees SET email = ? WHERE name = ?", [email, req.params.name]);
+    if (r.affectedRows === 0) return res.status(404).json({ error: "Employé introuvable" });
+    res.json({ ok: true, name: req.params.name, email });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ─── API : Frais fixes ────────────────────────────────────────
@@ -2290,8 +2303,9 @@ app.get("*", (req, res) => {
 // ─── Seed : ajouter les membres manquants au démarrage ────────
 async function seedMissingEmployees() {
   try {
-    // ─── Supprimer les employés qui ont quitté l'équipe ──────
-    const toDelete = ['Warden EL FEKIH', 'Imen AZAZA', 'Fatma RHAIMI', 'Wissem BEN TAHER', 'IT SOZAIS'];
+    // ─── Supprimer les employés qui ont quitté l'équipe / doublons ──────
+    const toDelete = ['Warden EL FEKIH', 'Imen AZAZA', 'Fatma RHAIMI', 'Wissem BEN TAHER', 'IT SOZAIS',
+                      'Rebecca DRUKIER', 'DRUKIER Rebecca', 'Eya JANDOUBI', 'JANDOUBI Eya', 'GHRISSI Emna'];
     for (const name of toDelete) {
       await pool.query(
         `DELETE FROM employees WHERE name = ? AND NOT EXISTS (SELECT 1 FROM tasks WHERE owner_name = ?)`,
@@ -2303,7 +2317,6 @@ async function seedMissingEmployees() {
       // Pôle Commercial
       ['Asma ATHIMNI',       'Directrice Commerciale', 'Commercial', 1, 0, 0, 0, 0],
       ['Nourchene OUESLATI', 'Commerciale',             'Commercial', 0, 0, 0, 0, 0],
-      ['Warden EL FEKIH',    'Commercial',              'Commercial', 0, 0, 0, 0, 0],
       // Pôle Direction
       ['Maroua HTIRA',  'Assistante de direction',              'Direction', 0, 0, 1, 0, 0],
       ['Siwar HOSNI',   'Responsable financière',               'Direction', 0, 0, 0, 1, 0],
@@ -2337,7 +2350,6 @@ async function seedMissingEmployees() {
       ['Rihab ATTIA',        'r.attia@sozais-ing.com'],
       ['Sabah AJARRAR',      's.ajarrar@sozais-ing.com'],
       ['Emna GHRISSI',       'e.ghrissi@sozais-ing.com'],
-      ['Eya JANDOUBI',       'e.jandoubi@sozais-ing.com'],
       ['Majdi AMARA',        'm.amara@sozais-ing.com'],
       ['Yassine KHCHIMI',    'y.khchimi@sozais-ing.com'],
       ['Rakia MANSOUR',      'r.mansour@sozais-ing.com'],
@@ -2350,7 +2362,6 @@ async function seedMissingEmployees() {
       ['Amine DRONGA',       'a.dronga@sozais-ing.com'],
       ['Salma HANZOULI',     's.hanzouli@sozais-ing.com'],
       ['M.O. HACHLEF',       'm.hachlef@sozais-ing.com'],
-      ['Rebecca DRUKIER',    'r.drukier@sozais-ing.com'],
       ['ECHRIF Walid',       'w.echrif@sozais-ing.com'],
       ['ECHRIF Youssef',     'y.echrif@sozais-ing.com'],
       ['Seif OUESLATI',      'tech.info@sozais-ing.com'],
