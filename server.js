@@ -470,9 +470,10 @@ async function sendNotifEmail(recipient, taskTitle, project, fromName, type = 'n
 }
 
 // ─── Rappel hebdomadaire : chaque lundi matin, rappel de remplir le Kanban ──
-async function sendMondayReminders() {
+async function sendMondayReminders(onlyEmail = null) {
   if (!resend) { console.warn("⚠️  Rappel lundi : mailer non configuré"); return { sent: 0, failed: 0, details: [] }; }
-  const [rows] = await pool.query("SELECT name, email FROM employees WHERE email IS NOT NULL AND email != '' ORDER BY name");
+  let [rows] = await pool.query("SELECT name, email FROM employees WHERE email IS NOT NULL AND email != '' ORDER BY name");
+  if (onlyEmail) rows = rows.filter(r => r.email.toLowerCase() === onlyEmail.toLowerCase());
   let sent = 0, failed = 0;
   const details = [];
   for (const { name, email } of rows) {
@@ -505,10 +506,28 @@ async function sendMondayReminders() {
     await new Promise(r => setTimeout(r, 600)); // limite Resend : 2 requêtes/seconde
   }
   console.log(`📧 Rappel du lundi : ${sent} envoyé(s), ${failed} échec(s)`);
+  // Journaliser le résultat (consultable via /api/health/monday-reminder)
+  try {
+    await pool.query(
+      `INSERT INTO ai_actions_log (actor, tool_name, input_json, result_json) VALUES ('system', 'monday_reminder', ?, ?)`,
+      [JSON.stringify({ onlyEmail }), JSON.stringify({ sent, failed })]
+    );
+  } catch (e) { console.warn("⚠️  Log rappel :", e.message); }
   return { sent, failed, details };
 }
 // Tous les lundis à 08h00, heure de Tunis
-cron.schedule("0 8 * * 1", sendMondayReminders, { timezone: "Africa/Tunis" });
+cron.schedule("0 8 * * 1", () => sendMondayReminders(), { timezone: "Africa/Tunis" });
+
+// GET /api/health/monday-reminder — état du dernier envoi (public, compteurs uniquement)
+app.get("/api/health/monday-reminder", async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT result_json, created_at FROM ai_actions_log WHERE tool_name = 'monday_reminder' ORDER BY id DESC LIMIT 1`
+    );
+    if (!rows.length) return res.json({ lastRun: null });
+    res.json({ lastRun: rows[0].created_at, ...JSON.parse(rows[0].result_json) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 function requireAI(res) {
   if (!groq) {
@@ -2127,7 +2146,8 @@ app.post("/api/admin/resend-domain", authenticate, requireAdmin, async (req, res
 // POST /api/admin/monday-reminder — déclencher manuellement le rappel du lundi (admin, pour test)
 app.post("/api/admin/monday-reminder", authenticate, requireAdmin, async (req, res) => {
   try {
-    const result = await sendMondayReminders();
+    // body.to (optionnel) : envoyer uniquement à cette adresse (test ciblé)
+    const result = await sendMondayReminders(req.body?.to || null);
     res.json({ ok: true, ...result });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
