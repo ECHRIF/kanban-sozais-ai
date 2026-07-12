@@ -469,6 +469,47 @@ async function sendNotifEmail(recipient, taskTitle, project, fromName, type = 'n
   }
 }
 
+// ─── Rappel hebdomadaire : chaque lundi matin, rappel de remplir le Kanban ──
+async function sendMondayReminders() {
+  if (!resend) { console.warn("⚠️  Rappel lundi : mailer non configuré"); return { sent: 0, failed: 0, details: [] }; }
+  const [rows] = await pool.query("SELECT name, email FROM employees WHERE email IS NOT NULL AND email != '' ORDER BY name");
+  let sent = 0, failed = 0;
+  const details = [];
+  for (const { name, email } of rows) {
+    const prenom = name.split(" ")[0];
+    const html = `
+      <div style="font-family:sans-serif;background:#0f172a;color:#e2e8f0;padding:32px;border-radius:12px;max-width:500px;margin:auto">
+        <div style="font-size:22px;font-weight:700;margin-bottom:4px">Kanban <span style="color:#38bdf8">SOZAIS</span></div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:24px;border-bottom:1px solid #1e293b;padding-bottom:16px">Gestion de projets & équipes</div>
+
+        <p style="font-size:15px;margin:0 0 16px">Bonjour <strong>${prenom}</strong> 👋</p>
+        <div style="background:#1e293b;border-radius:10px;padding:20px;margin-bottom:20px;border-left:4px solid #f59e0b">
+          <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#f1f5f9">⏰ C'est lundi — pensez à votre Kanban !</p>
+          <p style="margin:0;color:#94a3b8;font-size:13px">Prenez 5 minutes pour mettre à jour votre tableau : ajoutez vos tâches de la semaine, actualisez les colonnes et lancez vos pointages.</p>
+        </div>
+
+        <a href="${APP_URL}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+          Ouvrir mon Kanban →
+        </a>
+
+        <p style="margin-top:24px;font-size:10px;color:#334155">Rappel automatique du lundi matin — Kanban SOZAIS.</p>
+      </div>`;
+    try {
+      const { error } = await resend.emails.send({ from: FROM_EMAIL, to: email, subject: "⏰ C'est lundi — pensez à remplir votre Kanban", html });
+      if (error) throw new Error(error.message || JSON.stringify(error));
+      sent++; details.push({ name, email, ok: true });
+    } catch (e) {
+      failed++; details.push({ name, email, ok: false, error: e.message });
+      console.warn(`   ⚠️  Rappel non envoyé à ${name} :`, e.message);
+    }
+    await new Promise(r => setTimeout(r, 600)); // limite Resend : 2 requêtes/seconde
+  }
+  console.log(`📧 Rappel du lundi : ${sent} envoyé(s), ${failed} échec(s)`);
+  return { sent, failed, details };
+}
+// Tous les lundis à 08h00, heure de Tunis
+cron.schedule("0 8 * * 1", sendMondayReminders, { timezone: "Africa/Tunis" });
+
 function requireAI(res) {
   if (!groq) {
     res.status(503).json({ error: "Clé GROQ_API_KEY manquante dans .env" });
@@ -2061,6 +2102,14 @@ app.post("/api/employees", authenticate, requireAdmin, async (req, res) => {
     await conn.rollback();
     res.status(500).json({ error: err.message });
   } finally { conn.release(); }
+});
+
+// POST /api/admin/monday-reminder — déclencher manuellement le rappel du lundi (admin, pour test)
+app.post("/api/admin/monday-reminder", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const result = await sendMondayReminders();
+    res.json({ ok: true, ...result });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // PATCH /api/employees/:name/email — définir le mail pro d'un compte (admin)
