@@ -2104,6 +2104,26 @@ app.post("/api/employees", authenticate, requireAdmin, async (req, res) => {
   } finally { conn.release(); }
 });
 
+// POST /api/admin/resend-domain — enregistrer/vérifier le domaine d'envoi sur Resend (admin)
+// Renvoie les enregistrements DNS à configurer, puis le statut de vérification.
+app.post("/api/admin/resend-domain", authenticate, requireAdmin, async (req, res) => {
+  try {
+    if (!resend) return res.status(503).json({ error: "Resend non configuré" });
+    const DOMAIN = "sozais-ing.com";
+    const list = await resend.domains.list();
+    let domain = (list?.data?.data || []).find(d => d.name === DOMAIN);
+    if (!domain) {
+      const created = await resend.domains.create({ name: DOMAIN });
+      if (created.error) return res.status(500).json({ error: created.error.message });
+      domain = created.data;
+    }
+    // Détail (records DNS) + éventuelle demande de vérification
+    if (req.body?.verify && domain.id) await resend.domains.verify(domain.id);
+    const detail = await resend.domains.get(domain.id);
+    res.json({ ok: true, domain: detail?.data || domain });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // POST /api/admin/monday-reminder — déclencher manuellement le rappel du lundi (admin, pour test)
 app.post("/api/admin/monday-reminder", authenticate, requireAdmin, async (req, res) => {
   try {
