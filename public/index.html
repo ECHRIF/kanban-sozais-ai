@@ -2473,6 +2473,8 @@ function App() {
   const [empList, setEmpList] = useState(DEFAULT_EMPLOYEES);
   const allRef = useRef(all);
   allRef.current = all;
+  const userRef = useRef(user);
+  userRef.current = user;
   const empListRef = useRef(empList);
   empListRef.current = empList;
 
@@ -2631,23 +2633,22 @@ function App() {
       // Ne jamais pauser si la page est en arrière-plan (utilisateur sur AutoCAD, Revit, etc.)
       if (document.hidden) return;
       if (Date.now() - lastActivityRef.current < INACTIVITY_MS) return;
-      const current = allRef.current;
-      const hasRunning = Object.values(current).some((tasks) => tasks.some((t) => t.timerRunning));
-      if (!hasRunning) return;
+      // FIX CRITIQUE : ne pauser QUE les timers de l'utilisateur courant.
+      // Avant, on re-sauvegardait les listes de TOUS les membres visibles à
+      // partir d'une copie locale périmée → effacement des cartes créées par
+      // les membres entre-temps (le serveur remplace la liste complète).
+      const me = userRef.current;
+      if (!me) return;
+      const myTasks = allRef.current[me.name];
+      if (!myTasks || !myTasks.some((t) => t.timerRunning)) return;
       const now = Date.now();
-      setAll((prev) => {
-        const next = {};
-        Object.entries(prev).forEach(([name, tasks]) => {
-          const updated = tasks.map((t) => {
-            if (!t.timerRunning) return t;
-            const elapsed = t.timerStartedAt ? Math.floor((now - t.timerStartedAt) / 1000) : 0;
-            return { ...t, timerRunning: false, timerStartedAt: null, timerSeconds: (t.timerSeconds || 0) + elapsed };
-          });
-          saveTasks(name, updated);
-          next[name] = updated;
-        });
-        return next;
+      const updated = myTasks.map((t) => {
+        if (!t.timerRunning) return t;
+        const elapsed = t.timerStartedAt ? Math.floor((now - t.timerStartedAt) / 1000) : 0;
+        return { ...t, timerRunning: false, timerStartedAt: null, timerSeconds: (t.timerSeconds || 0) + elapsed };
       });
+      saveTasks(me.name, updated); // hors du setAll updater (pureté React 18)
+      setAll((prev) => ({ ...prev, [me.name]: updated }));
       setInactivityPaused(true);
       setTimeout(() => setInactivityPaused(false), 6000);
     }, 30000); // vérifie toutes les 30 secondes
@@ -2781,17 +2782,24 @@ function App() {
   }, []);
 
   const logout = () => {
+    // FIX CRITIQUE : avant, la déconnexion re-sauvegardait les tâches de TOUS
+    // les membres visibles (équipe entière pour un admin, pôle pour un chef)
+    // à partir de la copie locale — souvent périmée. Comme le serveur remplace
+    // la liste complète (DELETE + INSERT), cela EFFAÇAIT les cartes créées par
+    // les membres depuis l'ouverture de la session. On ne sauvegarde désormais
+    // QUE les tâches de l'utilisateur qui se déconnecte (pour arrêter ses timers).
     const now = Date.now();
-    Object.entries(all).forEach(([n, tasks]) => {
-      const stopped = tasks.map((t) => {
+    const myTasks = all[user.name];
+    if (myTasks && myTasks.some((t) => t.timerRunning)) {
+      const stopped = myTasks.map((t) => {
         if (t.timerRunning) {
           const elapsed = t.timerStartedAt ? Math.floor((now - t.timerStartedAt) / 1000) : 0;
           return { ...t, timerRunning: false, timerStartedAt: null, timerSeconds: (t.timerSeconds || 0) + elapsed };
         }
         return t;
       });
-      saveTasks(n, stopped);
-    });
+      saveTasks(user.name, stopped);
+    }
     setToken(null); // effacer le JWT
     setUser(null); setAll({}); setAdmin(false);
   };

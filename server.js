@@ -267,6 +267,29 @@ const pool = mysql.createPool({
       }
     }
 
+    // Migration : colonnes manquantes dans notifications (table créée par une
+    // ancienne version). BUG CRITIQUE corrigé : l'INSERT de notification avec
+    // la colonne 'project' inexistante faisait échouer TOUTE la transaction de
+    // sauvegarde des tâches → cartes jamais enregistrées quand un chef/admin
+    // assignait une carte à quelqu'un d'autre.
+    const notifMigrations = [
+      ['type',       `ALTER TABLE notifications ADD COLUMN type VARCHAR(50) NOT NULL DEFAULT 'new_task'`],
+      ['project',    `ALTER TABLE notifications ADD COLUMN project VARCHAR(300) DEFAULT ''`],
+      ['task_title', `ALTER TABLE notifications ADD COLUMN task_title VARCHAR(500) NOT NULL DEFAULT ''`],
+      ['from_name',  `ALTER TABLE notifications ADD COLUMN from_name VARCHAR(200) NOT NULL DEFAULT ''`],
+      ['seen',       `ALTER TABLE notifications ADD COLUMN seen TINYINT(1) DEFAULT 0`],
+    ];
+    for (const [col, sql] of notifMigrations) {
+      const [rows] = await conn.query(
+        `SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='notifications' AND COLUMN_NAME=?`,
+        [col]
+      );
+      if (rows[0].cnt === 0) {
+        await conn.query(sql);
+        console.log(`✅ Migration notifications: ajout colonne ${col}`);
+      }
+    }
+
     // ─── Données initiales employees ──────────────────────────
     const employeesData = [
       ['Souha ARFAOUI',      'Cheffe Pôle Fluide',      'Fluide', 1, 0],
@@ -1712,13 +1735,18 @@ app.patch("/api/tasks/:taskId/reassign", authenticate, async (req, res) => {
 
     await pool.query("UPDATE tasks SET owner_name = ? WHERE id = ?", [newOwner, taskId]);
 
-    // Notification + email au nouveau propriétaire
+    // Notification + email au nouveau propriétaire (best-effort : une erreur
+    // de notification ne doit pas faire échouer la réaffectation déjà faite)
     if (actor && actor !== newOwner) {
-      await pool.query(
-        `INSERT INTO notifications (recipient, type, task_id, task_title, project, from_name) VALUES (?, 'new_task', ?, ?, ?, ?)`,
-        [newOwner, taskId, task.title || "Sans titre", task.project || "", actor]
-      );
-      sendNotifEmail(newOwner, task.title || "Sans titre", task.project || "", actor, 'new_task');
+      try {
+        await pool.query(
+          `INSERT INTO notifications (recipient, type, task_id, task_title, project, from_name) VALUES (?, 'new_task', ?, ?, ?, ?)`,
+          [newOwner, taskId, task.title || "Sans titre", task.project || "", actor]
+        );
+        sendNotifEmail(newOwner, task.title || "Sans titre", task.project || "", actor, 'new_task');
+      } catch (notifErr) {
+        console.warn("⚠️  Notification non envoyée (réaffectation faite) :", notifErr.message);
+      }
     }
 
     res.json({ ok: true, taskId, from: oldOwner, to: newOwner, title: task.title });
@@ -1751,6 +1779,16 @@ app.post("/api/tasks/:ownerName", authenticate, async (req, res) => {
     // l'a encore à true, on restaure l'état DB (évite la race condition).
     const isOwner = actor === ownerName;
 
+    // GARDE ANTI-EFFACEMENT : un chef/admin dont la copie locale est périmée
+    // (session ouverte depuis longtemps) ne doit JAMAIS pouvoir vider le
+    // tableau d'un membre en envoyant une liste vide. Seul le propriétaire
+    // peut vider son propre tableau.
+    if (!isOwner && (!tasks || tasks.length === 0) && existingRows.length > 0) {
+      await conn.rollback();
+      console.warn(`⛔ Sauvegarde vide refusée : ${actor} → ${ownerName} (${existingRows.length} tâche(s) protégée(s))`);
+      return res.json({ ok: true, count: existingRows.length, skipped: "liste vide ignorée (protection anti-effacement)" });
+    }
+
     await conn.query("DELETE FROM tasks WHERE owner_name = ?", [ownerName]);
     if (tasks && tasks.length > 0) {
       const values = tasks.map(t => {
@@ -1773,25 +1811,33 @@ app.post("/api/tasks/:ownerName", authenticate, async (req, res) => {
         [values]
       );
 
-      // Créer des notifications + envoyer emails pour les nouvelles tâches assignées
-      if (actor && actor !== ownerName) {
+    }
+    await conn.commit();
+
+    // Notifications + emails APRÈS le commit, en best-effort : une erreur de
+    // notification ne doit JAMAIS faire échouer la sauvegarde des tâches.
+    // (Avant, l'INSERT notifications était DANS la transaction → toute erreur
+    // SQL sur notifications annulait la sauvegarde des cartes.)
+    if (tasks && tasks.length > 0 && actor && actor !== ownerName) {
+      try {
         const newTasks = tasks.filter(t => !existingIds.has(t.id));
         if (newTasks.length > 0) {
           const notifValues = newTasks.map(t => [
             ownerName, 'new_task', t.id, t.title || "Sans titre", t.project || "", actor
           ]);
-          await conn.query(
+          await pool.query(
             `INSERT INTO notifications (recipient, type, task_id, task_title, project, from_name) VALUES ?`,
             [notifValues]
           );
-          // Envoi email (async — ne bloque pas la réponse HTTP)
           for (const t of newTasks) {
             sendNotifEmail(ownerName, t.title || "Sans titre", t.project || "", actor, 'new_task');
           }
         }
+      } catch (notifErr) {
+        console.warn("⚠️  Notification non envoyée (tâches sauvegardées) :", notifErr.message);
       }
     }
-    await conn.commit();
+
     res.json({ ok: true, count: tasks ? tasks.length : 0 });
   } catch (err) {
     await conn.rollback();
