@@ -483,7 +483,7 @@ async function sendMondayReminders(onlyEmail = null) {
         <div style="font-size:22px;font-weight:700;margin-bottom:4px">Kanban <span style="color:#38bdf8">SOZAIS</span></div>
         <div style="font-size:11px;color:#64748b;margin-bottom:24px;border-bottom:1px solid #1e293b;padding-bottom:16px">Gestion de projets & équipes</div>
 
-        <p style="font-size:15px;margin:0 0 16px">Bonjour <strong>${prenom}</strong> 👋</p>
+        <p style="font-size:15px;margin:0 0 16px">Salem aleykoum <strong>${prenom}</strong> 👋</p>
         <div style="background:#1e293b;border-radius:10px;padding:20px;margin-bottom:20px;border-left:4px solid #f59e0b">
           <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#f1f5f9">⏰ C'est lundi — pensez à votre Kanban !</p>
           <p style="margin:0;color:#94a3b8;font-size:13px">Prenez 5 minutes pour mettre à jour votre tableau : ajoutez vos tâches de la semaine, actualisez les colonnes et lancez vos pointages.</p>
