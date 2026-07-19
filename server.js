@@ -518,6 +518,88 @@ async function sendMondayReminders(onlyEmail = null) {
 // Tous les lundis à 08h00, heure de Tunis
 cron.schedule("0 8 * * 1", () => sendMondayReminders(), { timezone: "Africa/Tunis" });
 
+// ─── Détection d'inactivité + avertissement ────────────────────────────────
+// Critère "n'a pas joué le jeu" : aucune carte créée sur son tableau depuis
+// 7 jours ET aucun pointage (timer) en cours. Les admins sont exclus.
+async function getInactiveEmployees() {
+  const [rows] = await pool.query(`
+    SELECT e.name, e.email, e.pole,
+           COUNT(t.id)                        AS task_count,
+           COALESCE(SUM(t.timer_running), 0)  AS running,
+           COALESCE(MAX(t.created_at), '')    AS last_created
+    FROM employees e
+    LEFT JOIN tasks t ON t.owner_name = e.name
+    WHERE e.email IS NOT NULL AND e.email != '' AND e.is_admin = 0
+    GROUP BY e.name, e.email, e.pole
+    ORDER BY e.pole, e.name
+  `);
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+  return rows.filter(r => !(r.last_created && String(r.last_created) > weekAgo) && !Number(r.running));
+}
+
+async function sendInactivityWarnings(dryRun = false) {
+  const inactive = await getInactiveEmployees();
+  if (dryRun) return { dryRun: true, count: inactive.length, inactive: inactive.map(i => ({ name: i.name, pole: i.pole, tasks: Number(i.task_count) })) };
+  if (!resend) return { sent: 0, failed: 0, error: "mailer non configuré" };
+  let sent = 0, failed = 0;
+  const details = [];
+  for (const { name, email, pole, task_count } of inactive) {
+    const prenom = name.split(" ")[0];
+    const html = `
+      <div style="font-family:sans-serif;background:#0f172a;color:#e2e8f0;padding:32px;border-radius:12px;max-width:500px;margin:auto">
+        <div style="font-size:22px;font-weight:700;margin-bottom:4px">Kanban <span style="color:#38bdf8">SOZAIS</span></div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:24px;border-bottom:1px solid #1e293b;padding-bottom:16px">Gestion de projets & équipes</div>
+
+        <p style="font-size:15px;margin:0 0 16px">Salem aleykoum <strong>${prenom}</strong>,</p>
+        <div style="background:#1e293b;border-radius:10px;padding:20px;margin-bottom:20px;border-left:4px solid #ef4444">
+          <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#f1f5f9">⚠️ Aucune activité détectée sur votre Kanban cette semaine</p>
+          <p style="margin:0 0 8px;color:#94a3b8;font-size:13px">Aucune tâche créée et aucun pointage lancé sur votre tableau ces 7 derniers jours.</p>
+          <p style="margin:0;color:#e2e8f0;font-size:13px;font-weight:600">L'utilisation du Kanban est impérative pour toute l'équipe : c'est l'outil officiel de suivi des projets et du pointage.</p>
+        </div>
+
+        <p style="font-size:13px;color:#94a3b8;margin:0 0 16px">Ce qui est attendu chaque semaine :<br>
+        1️⃣ Créer vos tâches de la semaine sur votre tableau<br>
+        2️⃣ Lancer le minuteur (pointage) quand vous travaillez sur une tâche<br>
+        3️⃣ Déplacer vos cartes au fil de l'avancement (À faire → En cours → Terminé)</p>
+
+        <a href="${APP_URL}" style="display:inline-block;padding:12px 24px;background:#ef4444;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">
+          Mettre à jour mon Kanban maintenant →
+        </a>
+
+        <p style="margin-top:24px;font-size:10px;color:#334155">Avertissement automatique — Kanban SOZAIS. La Direction est informée des rappels envoyés.</p>
+      </div>`;
+    try {
+      const { error } = await resend.emails.send({ from: FROM_EMAIL, to: email, subject: "⚠️ Kanban SOZAIS : aucune activité détectée cette semaine", html });
+      if (error) throw new Error(error.message || JSON.stringify(error));
+      sent++; details.push({ name, pole, ok: true });
+    } catch (e) { failed++; details.push({ name, pole, ok: false, error: e.message }); }
+    await new Promise(r => setTimeout(r, 600));
+  }
+  // Rapport à l'admin
+  try {
+    const parPole = {};
+    details.forEach(d => { (parPole[d.pole] = parPole[d.pole] || []).push(d.name + (d.ok ? '' : ' (échec envoi)')); });
+    const lignes = Object.entries(parPole).map(([p, noms]) => `<p style="margin:4px 0"><strong>${p}</strong> : ${noms.join(', ')}</p>`).join('');
+    await resend.emails.send({
+      from: FROM_EMAIL, to: 'w.echrif@sozais-ing.com',
+      subject: `📊 Kanban : ${sent} avertissement(s) d'inactivité envoyé(s)`,
+      html: `<div style="font-family:sans-serif"><p>Avertissements d'inactivité envoyés (${sent} envoyé(s), ${failed} échec(s)) :</p>${lignes || '<p>Personne — toute l\'équipe est active 🎉</p>'}</div>`
+    });
+  } catch (e) { console.warn("⚠️  Rapport admin inactivité :", e.message); }
+  // Journal
+  try {
+    await pool.query(
+      `INSERT INTO ai_actions_log (actor, tool_name, input_json, result_json) VALUES ('system', 'inactivity_warning', '{}', ?)`,
+      [JSON.stringify({ sent, failed })]
+    );
+  } catch (e) {}
+  console.log(`⚠️  Avertissements inactivité : ${sent} envoyé(s), ${failed} échec(s)`);
+  return { sent, failed, details };
+}
+// Relance automatique : tous les mercredis à 10h00 (heure de Tunis) — si un
+// membre n'a toujours rien fait en milieu de semaine, il reçoit l'avertissement.
+cron.schedule("0 10 * * 3", () => sendInactivityWarnings(), { timezone: "Africa/Tunis" });
+
 // GET /api/health/monday-reminder — état du dernier envoi (public, compteurs uniquement)
 app.get("/api/health/monday-reminder", async (req, res) => {
   try {
@@ -2140,6 +2222,15 @@ app.post("/api/admin/resend-domain", authenticate, requireAdmin, async (req, res
     if (req.body?.verify && domain.id) await resend.domains.verify(domain.id);
     const detail = await resend.domains.get(domain.id);
     res.json({ ok: true, domain: detail?.data || domain });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/inactivity-warning — avertir les inactifs (admin)
+// body.dryRun = true → liste seulement qui recevrait l'avertissement, sans envoyer
+app.post("/api/admin/inactivity-warning", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const result = await sendInactivityWarnings(!!req.body?.dryRun);
+    res.json({ ok: true, ...result });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
