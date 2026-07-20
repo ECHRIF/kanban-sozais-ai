@@ -55,17 +55,13 @@ const DEFAULT_EMPLOYEES = [
   { name: "Chadha DAOUIDI", role: "Ingénieure fluide", pole: "Fluide", isChef: false },
   { name: "Hamadi MTIRI", role: "Projeteur fluide", pole: "Fluide", isChef: false },
   { name: "Abdelhak AMRI", role: "Technicien sup fluide", pole: "Fluide", isChef: false },
-  { name: "Nesrine KAYEL", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
   { name: "Nadhir GHOUMA", role: "Technicien sup fluide", pole: "Fluide", isChef: false },
   { name: "Achraf SAOUDI", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
-  { name: "Tayeb KSENTINI", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
-  { name: "Chadha SAADAOUI", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
   { name: "Shayma MASTOURI", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
   { name: "Rihab ATTIA", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
   { name: "Fatma RHAIMI", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
   { name: "Sabah AJARRAR", role: "Ingénieur fluide", pole: "Fluide", isChef: false },
   { name: "Majdi AMARA", role: "Chef Pôle Élec", pole: "Élec", isChef: true },
-  { name: "Yassine KHCHIMI", role: "Ingénieur Elec", pole: "Élec", isChef: false },
   { name: "Rakia MANSOUR", role: "Ingénieur Elec", pole: "Élec", isChef: false },
   { name: "Safa SOUAYAH", role: "Ingénieur Elec", pole: "Élec", isChef: false },
   { name: "Rima MABROUKI", role: "Ingénieur Elec", pole: "Élec", isChef: false },
@@ -85,7 +81,6 @@ const DEFAULT_EMPLOYEES = [
   { name: "Marion CESA", role: "Resp. administrative et financière", pole: "Direction", isChef: true, isAdmin: false, canViewAll: true },
   { name: "Asma ATHIMNI", role: "Directrice Commerciale", pole: "Commercial", isChef: true },
   { name: "Nourchene OUESLATI", role: "Commerciale", pole: "Commercial", isChef: false },
-  { name: "Warden EL FEKIH", role: "Commercial", pole: "Commercial", isChef: false },
 ];
 
 const genId = () => Math.random().toString(36).substr(2, 9);
@@ -503,7 +498,88 @@ function AIChatPanel({ user, onClose, onAction }) {
   );
 }
 
-// ─── Composant : Analyse de charge ────────────────────────────
+// ─── Composant : Créer des cartes depuis un texte ─────────────
+function ParseTasksModal({ user, employees, onCreate, onClose }) {
+  const [text, setText] = useState('');
+  const [proposals, setProposals] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  const analyser = async () => {
+    setLoading(true); setErr('');
+    try {
+      const r = await authFetch('/api/ai/parse-tasks', { method: 'POST', body: JSON.stringify({ text }) });
+      const d = await r.json();
+      if (!r.ok) { setErr(d.error || 'Erreur'); setLoading(false); return; }
+      setProposals(d.tasks.map(t => ({ ...t, owner: t.owner || user.name, keep: true })));
+    } catch (e) { setErr('Erreur réseau'); }
+    setLoading(false);
+  };
+
+  const creer = () => {
+    const kept = proposals.filter(p => p.keep);
+    if (!kept.length) return;
+    onCreate(kept);
+    onClose();
+  };
+
+  const upd = (i, patch) => setProposals(p => p.map((x, j) => j === i ? { ...x, ...patch } : x));
+  const canAssignOthers = user.isAdmin || user.isChef;
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: DARK2, border: '1px solid ' + BRD, borderRadius: 14, width: 'min(680px, 94vw)', maxHeight: '86vh', overflow: 'auto', padding: 22 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: TXT }}>📄 Créer des cartes depuis un texte</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: TXT3, fontSize: 18, cursor: 'pointer' }}>✕</button>
+        </div>
+        {!proposals && (
+          <>
+            <div style={{ color: TXT2, fontSize: 12, marginBottom: 10 }}>Colle un compte-rendu de réunion, un email ou des notes — l'IA propose les cartes correspondantes, que tu valides avant création.</div>
+            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={9} placeholder={"Ex :\nRéunion projet Hôpital Nord — CFO/CFA\n- Majdi doit finaliser la NDC éclairage pour vendredi\n- Plans de distribution niveau R+1 à reprendre (Safa)\n- Relancer le client sur les réserves..."}
+              style={{ width: '100%', boxSizing: 'border-box', background: DARK, border: '1px solid ' + BRD, borderRadius: 10, color: TXT, fontSize: 13, padding: 12, resize: 'vertical' }} />
+            {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600, marginTop: 8 }}>⚠️ {err}</div>}
+            <button onClick={analyser} disabled={loading || text.trim().length < 10}
+              style={{ marginTop: 12, padding: '11px 22px', background: loading ? TXT3 : BLUE, border: 'none', borderRadius: 9, color: '#fff', fontWeight: 700, cursor: loading ? 'wait' : 'pointer', fontSize: 13 }}>
+              {loading ? '🤖 Analyse en cours…' : '🤖 Analyser le texte'}
+            </button>
+          </>
+        )}
+        {proposals && (
+          <>
+            <div style={{ color: TXT2, fontSize: 12, marginBottom: 12 }}>{proposals.length} carte(s) proposée(s) — décoche celles à ignorer, ajuste l'assigné si besoin :</div>
+            {proposals.map((p, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', background: DARK, border: '1px solid ' + BRD, borderRadius: 10, padding: '10px 12px', marginBottom: 8, opacity: p.keep ? 1 : 0.45 }}>
+                <input type="checkbox" checked={p.keep} onChange={(e) => upd(i, { keep: e.target.checked })} style={{ marginTop: 4 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: TXT, fontSize: 13, fontWeight: 700 }}>{p.title}</div>
+                  {p.project && <div style={{ color: TXT3, fontSize: 11 }}>📁 {p.project}</div>}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <select value={p.owner} onChange={(e) => upd(i, { owner: e.target.value })} disabled={!canAssignOthers}
+                      style={{ background: DARK2, border: '1px solid ' + BRD, borderRadius: 6, color: TXT2, fontSize: 11, padding: '4px 6px' }}>
+                      {(canAssignOthers ? employees : employees.filter(e => e.name === user.name)).map(e => <option key={e.name} value={e.name}>{e.name}</option>)}
+                    </select>
+                    <span style={{ fontSize: 11, color: p.priority === 'high' ? RED : p.priority === 'low' ? GREEN : ORANGE }}>{p.priority === 'high' ? '🔴 Haute' : p.priority === 'low' ? '🟢 Basse' : '🟠 Moyenne'}</span>
+                    {p.deadline && <span style={{ fontSize: 11, color: TXT3 }}>📅 {p.deadline}</span>}
+                    {p.estimatedHours !== '' && p.estimatedHours != null && <span style={{ fontSize: 11, color: TXT3 }}>⏱ {p.estimatedHours}h</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+              <button onClick={creer} disabled={!proposals.some(p => p.keep)}
+                style={{ padding: '11px 22px', background: GREEN, border: 'none', borderRadius: 9, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                ✅ Créer {proposals.filter(p => p.keep).length} carte(s)
+              </button>
+              <button onClick={() => { setProposals(null); }} style={{ padding: '11px 18px', background: 'transparent', border: '1px solid ' + BRD, borderRadius: 9, color: TXT2, cursor: 'pointer', fontSize: 13 }}>← Modifier le texte</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Composant : Analyse de charge ────────────────────────────
 function WorkloadModal({ onClose }) {
   const [data, setData] = useState(null);
@@ -2563,6 +2639,7 @@ function App() {
   // ─── États IA ─────────────────────────────────────────────
   const [chatOpen, setChatOpen] = useState(true);
   const [workloadOpen, setWorkloadOpen] = useState(false);
+  const [parseOpen, setParseOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [prioritizing, setPrioritizing] = useState(null);
   const [prioritizeMsg, setPrioritizeMsg] = useState(null);
@@ -2734,6 +2811,30 @@ function App() {
     // (appel réseau, sauvegarde) doit être hors du updater pour être fiable.
     saveTasks(n, merged);
     setAll((p) => ({ ...p, [n]: merged }));
+  }, []);
+
+  // ─── Créer les cartes proposées par l'analyse de texte ─────────
+  const handleParseCreate = useCallback(async (cards) => {
+    const byOwner = {};
+    cards.forEach(c => {
+      (byOwner[c.owner] = byOwner[c.owner] || []).push({
+        id: genId(), title: c.title, project: c.project || '', description: c.description || '',
+        priority: c.priority || 'medium', column: 'todo', deadline: c.deadline || '',
+        estimatedHours: c.estimatedHours === '' || c.estimatedHours == null ? '' : String(c.estimatedHours),
+        timerSeconds: 0, timerRunning: false, timerStartedAt: null,
+        createdAt: new Date().toISOString(), createdBy: userRef.current?.name || null,
+      });
+    });
+    const current = allRef.current;
+    const updates = {};
+    for (const [name, newTasks] of Object.entries(byOwner)) {
+      // Si le tableau de ce membre n'est pas chargé localement, on le recharge
+      // depuis le serveur AVANT de fusionner — sinon on écraserait ses cartes.
+      const existing = current[name] !== undefined ? current[name] : await loadTasks(name);
+      updates[name] = [...existing, ...newTasks];
+      saveTasks(name, updates[name]);
+    }
+    setAll(prev => ({ ...prev, ...updates }));
   }, []);
 
   const reassign = useCallback(async (fromName, toName, task) => {
@@ -3096,6 +3197,11 @@ function App() {
             </button>
           )}
 
+          <button onClick={() => setParseOpen(true)}
+            style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background:"none", border:"none", borderLeft:"3px solid transparent", color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
+            <span style={{ fontSize:15 }}>📄</span> Cartes depuis texte
+          </button>
+
           {(user.isAdmin || user.isChef || user.canViewAll) && (
             <>
               <button onClick={() => setWorkloadOpen(true)}
@@ -3287,6 +3393,7 @@ function App() {
       {fixedCostsOpen && user.isAdmin && <FixedCostsModal onClose={() => setFixedCostsOpen(false)} />}
       {importModal && <ImportExcelModal employees={empList} allTasks={all} onImport={handleImport} onClose={() => setImportModal(false)} />}
       {workloadOpen && <WorkloadModal onClose={() => setWorkloadOpen(false)} />}
+      {parseOpen && <ParseTasksModal user={user} employees={empList} onCreate={handleParseCreate} onClose={() => setParseOpen(false)} />}
       {reportOpen && <ReportModal onClose={() => setReportOpen(false)} />}
       {chatOpen && <AIChatPanel user={user} onClose={() => setChatOpen(false)} onAction={refetchAll} />}
       {prioritizeMsg && <PrioritizeToast name={prioritizeMsg.name} msg={prioritizeMsg.msg} onClose={() => setPrioritizeMsg(null)} />}

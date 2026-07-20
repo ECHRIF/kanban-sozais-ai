@@ -297,17 +297,13 @@ const pool = mysql.createPool({
       ['Chadha DAOUIDI',     'Ingénieure fluide',       'Fluide', 0, 0],
       ['Hamadi MTIRI',       'Projeteur fluide',        'Fluide', 0, 0],
       ['Abdelhak AMRI',      'Technicien sup fluide',   'Fluide', 0, 0],
-      ['Nesrine KAYEL',      'Ingénieur fluide',        'Fluide', 0, 0],
       ['Nadhir GHOUMA',      'Technicien sup fluide',   'Fluide', 0, 0],
       ['Achraf SAOUDI',      'Ingénieur fluide',        'Fluide', 0, 0],
-      ['Tayeb KSENTINI',     'Ingénieur fluide',        'Fluide', 0, 0],
-      ['Chadha SAADAOUI',    'Ingénieur fluide',        'Fluide', 0, 0],
       ['Shayma MASTOURI',    'Ingénieur fluide',        'Fluide', 0, 0],
       ['Rihab ATTIA',        'Ingénieur fluide',        'Fluide', 0, 0],
       ['Sabah AJARRAR',      'Ingénieur fluide',        'Fluide', 0, 0],
       ['Emna GHRISSI',       'Ingénieure Elec',         'Élec',   0, 0],
       ['Majdi AMARA',        'Chef Pôle Élec',          'Élec',   1, 0],
-      ['Yassine KHCHIMI',    'Ingénieur Elec',          'Élec',   0, 0],
       ['Rakia MANSOUR',      'Ingénieur Elec',          'Élec',   0, 0],
       ['Safa SOUAYAH',       'Ingénieur Elec',          'Élec',   0, 0],
       ['Rima MABROUKI',      'Ingénieur Elec',          'Élec',   0, 0],
@@ -423,6 +419,81 @@ if (resend) {
 
 // Adresse d'envoi : domaine vérifié sur Resend, ou adresse par défaut
 const FROM_EMAIL = process.env.RESEND_FROM || "Kanban SOZAIS <onboarding@resend.dev>";
+
+// ─── Adaptateur LLM : Claude (Anthropic) en priorité, Groq/LLaMA en secours ──
+// Accepte le format OpenAI (messages/tools) utilisé partout dans ce fichier et
+// le convertit vers l'API Anthropic Messages ; la réponse est renvoyée au
+// format OpenAI pour ne pas toucher aux boucles existantes.
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || null;
+const CLAUDE_MODEL  = process.env.CLAUDE_MODEL || "claude-sonnet-4-5";
+
+function toAnthropicTools(tools) {
+  return (tools || []).map(t => ({
+    name: t.function.name,
+    description: t.function.description || "",
+    input_schema: t.function.parameters || { type: "object", properties: {} },
+  }));
+}
+
+function toAnthropicMessages(messages) {
+  let system = "";
+  const out = [];
+  for (const m of messages) {
+    if (m.role === "system") { system += (system ? "\n\n" : "") + m.content; continue; }
+    if (m.role === "assistant") {
+      const blocks = [];
+      if (m.content) blocks.push({ type: "text", text: m.content });
+      for (const tc of m.tool_calls || []) {
+        let args = {};
+        try { args = JSON.parse(tc.function.arguments || "{}"); } catch {}
+        blocks.push({ type: "tool_use", id: tc.id, name: tc.function.name, input: args });
+      }
+      if (blocks.length) out.push({ role: "assistant", content: blocks });
+    } else if (m.role === "tool") {
+      // Les résultats d'outils deviennent des tool_result dans un tour "user".
+      // Plusieurs résultats consécutifs sont regroupés dans le même tour.
+      const block = { type: "tool_result", tool_use_id: m.tool_call_id, content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) };
+      const last = out[out.length - 1];
+      if (last && last.role === "user" && Array.isArray(last.content) && last.content[0]?.type === "tool_result") last.content.push(block);
+      else out.push({ role: "user", content: [block] });
+    } else {
+      out.push({ role: "user", content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) });
+    }
+  }
+  return { system, messages: out };
+}
+
+async function llmChat({ model, max_tokens, temperature, messages, tools, tool_choice }) {
+  if (ANTHROPIC_KEY) {
+    const { system, messages: am } = toAnthropicMessages(messages);
+    const body = { model: CLAUDE_MODEL, max_tokens: max_tokens || 1024, messages: am };
+    if (system) body.system = system;
+    if (typeof temperature === "number") body.temperature = temperature;
+    if (tools && tools.length) body.tools = toAnthropicTools(tools);
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": ANTHROPIC_KEY, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) throw new Error(`Anthropic API ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
+    const data = await resp.json();
+    const textParts = (data.content || []).filter(b => b.type === "text").map(b => b.text);
+    const toolUses  = (data.content || []).filter(b => b.type === "tool_use");
+    return {
+      choices: [{
+        finish_reason: data.stop_reason === "tool_use" ? "tool_calls" : "stop",
+        message: {
+          content: textParts.join("\n") || null,
+          tool_calls: toolUses.length
+            ? toolUses.map(b => ({ id: b.id, type: "function", function: { name: b.name, arguments: JSON.stringify(b.input || {}) } }))
+            : undefined,
+        },
+      }],
+    };
+  }
+  if (!groq) throw new Error("Aucun moteur IA configuré (ANTHROPIC_API_KEY ou GROQ_API_KEY)");
+  return groq.chat.completions.create({ model, max_tokens, temperature, messages, tools, tool_choice });
+}
 
 // ─── Envoi email de notification (async, non-bloquant) ────────
 async function sendNotifEmail(recipient, taskTitle, project, fromName, type = 'new_task') {
@@ -600,6 +671,129 @@ async function sendInactivityWarnings(dryRun = false) {
 // membre n'a toujours rien fait en milieu de semaine, il reçoit l'avertissement.
 cron.schedule("0 10 * * 3", () => sendInactivityWarnings(), { timezone: "Africa/Tunis" });
 
+// ─── IA proactive : relance des tâches en retard ───────────────────────────
+// Tâches dont la deadline est dépassée et non terminées → email au propriétaire
+// avec le chef de son pôle en copie.
+async function sendOverdueAlerts(dryRun = false) {
+  const today = new Date().toISOString().split("T")[0];
+  const [rows] = await pool.query(`
+    SELECT t.id, t.title, t.project, t.deadline, t.priority, t.owner_name,
+           e.email, e.pole
+    FROM tasks t
+    JOIN employees e ON e.name = t.owner_name
+    WHERE t.deadline IS NOT NULL AND t.deadline != '' AND t.deadline < ?
+      AND t.column_id != 'done' AND e.email IS NOT NULL AND e.email != ''
+    ORDER BY t.owner_name, t.deadline ASC
+  `, [today]);
+  // Chefs par pôle (pour la copie)
+  const [chefs] = await pool.query("SELECT name, email, pole FROM employees WHERE is_chef = 1 AND email IS NOT NULL");
+  const chefByPole = {};
+  chefs.forEach(c => { chefByPole[c.pole] = c; });
+
+  const byOwner = {};
+  rows.forEach(r => { (byOwner[r.owner_name] = byOwner[r.owner_name] || { email: r.email, pole: r.pole, tasks: [] }).tasks.push(r); });
+
+  if (dryRun) return { dryRun: true, count: Object.keys(byOwner).length, apercu: Object.entries(byOwner).map(([n, d]) => ({ name: n, retards: d.tasks.length })) };
+  if (!resend) return { sent: 0, failed: 0, error: "mailer non configuré" };
+
+  let sent = 0, failed = 0;
+  for (const [name, { email, pole, tasks }] of Object.entries(byOwner)) {
+    const prenom = name.split(" ")[0];
+    const chef = chefByPole[pole];
+    const lignes = tasks.map(t => `<li style="margin:4px 0"><strong>${t.title}</strong>${t.project ? ' — ' + t.project : ''} <span style="color:#ef4444">(échéance dépassée : ${t.deadline})</span></li>`).join('');
+    const html = `
+      <div style="font-family:sans-serif;background:#0f172a;color:#e2e8f0;padding:32px;border-radius:12px;max-width:520px;margin:auto">
+        <div style="font-size:22px;font-weight:700;margin-bottom:4px">Kanban <span style="color:#38bdf8">SOZAIS</span></div>
+        <div style="font-size:11px;color:#64748b;margin-bottom:24px;border-bottom:1px solid #1e293b;padding-bottom:16px">Gestion de projets & équipes</div>
+        <p style="font-size:15px;margin:0 0 16px">Salem aleykoum <strong>${prenom}</strong>,</p>
+        <div style="background:#1e293b;border-radius:10px;padding:20px;margin-bottom:20px;border-left:4px solid #f59e0b">
+          <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:#f1f5f9">⏰ ${tasks.length} tâche(s) en retard sur votre tableau</p>
+          <ul style="margin:0;padding-left:18px;color:#94a3b8;font-size:13px">${lignes}</ul>
+        </div>
+        <p style="font-size:13px;color:#94a3b8;margin:0 0 16px">Mettez à jour ces cartes : terminez-les, ajustez la date d'échéance si elle a changé, ou signalez un blocage à votre chef de pôle.</p>
+        <a href="${APP_URL}" style="display:inline-block;padding:12px 24px;background:#f59e0b;color:#0f172a;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px">Mettre à jour →</a>
+        <p style="margin-top:24px;font-size:10px;color:#334155">Relance automatique — votre chef de pôle est en copie.</p>
+      </div>`;
+    try {
+      const { error } = await resend.emails.send({
+        from: FROM_EMAIL, to: email,
+        cc: chef && chef.name !== name ? chef.email : undefined,
+        subject: `⏰ Kanban : ${tasks.length} tâche(s) en retard à mettre à jour`,
+        html,
+      });
+      if (error) throw new Error(error.message || JSON.stringify(error));
+      sent++;
+    } catch (e) { failed++; console.warn(`   ⚠️  Relance retard ${name} :`, e.message); }
+    await new Promise(r => setTimeout(r, 600));
+  }
+  try {
+    await pool.query(`INSERT INTO ai_actions_log (actor, tool_name, input_json, result_json) VALUES ('system', 'overdue_alert', '{}', ?)`, [JSON.stringify({ sent, failed })]);
+  } catch (e) {}
+  console.log(`⏰ Relances retard : ${sent} envoyée(s), ${failed} échec(s)`);
+  return { sent, failed };
+}
+// Mardi et jeudi à 09h00 (heure de Tunis)
+cron.schedule("0 9 * * 2,4", () => sendOverdueAlerts(), { timezone: "Africa/Tunis" });
+
+// ─── Récap hebdomadaire IA pour les chefs de pôle ──────────────────────────
+async function sendWeeklyPoleRecaps(dryRun = false) {
+  const [chefs] = await pool.query("SELECT name, email, pole FROM employees WHERE is_chef = 1 AND email IS NOT NULL AND email != ''");
+  const today = new Date().toISOString().split("T")[0];
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+  const results = [];
+  for (const chef of chefs) {
+    const [members] = await pool.query("SELECT name FROM employees WHERE pole = ?", [chef.pole]);
+    const names = members.map(m => m.name);
+    if (!names.length) continue;
+    const [tasks] = await pool.query(`SELECT * FROM tasks WHERE owner_name IN (?)`, [names]);
+    const creees   = tasks.filter(t => String(t.created_at) > weekAgo);
+    const terminees = tasks.filter(t => t.column_id === 'done');
+    const enRetard = tasks.filter(t => t.deadline && t.deadline !== '' && t.deadline < today && t.column_id !== 'done');
+    const enCours  = tasks.filter(t => t.column_id === 'in_progress');
+    const parMembre = names.map(n => {
+      const mt = tasks.filter(t => t.owner_name === n);
+      return `- ${n} : ${mt.length} tâche(s), ${mt.filter(t => t.column_id === 'in_progress').length} en cours, ${mt.filter(t => t.deadline && t.deadline < today && t.column_id !== 'done').length} en retard, ${(mt.reduce((s, t) => s + (t.timer_seconds || 0), 0) / 3600).toFixed(1)}h pointées (cumul)`;
+    }).join("\n");
+    const dataStr = `Pôle ${chef.pole} — semaine du ${weekAgo.slice(0, 10)} au ${today}\n` +
+      `Cartes créées cette semaine : ${creees.length}\nTerminées (total) : ${terminees.length}\nEn cours : ${enCours.length}\nEn retard : ${enRetard.length}` +
+      (enRetard.length ? ` (${enRetard.map(t => `"${t.title}" de ${t.owner_name}`).join(', ')})` : '') +
+      `\n\nDétail par membre :\n${parMembre}`;
+    if (dryRun) { results.push({ chef: chef.name, pole: chef.pole, data: dataStr.slice(0, 200) }); continue; }
+    let synthese = "";
+    try {
+      const resp = await llmChat({
+        max_tokens: 700,
+        messages: [{ role: "user", content:
+          `Tu écris le récap hebdomadaire du pôle ${chef.pole} pour son chef, ${chef.name} (bureau d'études SOZAIS).\n\nDonnées :\n${dataStr}\n\n` +
+          `Rédige en français, 6-10 phrases, structuré en 3 parties : ✅ ce qui avance, ⚠️ points d'attention (retards, membres sans activité), 🎯 priorités suggérées pour la semaine prochaine. Ton professionnel et direct. Pas de titre global.` }],
+      });
+      synthese = resp.choices[0].message.content || "";
+    } catch (e) { synthese = "Synthèse IA indisponible (" + e.message + ").\n\nDonnées brutes :\n" + dataStr; }
+    try {
+      const { error } = await resend.emails.send({
+        from: FROM_EMAIL, to: chef.email, cc: 'w.echrif@sozais-ing.com',
+        subject: `📊 Récap hebdo — Pôle ${chef.pole}`,
+        html: `<div style="font-family:sans-serif;background:#0f172a;color:#e2e8f0;padding:32px;border-radius:12px;max-width:560px;margin:auto">
+          <div style="font-size:22px;font-weight:700;margin-bottom:4px">Kanban <span style="color:#38bdf8">SOZAIS</span></div>
+          <div style="font-size:11px;color:#64748b;margin-bottom:20px;border-bottom:1px solid #1e293b;padding-bottom:14px">Récap hebdomadaire — Pôle ${chef.pole}</div>
+          <div style="font-size:14px;line-height:1.7;color:#e2e8f0;white-space:pre-wrap">${synthese.replace(/</g, '&lt;')}</div>
+          <a href="${APP_URL}" style="display:inline-block;margin-top:20px;padding:12px 24px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Ouvrir le Kanban →</a>
+        </div>`,
+      });
+      if (error) throw new Error(error.message);
+      results.push({ chef: chef.name, pole: chef.pole, ok: true });
+    } catch (e) { results.push({ chef: chef.name, pole: chef.pole, ok: false, error: e.message }); }
+    await new Promise(r => setTimeout(r, 800));
+  }
+  if (!dryRun) {
+    try { await pool.query(`INSERT INTO ai_actions_log (actor, tool_name, input_json, result_json) VALUES ('system', 'weekly_recap', '{}', ?)`, [JSON.stringify(results)]); } catch (e) {}
+    console.log(`📊 Récaps hebdo chefs :`, JSON.stringify(results));
+  }
+  return { results };
+}
+// Vendredi à 16h00 (heure de Tunis)
+cron.schedule("0 16 * * 5", () => sendWeeklyPoleRecaps(), { timezone: "Africa/Tunis" });
+
 // GET /api/health/monday-reminder — état du dernier envoi (public, compteurs uniquement)
 app.get("/api/health/monday-reminder", async (req, res) => {
   try {
@@ -612,8 +806,8 @@ app.get("/api/health/monday-reminder", async (req, res) => {
 });
 
 function requireAI(res) {
-  if (!groq) {
-    res.status(503).json({ error: "Clé GROQ_API_KEY manquante dans .env" });
+  if (!ANTHROPIC_KEY && !groq) {
+    res.status(503).json({ error: "Aucun moteur IA configuré (ANTHROPIC_API_KEY ou GROQ_API_KEY)" });
     return false;
   }
   return true;
@@ -1114,7 +1308,7 @@ app.post("/api/ai/agent", authenticate, async (req, res) => {
 
       let response;
       try {
-        response = await groq.chat.completions.create({
+        response = await llmChat({
           model:       "llama-3.3-70b-versatile",
           max_tokens:  4096,
           temperature: 0,
@@ -1122,10 +1316,9 @@ app.post("/api/ai/agent", authenticate, async (req, res) => {
           tools:       AGENT_TOOLS,
           tool_choice: "auto",
         });
-      } catch (groqErr) {
-        // LLaMA a généré un appel d'outil malformé (tool_use_failed)
-        // On retourne ce qu'on a déjà comme réponse plutôt que de planter
-        console.error("Groq API error:", groqErr.message);
+      } catch (llmErr) {
+        // Appel LLM échoué — on retourne ce qu'on a déjà plutôt que de planter
+        console.error("LLM API error:", llmErr.message);
         const lastReply = convMessages.filter(m => m.role === "assistant" && m.content).pop();
         return res.json({
           reply: lastReply?.content || "Je n'ai pas pu terminer cette action. Veuillez reformuler votre demande.",
@@ -1216,7 +1409,7 @@ app.get("/api/ai/briefing/:userName", authenticate, async (req, res) => {
       (highPrio.length ? `🔴 Haute priorité non terminées (${highPrio.length}): ${highPrio.map(t => `"${t.title}"`).join(", ")}\n` : "") +
       `À faire (${todo.length} tâches restantes)`;
 
-    const response = await groq.chat.completions.create({
+    const response = await llmChat({
       model:      "llama-3.3-70b-versatile",
       max_tokens: 500,
       messages: [{
@@ -1261,7 +1454,7 @@ app.get("/api/ai/workload", authenticate, async (req, res) => {
       );
     }).join("\n");
 
-    const response = await groq.chat.completions.create({
+    const response = await llmChat({
       model:      "llama-3.3-70b-versatile",
       max_tokens: 1500,
       messages: [{
@@ -1301,7 +1494,7 @@ app.post("/api/ai/prioritize/:ownerName", authenticate, async (req, res) => {
       ` | fait:${(t.timer_seconds / 3600).toFixed(1)}h`
     ).join("\n");
 
-    const response = await groq.chat.completions.create({
+    const response = await llmChat({
       model:      "llama-3.3-70b-versatile",
       max_tokens: 800,
       messages: [{
@@ -1324,6 +1517,54 @@ app.post("/api/ai/prioritize/:ownerName", authenticate, async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error("POST /api/ai/prioritize", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── API : Créer des cartes depuis un texte libre ─────────────
+// POST /api/ai/parse-tasks  { text }
+// L'IA analyse un compte-rendu / email / notes et propose des cartes à valider.
+app.post("/api/ai/parse-tasks", authenticate, async (req, res) => {
+  if (!requireAI(res)) return;
+  try {
+    const { text } = req.body;
+    if (!text || text.trim().length < 10) return res.status(400).json({ error: "Texte trop court" });
+    const [emps] = await pool.query("SELECT name, role, pole FROM employees ORDER BY pole, name");
+    const empList = emps.map(e => `${e.name} (${e.role}, ${e.pole})`).join("\n");
+    const today = new Date().toISOString().split("T")[0];
+
+    const response = await llmChat({
+      max_tokens: 2000,
+      temperature: 0,
+      messages: [{
+        role: "user",
+        content:
+          `Tu extrais des tâches Kanban à partir d'un texte (compte-rendu de réunion, email, notes) pour le bureau d'études SOZAIS.\n` +
+          `Aujourd'hui : ${today}. L'utilisateur qui demande est : ${req.user.name}.\n\n` +
+          `Collaborateurs disponibles :\n${empList}\n\n` +
+          `TEXTE À ANALYSER :\n"""\n${text.slice(0, 6000)}\n"""\n\n` +
+          `Réponds UNIQUEMENT avec un JSON valide, sans texte autour :\n` +
+          `{"tasks": [{"title": "...", "owner": "nom EXACT dans la liste ou null si incertain", "project": "...", "description": "...", "priority": "high|medium|low", "deadline": "YYYY-MM-DD ou null", "estimatedHours": nombre ou null}]}\n` +
+          `Règles : titres courts et actionnables ; n'invente pas de deadlines ; si une personne mentionnée ne correspond à aucun collaborateur, owner = null.`
+      }],
+    });
+    const raw = response.choices[0].message.content?.trim() || "";
+    const m = raw.match(/\{[\s\S]*\}/);
+    let parsed;
+    try { parsed = JSON.parse(m ? m[0] : raw); } catch { return res.status(422).json({ error: "L'IA n'a pas produit un JSON valide, réessayez." }); }
+    const validNames = new Set(emps.map(e => e.name));
+    const tasks = (parsed.tasks || []).map(t => ({
+      title: String(t.title || "").slice(0, 400),
+      owner: validNames.has(t.owner) ? t.owner : null,
+      project: String(t.project || "").slice(0, 250),
+      description: String(t.description || "").slice(0, 1000),
+      priority: ["high", "medium", "low"].includes(t.priority) ? t.priority : "medium",
+      deadline: /^\d{4}-\d{2}-\d{2}$/.test(t.deadline || "") ? t.deadline : "",
+      estimatedHours: typeof t.estimatedHours === "number" ? t.estimatedHours : "",
+    })).filter(t => t.title);
+    res.json({ tasks });
+  } catch (err) {
+    console.error("POST /api/ai/parse-tasks", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1739,7 +1980,7 @@ async function generateAndSendReport() {
     ? `Surcharge détectée (plus de 40h cette semaine) : ${overloaded.map(m => `${m.name} (${m.hoursThisWeek.toFixed(1)}h)`).join(", ")}.`
     : `Aucune surcharge détectée cette semaine.`;
 
-  const response = await groq.chat.completions.create({
+  const response = await llmChat({
     model:      "llama-3.3-70b-versatile",
     max_tokens: 2200,
     messages: [{
@@ -2225,6 +2466,18 @@ app.post("/api/admin/resend-domain", authenticate, requireAdmin, async (req, res
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /api/admin/overdue-alert — relancer les tâches en retard (admin, dryRun possible)
+app.post("/api/admin/overdue-alert", authenticate, requireAdmin, async (req, res) => {
+  try { res.json({ ok: true, ...(await sendOverdueAlerts(!!req.body?.dryRun)) }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/admin/weekly-recap — envoyer les récaps de pôle aux chefs (admin, dryRun possible)
+app.post("/api/admin/weekly-recap", authenticate, requireAdmin, async (req, res) => {
+  try { res.json({ ok: true, ...(await sendWeeklyPoleRecaps(!!req.body?.dryRun)) }); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // POST /api/admin/inactivity-warning — avertir les inactifs (admin)
 // body.dryRun = true → liste seulement qui recevrait l'avertissement, sans envoyer
 app.post("/api/admin/inactivity-warning", authenticate, requireAdmin, async (req, res) => {
@@ -2485,7 +2738,8 @@ async function seedMissingEmployees() {
   try {
     // ─── Supprimer les employés qui ont quitté l'équipe / doublons ──────
     const toDelete = ['Warden EL FEKIH', 'Imen AZAZA', 'Fatma RHAIMI', 'Wissem BEN TAHER', 'IT SOZAIS',
-                      'Rebecca DRUKIER', 'DRUKIER Rebecca', 'Eya JANDOUBI', 'JANDOUBI Eya', 'GHRISSI Emna'];
+                      'Rebecca DRUKIER', 'DRUKIER Rebecca', 'Eya JANDOUBI', 'JANDOUBI Eya', 'GHRISSI Emna',
+                      'Yassine KHCHIMI', 'Chadha SAADAOUI', 'Nesrine KAYEL', 'Tayeb KSENTINI'];
     for (const name of toDelete) {
       await pool.query(
         `DELETE FROM employees WHERE name = ? AND NOT EXISTS (SELECT 1 FROM tasks WHERE owner_name = ?)`,
@@ -2521,17 +2775,13 @@ async function seedMissingEmployees() {
       ['Chadha DAOUIDI',     'c.daouidi@sozais-ing.com'],
       ['Hamadi MTIRI',       'h.mtiri@sozais-ing.com'],
       ['Abdelhak AMRI',      'a.amri@sozais-ing.com'],
-      ['Nesrine KAYEL',      'n.kayel@sozais-ing.com'],
       ['Nadhir GHOUMA',      'n.ghouma@sozais-ing.com'],
       ['Achraf SAOUDI',      'a.saoudi@sozais-ing.com'],
-      ['Tayeb KSENTINI',     't.ksentini@sozais-ing.com'],
-      ['Chadha SAADAOUI',    'c.saadaoui@sozais-ing.com'],
       ['Shayma MASTOURI',    's.mastouri@sozais-ing.com'],
       ['Rihab ATTIA',        'r.attia@sozais-ing.com'],
       ['Sabah AJARRAR',      's.ajarrar@sozais-ing.com'],
       ['Emna GHRISSI',       'e.ghrissi@sozais-ing.com'],
       ['Majdi AMARA',        'm.amara@sozais-ing.com'],
-      ['Yassine KHCHIMI',    'y.khchimi@sozais-ing.com'],
       ['Rakia MANSOUR',      'r.mansour@sozais-ing.com'],
       ['Safa SOUAYAH',       's.souayah@sozais-ing.com'],
       ['Rima MABROUKI',      'r.mabrouki@sozais-ing.com'],
@@ -2566,6 +2816,6 @@ async function seedMissingEmployees() {
 app.listen(PORT, () => {
   console.log(`\n🚀 Kanban SOZAIS AI-First — http://localhost:${PORT}`);
   console.log(`   JWT : ${process.env.JWT_SECRET ? "✅ JWT_SECRET défini" : "⚠️  fallback stable (définissez JWT_SECRET)"}`);
-  console.log(`   IA : ${groq ? "✅ Groq (LLaMA 3.3-70b) actif" : "❌ Clé GROQ_API_KEY manquante"}\n`);
+  console.log(`   IA : ${ANTHROPIC_KEY ? "✅ Claude (" + CLAUDE_MODEL + ") actif" : groq ? "✅ Groq (LLaMA 3.3-70b) actif" : "❌ Aucun moteur configuré"}\n`);
   seedMissingEmployees();
 });
