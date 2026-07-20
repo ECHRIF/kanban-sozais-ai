@@ -2480,6 +2480,23 @@ app.post("/api/admin/resend-domain", authenticate, requireAdmin, async (req, res
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET /api/admin/email-log?to=xxx — statut de livraison des derniers emails (admin)
+app.get("/api/admin/email-log", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const r = await fetch("https://api.resend.com/emails?limit=100", {
+      headers: { Authorization: "Bearer " + (process.env.RESEND_API_KEY || "") },
+    });
+    if (!r.ok) return res.status(502).json({ error: `Resend API ${r.status}: ${(await r.text()).slice(0, 200)}` });
+    const d = await r.json();
+    let emails = (d.data || []).map(e => ({
+      to: Array.isArray(e.to) ? e.to.join(", ") : String(e.to || ""),
+      subject: e.subject, statut: e.last_event || "?", date: e.created_at,
+    }));
+    if (req.query.to) emails = emails.filter(e => e.to.toLowerCase().includes(String(req.query.to).toLowerCase()));
+    res.json({ ok: true, emails });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // POST /api/admin/overdue-alert — relancer les tâches en retard (admin, dryRun possible)
 app.post("/api/admin/overdue-alert", authenticate, requireAdmin, async (req, res) => {
   try { res.json({ ok: true, ...(await sendOverdueAlerts(!!req.body?.dryRun)) }); }
