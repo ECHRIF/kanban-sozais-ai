@@ -2480,6 +2480,42 @@ app.post("/api/admin/resend-domain", authenticate, requireAdmin, async (req, res
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// POST /api/admin/broadcast — message email à toute l'équipe (admin)
+// body: { subject, message } — message en texte simple (les retours à la ligne sont conservés)
+app.post("/api/admin/broadcast", authenticate, requireAdmin, async (req, res) => {
+  try {
+    if (!resend) return res.status(503).json({ error: "Mailer non configuré" });
+    const { subject, message } = req.body || {};
+    if (!subject || !message) return res.status(400).json({ error: "subject et message requis" });
+    const [rows] = await pool.query("SELECT name, email FROM employees WHERE email IS NOT NULL AND email != '' ORDER BY name");
+    let sent = 0, failed = 0;
+    const details = [];
+    const safeMsg = String(message).replace(/</g, "&lt;");
+    for (const { name, email } of rows) {
+      const prenom = name.split(" ")[0];
+      const html = `
+        <div style="font-family:sans-serif;background:#0f172a;color:#e2e8f0;padding:32px;border-radius:12px;max-width:520px;margin:auto">
+          <div style="font-size:22px;font-weight:700;margin-bottom:4px">Kanban <span style="color:#38bdf8">SOZAIS</span></div>
+          <div style="font-size:11px;color:#64748b;margin-bottom:24px;border-bottom:1px solid #1e293b;padding-bottom:16px">Message de la Direction</div>
+          <p style="font-size:15px;margin:0 0 16px">Salem aleykoum <strong>${prenom}</strong>,</p>
+          <div style="background:#1e293b;border-radius:10px;padding:20px;margin-bottom:20px;border-left:4px solid #ef4444">
+            <div style="font-size:14px;line-height:1.7;color:#e2e8f0;white-space:pre-wrap">${safeMsg}</div>
+          </div>
+          <a href="${APP_URL}" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">Ouvrir mon Kanban →</a>
+          <p style="margin-top:24px;font-size:10px;color:#334155">Message envoyé par la Direction via Kanban SOZAIS.</p>
+        </div>`;
+      try {
+        const { error } = await resend.emails.send({ from: FROM_EMAIL, to: email, subject, html });
+        if (error) throw new Error(error.message || JSON.stringify(error));
+        sent++; details.push({ name, ok: true });
+      } catch (e) { failed++; details.push({ name, ok: false, error: e.message }); }
+      await new Promise(r => setTimeout(r, 600));
+    }
+    try { await pool.query(`INSERT INTO ai_actions_log (actor, tool_name, input_json, result_json) VALUES (?, 'broadcast', ?, ?)`, [req.user.name, JSON.stringify({ subject }), JSON.stringify({ sent, failed })]); } catch (e) {}
+    res.json({ ok: true, sent, failed, details });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/admin/email-log?to=xxx — statut de livraison des derniers emails (admin)
 app.get("/api/admin/email-log", authenticate, requireAdmin, async (req, res) => {
   try {
