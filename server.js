@@ -2485,9 +2485,13 @@ app.post("/api/admin/resend-domain", authenticate, requireAdmin, async (req, res
 app.post("/api/admin/broadcast", authenticate, requireAdmin, async (req, res) => {
   try {
     if (!resend) return res.status(503).json({ error: "Mailer non configuré" });
-    const { subject, message } = req.body || {};
+    const { subject, message, exclude } = req.body || {};
     if (!subject || !message) return res.status(400).json({ error: "subject et message requis" });
-    const [rows] = await pool.query("SELECT name, email FROM employees WHERE email IS NOT NULL AND email != '' ORDER BY name");
+    let [rows] = await pool.query("SELECT name, email FROM employees WHERE email IS NOT NULL AND email != '' ORDER BY name");
+    if (Array.isArray(exclude) && exclude.length) {
+      const ex = exclude.map(x => String(x).toLowerCase());
+      rows = rows.filter(r => !ex.some(x => r.name.toLowerCase().includes(x) || r.email.toLowerCase().includes(x)));
+    }
     let sent = 0, failed = 0;
     const details = [];
     const safeMsg = String(message).replace(/</g, "&lt;");
