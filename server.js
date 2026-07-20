@@ -463,8 +463,24 @@ function toAnthropicMessages(messages) {
   return { system, messages: out };
 }
 
-async function llmChat({ model, max_tokens, temperature, messages, tools, tool_choice }) {
+async function llmChat(opts) {
+  // Claude en priorité ; si l'appel échoue (crédits épuisés, panne, etc.),
+  // bascule automatique sur Groq/LLaMA pour que l'IA reste disponible.
   if (ANTHROPIC_KEY) {
+    try {
+      return await claudeChat(opts);
+    } catch (e) {
+      console.warn("⚠️  Claude indisponible (" + e.message.slice(0, 120) + ") — bascule sur Groq");
+      if (!groq) throw e;
+    }
+  }
+  if (!groq) throw new Error("Aucun moteur IA configuré (ANTHROPIC_API_KEY ou GROQ_API_KEY)");
+  const { model, max_tokens, temperature, messages, tools, tool_choice } = opts;
+  return groq.chat.completions.create({ model: model || "llama-3.3-70b-versatile", max_tokens, temperature, messages, tools, tool_choice });
+}
+
+async function claudeChat({ max_tokens, temperature, messages, tools }) {
+  {
     const { system, messages: am } = toAnthropicMessages(messages);
     const body = { model: CLAUDE_MODEL, max_tokens: max_tokens || 1024, messages: am };
     if (system) body.system = system;
@@ -491,8 +507,6 @@ async function llmChat({ model, max_tokens, temperature, messages, tools, tool_c
       }],
     };
   }
-  if (!groq) throw new Error("Aucun moteur IA configuré (ANTHROPIC_API_KEY ou GROQ_API_KEY)");
-  return groq.chat.completions.create({ model, max_tokens, temperature, messages, tools, tool_choice });
 }
 
 // ─── Envoi email de notification (async, non-bloquant) ────────
