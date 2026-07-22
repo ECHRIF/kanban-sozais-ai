@@ -1340,7 +1340,8 @@ app.post("/api/ai/agent", authenticate, async (req, res) => {
         const lastReply = convMessages.filter(m => m.role === "assistant" && m.content).pop();
         return res.json({
           reply: lastReply?.content || "Je n'ai pas pu terminer cette action. Veuillez reformuler votre demande.",
-          actions
+          actions,
+          _debug: llmErr.message,
         });
       }
 
