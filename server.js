@@ -429,7 +429,7 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || null;
 const CLAUDE_MODEL  = process.env.CLAUDE_MODEL || "claude-sonnet-4-5";
 // Modèle Groq (gratuit). GPT-OSS 120B : raisonnement + tool_use, ~500 t/s.
 // Repli sur LLaMA 3.3 70B si besoin via la variable GROQ_MODEL.
-const GROQ_MODEL    = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+const GROQ_MODEL    = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 
 function toAnthropicTools(tools) {
   return (tools || []).map(t => ({
@@ -1349,7 +1349,7 @@ app.post("/api/ai/agent", authenticate, async (req, res) => {
       try {
         response = await llmChat({
           model:       GROQ_MODEL,
-          max_tokens:  4096,
+          max_tokens:  1500,   // limité pour tenir dans le quota gratuit Groq (TPM inclut la sortie réservée)
           temperature: 0,
           messages:    convMessages,
           tools:       AGENT_TOOLS,
