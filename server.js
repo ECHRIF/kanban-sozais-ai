@@ -1362,7 +1362,7 @@ app.post("/api/ai/agent", authenticate, async (req, res) => {
         return res.json({
           reply: lastReply?.content || "Je n'ai pas pu terminer cette action. Veuillez reformuler votre demande.",
           actions,
-          _debug: process.env.AI_DEBUG ? llmErr.message : undefined,
+          _debug: llmErr.message,
         });
       }
 
