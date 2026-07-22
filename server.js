@@ -427,6 +427,9 @@ const FROM_EMAIL = process.env.RESEND_FROM || "Kanban SOZAIS <onboarding@resend.
 // format OpenAI pour ne pas toucher aux boucles existantes.
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || null;
 const CLAUDE_MODEL  = process.env.CLAUDE_MODEL || "claude-sonnet-4-5";
+// Modèle Groq (gratuit). GPT-OSS 120B : raisonnement + tool_use, ~500 t/s.
+// Repli sur LLaMA 3.3 70B si besoin via la variable GROQ_MODEL.
+const GROQ_MODEL    = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 
 function toAnthropicTools(tools) {
   return (tools || []).map(t => ({
@@ -477,7 +480,7 @@ async function llmChat(opts) {
   }
   if (!groq) throw new Error("Aucun moteur IA configuré (ANTHROPIC_API_KEY ou GROQ_API_KEY)");
   const { model, max_tokens, temperature, messages, tools, tool_choice } = opts;
-  return groq.chat.completions.create({ model: model || "llama-3.3-70b-versatile", max_tokens, temperature, messages, tools, tool_choice });
+  return groq.chat.completions.create({ model: model || GROQ_MODEL, max_tokens, temperature, messages, tools, tool_choice });
 }
 
 async function claudeChat({ max_tokens, temperature, messages, tools }) {
@@ -1324,7 +1327,7 @@ app.post("/api/ai/agent", authenticate, async (req, res) => {
       let response;
       try {
         response = await llmChat({
-          model:       "llama-3.3-70b-versatile",
+          model:       GROQ_MODEL,
           max_tokens:  4096,
           temperature: 0,
           messages:    convMessages,
@@ -1425,7 +1428,7 @@ app.get("/api/ai/briefing/:userName", authenticate, async (req, res) => {
       `À faire (${todo.length} tâches restantes)`;
 
     const response = await llmChat({
-      model:      "llama-3.3-70b-versatile",
+      model:      GROQ_MODEL,
       max_tokens: 500,
       messages: [{
         role:    "user",
@@ -1470,7 +1473,7 @@ app.get("/api/ai/workload", authenticate, async (req, res) => {
     }).join("\n");
 
     const response = await llmChat({
-      model:      "llama-3.3-70b-versatile",
+      model:      GROQ_MODEL,
       max_tokens: 1500,
       messages: [{
         role:    "user",
@@ -1510,7 +1513,7 @@ app.post("/api/ai/prioritize/:ownerName", authenticate, async (req, res) => {
     ).join("\n");
 
     const response = await llmChat({
-      model:      "llama-3.3-70b-versatile",
+      model:      GROQ_MODEL,
       max_tokens: 800,
       messages: [{
         role:    "user",
@@ -1996,7 +1999,7 @@ async function generateAndSendReport() {
     : `Aucune surcharge détectée cette semaine.`;
 
   const response = await llmChat({
-    model:      "llama-3.3-70b-versatile",
+    model:      GROQ_MODEL,
     max_tokens: 2200,
     messages: [{
       role:    "user",
@@ -2889,6 +2892,6 @@ async function seedMissingEmployees() {
 app.listen(PORT, () => {
   console.log(`\n🚀 Kanban SOZAIS AI-First — http://localhost:${PORT}`);
   console.log(`   JWT : ${process.env.JWT_SECRET ? "✅ JWT_SECRET défini" : "⚠️  fallback stable (définissez JWT_SECRET)"}`);
-  console.log(`   IA : ${ANTHROPIC_KEY ? "✅ Claude (" + CLAUDE_MODEL + ") actif" : groq ? "✅ Groq (LLaMA 3.3-70b) actif" : "❌ Aucun moteur configuré"}\n`);
+  console.log(`   IA : ${ANTHROPIC_KEY ? "✅ Claude (" + CLAUDE_MODEL + ") + repli Groq (" + GROQ_MODEL + ")" : groq ? "✅ Groq (" + GROQ_MODEL + ") actif" : "❌ Aucun moteur configuré"}\n`);
   seedMissingEmployees();
 });
