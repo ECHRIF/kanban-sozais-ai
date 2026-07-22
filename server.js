@@ -429,7 +429,13 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || null;
 const CLAUDE_MODEL  = process.env.CLAUDE_MODEL || "claude-sonnet-4-5";
 // Modèle Groq (gratuit). GPT-OSS 120B : raisonnement + tool_use, ~500 t/s.
 // Repli sur LLaMA 3.3 70B si besoin via la variable GROQ_MODEL.
-const GROQ_MODEL    = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
+// Modèle par défaut (fonctions légères : briefing, priorisation, analyse,
+// récaps, extraction de tâches) → GPT-OSS 20B, un modèle de raisonnement gratuit.
+const GROQ_MODEL       = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
+// Modèle de l'AGENT conversationnel (prompt + 9 outils + historique → requêtes
+// volumineuses) → LLaMA 3.3 70B, dont le quota gratuit TPM est plus élevé et
+// qui gère parfaitement le tool_use. Évite la limite 8000 TPM des modèles gpt-oss.
+const GROQ_AGENT_MODEL = process.env.GROQ_AGENT_MODEL || "llama-3.3-70b-versatile";
 
 function toAnthropicTools(tools) {
   return (tools || []).map(t => ({
@@ -1348,8 +1354,8 @@ app.post("/api/ai/agent", authenticate, async (req, res) => {
       let response;
       try {
         response = await llmChat({
-          model:       GROQ_MODEL,
-          max_tokens:  1500,   // limité pour tenir dans le quota gratuit Groq (TPM inclut la sortie réservée)
+          model:       GROQ_AGENT_MODEL,   // LLaMA 70B : quota TPM gratuit plus large pour l'agent
+          max_tokens:  2500,
           temperature: 0,
           messages:    convMessages,
           tools:       AGENT_TOOLS,
@@ -1362,7 +1368,7 @@ app.post("/api/ai/agent", authenticate, async (req, res) => {
         return res.json({
           reply: lastReply?.content || "Je n'ai pas pu terminer cette action. Veuillez reformuler votre demande.",
           actions,
-          _debug: llmErr.message,
+          _debug: process.env.AI_DEBUG ? llmErr.message : undefined,
         });
       }
 
