@@ -480,7 +480,28 @@ async function llmChat(opts) {
   }
   if (!groq) throw new Error("Aucun moteur IA configuré (ANTHROPIC_API_KEY ou GROQ_API_KEY)");
   const { model, max_tokens, temperature, messages, tools, tool_choice } = opts;
-  return groq.chat.completions.create({ model: model || GROQ_MODEL, max_tokens, temperature, messages, tools, tool_choice });
+  // GPT-OSS 120B valide strictement les schémas : il envoie parfois `null` pour
+  // un paramètre optionnel (ex. filter: null), ce que refuse la validation si le
+  // type est "string". On rend donc tout paramètre NON requis nullable.
+  return groq.chat.completions.create({ model: model || GROQ_MODEL, max_tokens, temperature, messages, tools: groqSafeTools(tools), tool_choice });
+}
+
+function groqSafeTools(tools) {
+  if (!tools) return tools;
+  return tools.map(t => {
+    const p = t.function?.parameters;
+    if (!p || !p.properties) return t;
+    const required = new Set(p.required || []);
+    const props = {};
+    for (const [key, def] of Object.entries(p.properties)) {
+      if (!required.has(key) && typeof def.type === "string") {
+        props[key] = { ...def, type: [def.type, "null"] };
+      } else {
+        props[key] = def;
+      }
+    }
+    return { ...t, function: { ...t.function, parameters: { ...p, properties: props } } };
+  });
 }
 
 async function claudeChat({ max_tokens, temperature, messages, tools }) {
@@ -1341,7 +1362,7 @@ app.post("/api/ai/agent", authenticate, async (req, res) => {
         return res.json({
           reply: lastReply?.content || "Je n'ai pas pu terminer cette action. Veuillez reformuler votre demande.",
           actions,
-          _debug: llmErr.message,
+          _debug: process.env.AI_DEBUG ? llmErr.message : undefined,
         });
       }
 
