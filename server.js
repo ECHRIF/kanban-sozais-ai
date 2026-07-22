@@ -1093,6 +1093,19 @@ const AGENT_TOOLS = [
   }
 ];
 
+// Nettoie les réponses : LLaMA laisse parfois échapper de la syntaxe d'appel
+// d'outil sous forme de texte (ex. "<function=get_team_data></function>").
+function cleanReply(text) {
+  if (!text) return "";
+  return text
+    .replace(/<function=[^>]*>\s*<\/function>/gi, "")
+    .replace(/<function=[^>]*>[\s\S]*?<\/function>/gi, "")
+    .replace(/<\/?function[^>]*>/gi, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]+$/gm, "")
+    .trim();
+}
+
 // ─── Exécuteur d'outils ───────────────────────────────────────
 async function execTool(name, input) {
   input = input || {};   // sécurité : LLaMA peut passer null au lieu de {}
@@ -1323,6 +1336,7 @@ function buildAgentSystemPrompt(userName, userRole, isAdmin, isChef, agentName, 
     `- Si un nom de collaborateur est ambigu, propose les options possibles\n` +
     `- Pour les suppressions, demande toujours confirmation sauf si l'utilisateur a dit "confirme" ou "oui"\n` +
     `- Propose des actions concrètes, pas juste des conseils abstraits\n` +
+    `- N'écris JAMAIS de syntaxe d'appel d'outil dans ta réponse (pas de balises <function=...>). Utilise les outils via le mécanisme prévu, et ne mentionne pas leurs noms techniques.\n` +
     `- Les colonnes disponibles : backlog, todo (À faire), in_progress (En cours), review (En revue), done (Terminé)\n` +
     `- Les priorités : high (Haute 🔴), medium (Moyenne 🟠), low (Basse 🟢)\n\n` +
     `FORMAT DE CONFIRMATION :\n` +
@@ -1377,7 +1391,7 @@ app.post("/api/ai/agent", authenticate, async (req, res) => {
 
       // Pas d'appel d'outil → réponse finale
       if (choice.finish_reason === "stop" || !msg.tool_calls || msg.tool_calls.length === 0) {
-        return res.json({ reply: msg.content || "", actions });
+        return res.json({ reply: cleanReply(msg.content || ""), actions });
       }
 
       // Appels d'outils
