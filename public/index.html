@@ -1501,11 +1501,27 @@ function Board({ name, tasks, onUpdate, ro, showName, onToggleTimer, tick, poleM
 
 // ─── Settings ───
 function SettingsModal({ user, onClose }) {
-  const [tab, setTab] = useState("password"); // "password" | "email"
+  const [tab, setTab] = useState("password"); // "password" | "email" | "ia"
   const [np, setNp] = useState(""); const [cp, setCp] = useState("");
   const [emailVal, setEmailVal] = useState(user.email || "");
   const [msg, setMsg] = useState(""); const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  // Réglages IA (admin)
+  const [aiCfg, setAiCfg] = useState(null);
+  const [aiGroq, setAiGroq] = useState(""); const [aiAgent, setAiAgent] = useState("");
+  useEffect(() => {
+    if (!user.isAdmin) return;
+    authFetch('/api/admin/ai-model').then(r => r.json()).then(d => {
+      if (d.ok) { setAiCfg(d); setAiGroq(d.current.groqModel); setAiAgent(d.current.agentModel); }
+    }).catch(() => {});
+  }, []);
+  const saveAI = async () => {
+    setErr(""); setMsg(""); setBusy(true);
+    const r = await authFetch('/api/admin/ai-model', { method: 'POST', body: JSON.stringify({ groqModel: aiGroq, agentModel: aiAgent }) });
+    setBusy(false);
+    if (r.ok) setMsg("✓ Modèles IA mis à jour (effet immédiat) !");
+    else setErr((await r.json()).error || "Erreur");
+  };
 
   const changePwd = async () => {
     setErr(""); setMsg(""); setBusy(true);
@@ -1535,7 +1551,7 @@ function SettingsModal({ user, onClose }) {
         </div>
         {/* Tabs */}
         <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-          {[{ id: "password", l: "🔐 Mot de passe" }, { id: "email", l: "✉️ Email" }].map((t) => (
+          {[{ id: "password", l: "🔐 Mot de passe" }, { id: "email", l: "✉️ Email" }, ...(user.isAdmin ? [{ id: "ia", l: "🤖 IA" }] : [])].map((t) => (
             <button key={t.id} onClick={() => { setTab(t.id); setErr(""); setMsg(""); }} style={{ flex: 1, padding: "8px 0", background: tab === t.id ? BLUE + "22" : DARK3, border: "1px solid " + (tab === t.id ? BLUE + "66" : BRD), borderRadius: 8, color: tab === t.id ? BLUE : TXT2, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{t.l}</button>
           ))}
         </div>
@@ -1554,6 +1570,30 @@ function SettingsModal({ user, onClose }) {
             {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600 }}>⚠️ {err}</div>}
             {msg && <div style={{ color: GREEN, fontSize: 12, fontWeight: 600 }}>{msg}</div>}
             <button onClick={saveEmail} disabled={busy || !emailVal} style={{ padding: "11px 0", background: BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Enregistrer</button>
+          </div>
+        )}
+        {tab === "ia" && user.isAdmin && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {aiCfg && aiCfg.current.claudeActive && (
+              <div style={{ background: GREEN + "18", border: "1px solid " + GREEN + "44", borderRadius: 8, padding: "8px 11px", color: GREEN, fontSize: 11 }}>✓ Claude actif (crédits Anthropic) — utilisé en priorité. Les modèles ci-dessous servent de secours.</div>
+            )}
+            <div style={{ color: TXT3, fontSize: 11 }}>Change le moteur IA à chaud, sans redémarrage. Effet immédiat pour toute l'équipe.</div>
+            <div>
+              <label style={lBase}>🤖 Agent conversationnel (le chat)</label>
+              <select value={aiAgent} onChange={(e) => { setAiAgent(e.target.value); setMsg(""); }} style={{ ...iBase, cursor: "pointer" }}>
+                {(aiCfg?.choices || []).map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={lBase}>⚡ Fonctions d'analyse (briefing, priorisation, récaps…)</label>
+              <select value={aiGroq} onChange={(e) => { setAiGroq(e.target.value); setMsg(""); }} style={{ ...iBase, cursor: "pointer" }}>
+                {(aiCfg?.choices || []).map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            </div>
+            <div style={{ color: TXT3, fontSize: 10, lineHeight: 1.5 }}>Conseil : garde un modèle <strong>LLaMA</strong> pour l'agent (quota gratuit large), et <strong>GPT-OSS</strong> pour les fonctions (raisonnement). Évite GPT-OSS 120B sur l'agent (limite gratuite basse).</div>
+            {err && <div style={{ color: RED, fontSize: 12, fontWeight: 600 }}>⚠️ {err}</div>}
+            {msg && <div style={{ color: GREEN, fontSize: 12, fontWeight: 600 }}>{msg}</div>}
+            <button onClick={saveAI} disabled={busy || !aiCfg} style={{ padding: "11px 0", background: BLUE, border: "none", borderRadius: 8, color: "#fff", fontWeight: 700, cursor: "pointer" }}>Appliquer</button>
           </div>
         )}
       </div>

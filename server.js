@@ -235,6 +235,13 @@ const pool = mysql.createPool({
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     await conn.query(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        setting_key   VARCHAR(100)  NOT NULL,
+        setting_value VARCHAR(200)  DEFAULT NULL,
+        PRIMARY KEY (setting_key)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await conn.query(`
       CREATE TABLE IF NOT EXISTS report_snapshots (
         id                INT UNSIGNED   AUTO_INCREMENT NOT NULL,
         snapshot_date     VARCHAR(20)    NOT NULL,
@@ -388,6 +395,16 @@ const pool = mysql.createPool({
       );
     }
 
+    // Charger les modèles IA choisis par l'admin (surchargent les valeurs par défaut)
+    try {
+      const [rows] = await conn.query("SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN ('groq_model','groq_agent_model')");
+      for (const r of rows) {
+        if (r.setting_key === 'groq_model' && r.setting_value) GROQ_MODEL = r.setting_value;
+        if (r.setting_key === 'groq_agent_model' && r.setting_value) GROQ_AGENT_MODEL = r.setting_value;
+      }
+      console.log(`   🤖 Modèles IA — fonctions: ${GROQ_MODEL} | agent: ${GROQ_AGENT_MODEL}`);
+    } catch (e) { console.warn("   ⚠️  Chargement modèles IA :", e.message); }
+
     console.log("✅ Tables & données initiales OK");
     conn.release();
   } catch (err) {
@@ -429,13 +446,23 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || null;
 const CLAUDE_MODEL  = process.env.CLAUDE_MODEL || "claude-sonnet-4-5";
 // Modèle Groq (gratuit). GPT-OSS 120B : raisonnement + tool_use, ~500 t/s.
 // Repli sur LLaMA 3.3 70B si besoin via la variable GROQ_MODEL.
-// Modèle par défaut (fonctions légères : briefing, priorisation, analyse,
-// récaps, extraction de tâches) → GPT-OSS 20B, un modèle de raisonnement gratuit.
-const GROQ_MODEL       = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
-// Modèle de l'AGENT conversationnel (prompt + 9 outils + historique → requêtes
-// volumineuses) → LLaMA 3.3 70B, dont le quota gratuit TPM est plus élevé et
-// qui gère parfaitement le tool_use. Évite la limite 8000 TPM des modèles gpt-oss.
-const GROQ_AGENT_MODEL = process.env.GROQ_AGENT_MODEL || "llama-3.3-70b-versatile";
+// Modèles Groq — modifiables EN DIRECT par un admin depuis l'appli (menu
+// déroulant), stockés en base (app_settings). Valeur par défaut : variable
+// d'environnement, sinon valeur codée. Ces variables sont mutables : l'endpoint
+// admin les met à jour à chaud, sans redéploiement.
+// - GROQ_MODEL : fonctions légères (briefing, priorisation, analyse, récaps, extraction) → GPT-OSS 20B (raisonnement).
+// - GROQ_AGENT_MODEL : agent conversationnel (prompt + 9 outils + historique) → LLaMA 70B (quota gratuit plus large).
+let GROQ_MODEL       = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
+let GROQ_AGENT_MODEL = process.env.GROQ_AGENT_MODEL || "llama-3.3-70b-versatile";
+
+// Modèles Groq gratuits proposés dans le menu déroulant (id exact → libellé).
+const GROQ_MODEL_CHOICES = [
+  { id: "openai/gpt-oss-20b",       label: "GPT-OSS 20B — raisonnement, léger (recommandé fonctions)" },
+  { id: "openai/gpt-oss-120b",      label: "GPT-OSS 120B — raisonnement + (limite gratuite basse)" },
+  { id: "llama-3.3-70b-versatile",  label: "LLaMA 3.3 70B — rapide, fiable (recommandé agent)" },
+  { id: "llama-3.1-8b-instant",     label: "LLaMA 3.1 8B — ultra-rapide, quota très large" },
+];
+const GROQ_MODEL_IDS = new Set(GROQ_MODEL_CHOICES.map(m => m.id));
 
 function toAnthropicTools(tools) {
   return (tools || []).map(t => ({
@@ -2563,6 +2590,35 @@ app.post("/api/admin/broadcast", authenticate, requireAdmin, async (req, res) =>
     }
     try { await pool.query(`INSERT INTO ai_actions_log (actor, tool_name, input_json, result_json) VALUES (?, 'broadcast', ?, ?)`, [req.user.name, JSON.stringify({ subject }), JSON.stringify({ sent, failed })]); } catch (e) {}
     res.json({ ok: true, sent, failed, details });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/admin/ai-model — modèles IA actuels + choix possibles (admin)
+app.get("/api/admin/ai-model", authenticate, requireAdmin, async (req, res) => {
+  res.json({
+    ok: true,
+    current: { groqModel: GROQ_MODEL, agentModel: GROQ_AGENT_MODEL, claudeActive: !!ANTHROPIC_KEY },
+    choices: GROQ_MODEL_CHOICES,
+  });
+});
+
+// POST /api/admin/ai-model — changer les modèles IA EN DIRECT (admin, sans redéploiement)
+// body: { groqModel?, agentModel? }
+app.post("/api/admin/ai-model", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { groqModel, agentModel } = req.body || {};
+    if (groqModel && !GROQ_MODEL_IDS.has(groqModel)) return res.status(400).json({ error: "Modèle 'fonctions' inconnu" });
+    if (agentModel && !GROQ_MODEL_IDS.has(agentModel)) return res.status(400).json({ error: "Modèle 'agent' inconnu" });
+    if (groqModel) {
+      GROQ_MODEL = groqModel;
+      await pool.query("INSERT INTO app_settings (setting_key, setting_value) VALUES ('groq_model', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [groqModel]);
+    }
+    if (agentModel) {
+      GROQ_AGENT_MODEL = agentModel;
+      await pool.query("INSERT INTO app_settings (setting_key, setting_value) VALUES ('groq_agent_model', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [agentModel]);
+    }
+    console.log(`🤖 Modèles IA mis à jour par ${req.user.name} — fonctions: ${GROQ_MODEL} | agent: ${GROQ_AGENT_MODEL}`);
+    res.json({ ok: true, current: { groqModel: GROQ_MODEL, agentModel: GROQ_AGENT_MODEL } });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
