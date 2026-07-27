@@ -2943,6 +2943,50 @@ app.post("/api/kpi/analysis", authenticate, async (req, res) => {
   }
 });
 
+// POST /api/kpi/analysis-pole — analyse IA groupée de tous les membres évalués d'un pôle
+// body: { pole }  → renvoie [{ name, role, period, globalAvg, scores, analysis }]
+app.post("/api/kpi/analysis-pole", authenticate, async (req, res) => {
+  if (!requireAI(res)) return;
+  try {
+    const { pole } = req.body;
+    if (!pole) return res.status(400).json({ error: "pole requis" });
+    const [members] = await pool.query("SELECT name, role FROM employees WHERE pole = ? ORDER BY name", [pole]);
+    const [crit] = await pool.query("SELECT id, label, category FROM kpi_criteria WHERE active = 1");
+    const out = [];
+    for (const m of members) {
+      const [r] = await pool.query("SELECT * FROM kpi_evaluations WHERE evaluated_name = ? ORDER BY created_at DESC LIMIT 1", [m.name]);
+      if (!r.length) continue; // membre non évalué → ignoré
+      const ev = r[0];
+      const scores = typeof ev.scores === "string" ? JSON.parse(ev.scores) : ev.scores;
+      const byCat = {};
+      for (const c of crit) { const v = scores[c.id]; if (v > 0) (byCat[c.category] = byCat[c.category] || []).push({ label: c.label, score: v }); }
+      const lignes = Object.entries(byCat).map(([cat, items]) => {
+        const moy = (items.reduce((a, b) => a + b.score, 0) / items.length).toFixed(1);
+        return `• ${cat} (${moy}/5) — ${items.map(i => `${i.label}: ${i.score}`).join(", ")}`;
+      }).join("\n");
+      const allVals = Object.values(scores).filter(v => v > 0);
+      const globalAvg = allVals.length ? (allVals.reduce((a, b) => a + b, 0) / allVals.length).toFixed(2) : "0";
+      let analysis = "";
+      try {
+        const resp = await llmChat({
+          model: GROQ_MODEL, max_tokens: 700, temperature: 0.3,
+          messages: [{ role: "user", content:
+            `Analyse RH concise (bureau d'études SOZAIS) de l'évaluation KPI de ${m.name} — note globale ${globalAvg}/5, période ${ev.period}.\n\n${lignes}\n\n` +
+            (ev.overall_comment ? `Commentaire évaluateur : "${ev.overall_comment}"\n\n` : "") +
+            `En français, 4-6 phrases : synthèse, 1-2 points forts, 1-2 axes d'amélioration, 1 recommandation. Factuel, bienveillant, sans inventer.` }],
+        });
+        analysis = (resp.choices[0].message.content || "").trim();
+      } catch (e) { analysis = "(Analyse IA indisponible.)"; }
+      out.push({ name: m.name, role: m.role, period: ev.period, evaluator: ev.evaluator_name, globalAvg, scores, comment: ev.overall_comment || "", analysis });
+      await new Promise(r => setTimeout(r, 300)); // léger throttle
+    }
+    res.json({ ok: true, pole, count: out.length, membres: out });
+  } catch (err) {
+    console.error("POST /api/kpi/analysis-pole", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── API NOTIFICATIONS ────────────────────────────────────────
 
 // GET /api/notifications  — retourne les notifs non lues + les 20 dernières lues

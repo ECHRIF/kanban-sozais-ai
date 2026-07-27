@@ -2332,6 +2332,72 @@ function openKpiPrintWindow(employee, ev, criteria, analysis) {
   w.document.write(html); w.document.close();
 }
 
+// ─── KPI : Fenêtre d'impression PDF groupée (tout un pôle) ────
+function openKpiPolePrintWindow(pole, membres, criteria) {
+  const cats = [...new Set(criteria.filter(c=>c.active).map(c=>c.category))];
+  const esc = s => String(s==null?"":s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const stars = n => "★".repeat(n) + "☆".repeat(5-n);
+  const mdToHtml = t => esc(t).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^[•\-]\s?(.+)$/gm,'<li>$1</li>').replace(/(<li>[\s\S]*?<\/li>)/g,'<ul>$1</ul>').replace(/\n{2,}/g,'</p><p>').replace(/\n/g,'<br>');
+  // Classement du pôle par note globale
+  const classement = [...membres].sort((a,b)=>parseFloat(b.globalAvg)-parseFloat(a.globalAvg));
+  const moyPole = membres.length ? (membres.reduce((a,b)=>a+parseFloat(b.globalAvg),0)/membres.length).toFixed(2) : "—";
+
+  let sections = "";
+  for (const m of classement) {
+    let body = "";
+    for (const cat of cats) {
+      const cc = criteria.filter(c=>c.active && c.category===cat);
+      const vals = cc.map(c=>m.scores[c.id]||0).filter(v=>v>0);
+      if (!vals.length) continue;
+      const avg = (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
+      body += `<tr class="cat"><td colspan="2">${esc(cat)}</td><td class="avg">${avg}/5</td></tr>`;
+      for (const c of cc) { const v=m.scores[c.id]||0; if(v>0) body += `<tr><td class="lbl">${esc(c.label)}</td><td class="star">${stars(v)}</td><td class="num">${v}/5</td></tr>`; }
+    }
+    sections += `<div class="member">
+      <div class="mhead"><div><span class="mname">${esc(m.name)}</span> <span class="mrole">${esc(m.role||"")}</span></div>
+        <div class="mavg">${m.globalAvg}<span>/5</span></div></div>
+      <div class="msub">Période ${esc(m.period)} · Évaluateur ${esc(m.evaluator||"—")}</div>
+      <table>${body}</table>
+      ${m.comment?`<div class="comment">💬 « ${esc(m.comment)} »</div>`:""}
+      <div class="ana-title">🤖 Analyse IA</div><div class="analysis"><p>${mdToHtml(m.analysis)}</p></div>
+    </div>`;
+  }
+  const rows = classement.map((m,i)=>`<tr><td>${i+1}</td><td>${esc(m.name)}</td><td>${esc(m.role||"")}</td><td class="r">${m.globalAvg}/5</td></tr>`).join("");
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>KPI Pôle ${esc(pole)}</title><style>
+    *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;margin:0;padding:32px}
+    .brand{color:#2563eb;font-weight:800}
+    .hdr{border-bottom:3px solid #2563eb;padding-bottom:12px;margin-bottom:20px}
+    h1{font-size:22px;margin:0} .sub{color:#64748b;font-size:12px;margin-top:4px}
+    .recap{background:#f1f5f9;border-radius:8px;padding:14px 18px;margin-bottom:24px}
+    .recap h3{margin:0 0 8px;font-size:13px;color:#2563eb;text-transform:uppercase;letter-spacing:.5px}
+    table{width:100%;border-collapse:collapse;font-size:12px} td{padding:5px 8px;border-bottom:1px solid #e2e8f0}
+    .recap table td{border-bottom:1px solid #dbe3ea} .recap .r{text-align:right;font-weight:700;color:#f59e0b}
+    .member{page-break-inside:avoid;border:1px solid #e2e8f0;border-radius:10px;padding:16px 18px;margin-bottom:18px}
+    .mhead{display:flex;justify-content:space-between;align-items:center} .mname{font-size:16px;font-weight:800} .mrole{color:#64748b;font-size:12px}
+    .mavg{font-size:24px;font-weight:800;color:#f59e0b} .mavg span{font-size:14px;color:#94a3b8}
+    .msub{color:#64748b;font-size:11px;margin:2px 0 10px}
+    tr.cat td{background:#f8fafc;font-weight:700;font-size:11px;text-transform:uppercase} tr.cat .avg{text-align:right;color:#2563eb}
+    .lbl{width:58%} .star{color:#f59e0b;letter-spacing:2px} .num{text-align:right;width:52px;font-weight:600}
+    .comment{font-style:italic;color:#475569;font-size:12px;margin:8px 0}
+    .ana-title{font-size:12px;font-weight:700;color:#2563eb;margin:10px 0 6px;text-transform:uppercase}
+    .analysis{background:#f8fafc;border-left:4px solid #2563eb;border-radius:6px;padding:10px 14px;font-size:12px;line-height:1.6}
+    .analysis ul{margin:4px 0 4px 16px;padding:0}
+    .foot{margin-top:20px;color:#94a3b8;font-size:10px;border-top:1px solid #e2e8f0;padding-top:10px}
+    .btn{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-weight:700;cursor:pointer;margin-bottom:18px}
+    @media print{body{padding:0}.noprint{display:none}.member{border-color:#cbd5e1}}
+  </style></head><body>
+  <button class="btn noprint" onclick="window.print()">🖨️ Imprimer / Enregistrer en PDF</button>
+  <div class="hdr"><h1>Kanban <span class="brand">SOZAÏS</span> — Bilan KPI · Pôle ${esc(pole)}</h1>
+    <div class="sub">${membres.length} membre(s) évalué(s) · Moyenne du pôle : <strong>${moyPole}/5</strong> · ${new Date().toLocaleDateString("fr-FR")}</div></div>
+  <div class="recap"><h3>Classement du pôle</h3><table><tr style="font-weight:700;color:#475569"><td>#</td><td>Nom</td><td>Poste</td><td class="r">Note</td></tr>${rows}</table></div>
+  ${sections}
+  <div class="foot">Document généré automatiquement par Kanban SOZAÏS — Confidentiel RH.</div>
+  </body></html>`;
+  const w = window.open("", "_blank");
+  if (!w) { alert("Autorisez les fenêtres pop-up pour imprimer le PDF."); return; }
+  w.document.write(html); w.document.close();
+}
+
 // ─── KPI : Modal Gestion des critères (admin) ─────────────────
 function KPIManageModal({ criteria, onClose, onRefresh }) {
   const [list, setList] = useState(criteria);
@@ -2423,6 +2489,22 @@ function KPIPickerModal({ employees, evaluator, criteria, onClose }) {
 
   const members = employees.filter(e=>!e.isAdmin && e.pole !== "Direction" && (evaluator.isAdmin || evaluator.canViewKPI || evaluator.canViewAll || e.pole===evaluator.pole));
   const canEvaluate = evaluator.isAdmin || evaluator.isChef || evaluator.canViewAll;
+  const poles = [...new Set(members.map(m=>m.pole))];
+  const [printPole, setPrintPole] = useState(poles[0] || "");
+  const [printingPole, setPrintingPole] = useState(false);
+
+  // Impression groupée : tout un pôle en un clic
+  const printPoleAll = async () => {
+    if (!printPole) return;
+    setPrintingPole(true);
+    try {
+      const r = await authFetch('/api/kpi/analysis-pole', { method:'POST', body: JSON.stringify({ pole: printPole }) });
+      const d = await r.json();
+      if (!d.ok || !d.membres.length) { alert(d.membres && !d.membres.length ? "Aucun membre évalué dans ce pôle." : (d.error||"Erreur")); setPrintingPole(false); return; }
+      openKpiPolePrintWindow(printPole, d.membres, localCriteria);
+    } catch(e) { alert("Erreur lors de la génération."); }
+    setPrintingPole(false);
+  };
 
   return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(8px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2500 }}>
@@ -2439,6 +2521,18 @@ function KPIPickerModal({ employees, evaluator, criteria, onClose }) {
             <button onClick={onClose} style={{ background:"none",border:"none",color:TXT3,fontSize:22,cursor:"pointer" }}>✕</button>
           </div>
         </div>
+        {/* Impression groupée d'un pôle */}
+        {(evaluator.isAdmin || evaluator.canViewAll || evaluator.canViewKPI) && poles.length > 0 && (
+          <div style={{ display:"flex",gap:8,alignItems:"center",padding:"10px 14px",background:PURPLE+"12",border:"1px solid "+PURPLE+"33",borderRadius:10,marginBottom:16 }}>
+            <span style={{ color:PURPLE,fontSize:12,fontWeight:700 }}>🖨️ Imprimer tout un pôle :</span>
+            <select value={printPole} onChange={e=>setPrintPole(e.target.value)} style={{ background:DARK,border:"1px solid "+BRD,borderRadius:7,color:TXT,padding:"6px 10px",fontSize:12,cursor:"pointer" }}>
+              {poles.map(p=><option key={p} value={p}>{p}</option>)}
+            </select>
+            <button onClick={printPoleAll} disabled={printingPole} style={{ padding:"7px 16px",background:printingPole?TXT3:PURPLE,border:"none",borderRadius:7,color:"#fff",fontSize:12,fontWeight:700,cursor:printingPole?"wait":"pointer" }}>
+              {printingPole?"⏳ Analyse IA en cours…":"Générer le PDF du pôle"}
+            </button>
+          </div>
+        )}
         <div style={{ display:"flex",flexDirection:"column",gap:6 }}>
           {members.map(emp=>{
             const s = summary[emp.name];
