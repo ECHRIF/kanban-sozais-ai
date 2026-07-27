@@ -308,6 +308,23 @@ function Logo({ size }) {
   return <img src={LOGO_SRC} alt="SOZAIS" style={{ height: size || 36, objectFit: "contain" }} />;
 }
 
+// ─── KPI : profil d'évaluation d'une personne (jeu de critères adapté) ──
+// ing = ingénieurs Fluide/Élec | assistant | finance | commercial | it
+const KPI_PROFILE_LABELS = { ing: "Ingénierie", assistant: "Assistante de direction", finance: "Finance / Comptabilité", commercial: "Commercial", it: "Informatique" };
+function kpiProfileOf(emp) {
+  if (!emp) return "ing";
+  if (emp.pole === "Fluide" || emp.pole === "Élec") return "ing";
+  const n = emp.name;
+  if (n === "Siwar HOSNI" || n === "Marion CESA") return "finance";
+  if (n === "Maroua HTIRA") return "assistant";
+  if (n === "Seif OUESLATI") return "it";
+  if (emp.pole === "Commercial") return "commercial";
+  if (emp.pole === "Direction") return "assistant";
+  return "ing";
+}
+// Personnes du groupe administratif désormais évaluables (hors ingénieurs)
+const KPI_ADMIN_EVAL = new Set(["Maroua HTIRA", "Siwar HOSNI", "Marion CESA", "Asma ATHIMNI", "Nourchene OUESLATI", "Seif OUESLATI"]);
+
 // ─── DailyBriefingBanner ─────────────────────────────────────
 function DailyBriefingBanner({ briefing, onClose }) {
   if (!briefing) return null;
@@ -2065,7 +2082,8 @@ function KPIEvalModal({ evaluator, evaluated, criteria, onClose, onSaved, existi
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
 
-  const activeCriteria = criteria.filter(c => c.active);
+  const profile = kpiProfileOf(evaluated);
+  const activeCriteria = criteria.filter(c => c.active && (c.profile || "ing") === profile);
   const categories = [...new Set(activeCriteria.map(c => c.category))];
   const filled = Object.values(scores).filter(v => v > 0).length;
   const avg = filled ? (Object.values(scores).filter(v=>v>0).reduce((a,b)=>a+b,0)/filled).toFixed(1) : "—";
@@ -2105,6 +2123,7 @@ function KPIEvalModal({ evaluator, evaluated, criteria, onClose, onSaved, existi
           <div>
             <h2 style={{ color:TXT,fontSize:18,fontWeight:700,margin:0 }}>{isEdit ? "✏️ Modifier l'évaluation" : "📋 Évaluation KPI"}</h2>
             <div style={{ color:PURPLE,fontSize:13,marginTop:3,fontWeight:600 }}>{evaluated.name} — {evaluated.role}</div>
+            <div style={{ color:CYAN,fontSize:11,marginTop:2 }}>Grille : {KPI_PROFILE_LABELS[profile] || profile}</div>
           </div>
           <button onClick={onClose} style={{ background:"none",border:"none",color:TXT3,fontSize:22,cursor:"pointer" }}>✕</button>
         </div>
@@ -2182,16 +2201,18 @@ function KPIResultsModal({ employee, criteria, onClose, evaluator }) {
       analysis = d.ok ? d.analysis : "(Analyse IA indisponible : " + (d.error || "") + ")";
     } catch (e) { analysis = "(Analyse IA indisponible.)"; }
     setPrinting(false);
-    openKpiPrintWindow(employee, selEval, criteria, analysis);
+    openKpiPrintWindow(employee, selEval, criteria.filter(c=>(c.profile||"ing")===profile), analysis);
   };
 
   const catColors = { "Qualité du travail":CYAN, "Délais & Productivité":ORANGE, "Autonomie & Initiative":GREEN, "Collaboration":BLUE, "Développement professionnel":PURPLE, "Management / Chef de projet":RED };
 
+  const profile = kpiProfileOf(employee);
   const renderScores = (ev) => {
     if (!ev) return null;
-    const cats = [...new Set(criteria.filter(c=>c.active).map(c=>c.category))];
+    const profCriteria = criteria.filter(c=>c.active && (c.profile||"ing")===profile);
+    const cats = [...new Set(profCriteria.map(c=>c.category))];
     return cats.map(cat => {
-      const catCriteria = criteria.filter(c=>c.active&&c.category===cat);
+      const catCriteria = profCriteria.filter(c=>c.category===cat);
       const scores = catCriteria.map(c=>ev.scores[c.id]||0).filter(v=>v>0);
       const avg = scores.length ? (scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1) : "—";
       return (
@@ -2334,7 +2355,6 @@ function openKpiPrintWindow(employee, ev, criteria, analysis) {
 
 // ─── KPI : Fenêtre d'impression PDF groupée (tout un pôle) ────
 function openKpiPolePrintWindow(pole, membres, criteria) {
-  const cats = [...new Set(criteria.filter(c=>c.active).map(c=>c.category))];
   const esc = s => String(s==null?"":s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   const stars = n => "★".repeat(n) + "☆".repeat(5-n);
   const mdToHtml = t => esc(t).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^[•\-]\s?(.+)$/gm,'<li>$1</li>').replace(/(<li>[\s\S]*?<\/li>)/g,'<ul>$1</ul>').replace(/\n{2,}/g,'</p><p>').replace(/\n/g,'<br>');
@@ -2344,9 +2364,12 @@ function openKpiPolePrintWindow(pole, membres, criteria) {
 
   let sections = "";
   for (const m of classement) {
+    const prof = kpiProfileOf(m);
+    const mCriteria = criteria.filter(c=>c.active && (c.profile||"ing")===prof);
+    const cats = [...new Set(mCriteria.map(c=>c.category))];
     let body = "";
     for (const cat of cats) {
-      const cc = criteria.filter(c=>c.active && c.category===cat);
+      const cc = mCriteria.filter(c=>c.category===cat);
       const vals = cc.map(c=>m.scores[c.id]||0).filter(v=>v>0);
       if (!vals.length) continue;
       const avg = (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1);
@@ -2403,9 +2426,11 @@ function KPIManageModal({ criteria, onClose, onRefresh }) {
   const [list, setList] = useState(criteria);
   const [newLabel, setNewLabel] = useState("");
   const [newCat, setNewCat] = useState("Personnalisé");
+  const [newProfile, setNewProfile] = useState("ing");
   const [saving, setSaving] = useState(false);
 
-  const categories = [...new Set(criteria.map(c=>c.category))];
+  const profiles = ["ing","assistant","finance","commercial","it"];
+  const categories = [...new Set(criteria.filter(c=>(c.profile||"ing")===newProfile).map(c=>c.category))];
 
   const toggleActive = async (c) => {
     const updated = list.map(x=>x.id===c.id?{...x,active:x.active?0:1}:x);
@@ -2422,9 +2447,9 @@ function KPIManageModal({ criteria, onClose, onRefresh }) {
   const addCriteria = async () => {
     if(!newLabel.trim()) return;
     setSaving(true);
-    const r = await authFetch("/api/kpi/criteria",{ method:"POST",body:JSON.stringify({label:newLabel.trim(),category:newCat}) });
+    const r = await authFetch("/api/kpi/criteria",{ method:"POST",body:JSON.stringify({label:newLabel.trim(),category:newCat,profile:newProfile}) });
     const d = await r.json();
-    if(d.ok) { setList(l=>[...l,{id:d.id,label:newLabel.trim(),category:newCat,active:1,position:l.length+1}]); setNewLabel(""); }
+    if(d.ok) { setList(l=>[...l,{id:d.id,label:newLabel.trim(),category:newCat,profile:newProfile,active:1,position:l.length+1}]); setNewLabel(""); }
     setSaving(false);
   };
 
@@ -2435,27 +2460,32 @@ function KPIManageModal({ criteria, onClose, onRefresh }) {
           <h2 style={{ color:TXT,fontSize:18,fontWeight:700,margin:0 }}>⚙️ Gérer les critères KPI</h2>
           <button onClick={()=>{onRefresh();onClose();}} style={{ background:"none",border:"none",color:TXT3,fontSize:22,cursor:"pointer" }}>✕</button>
         </div>
+        {/* Sélecteur de profil */}
+        <div style={{ display:"flex",gap:6,marginBottom:16,flexWrap:"wrap" }}>
+          {profiles.map(p=>(
+            <button key={p} onClick={()=>{setNewProfile(p);setNewCat("Personnalisé");}} style={{ padding:"5px 12px",background:newProfile===p?PURPLE+"33":DARK3,border:"1px solid "+(newProfile===p?PURPLE:BRD),borderRadius:7,color:newProfile===p?PURPLE:TXT2,fontSize:11,fontWeight:700,cursor:"pointer" }}>{KPI_PROFILE_LABELS[p]}</button>
+          ))}
+        </div>
         {/* Ajouter un critère */}
         <div style={{ padding:"14px 16px",background:DARK3,borderRadius:10,marginBottom:20 }}>
-          <div style={{ color:GREEN,fontSize:12,fontWeight:700,marginBottom:10 }}>➕ Ajouter un critère</div>
+          <div style={{ color:GREEN,fontSize:12,fontWeight:700,marginBottom:10 }}>➕ Ajouter un critère — profil « {KPI_PROFILE_LABELS[newProfile]} »</div>
           <div style={{ display:"flex",gap:8,marginBottom:8 }}>
             <input value={newLabel} onChange={e=>setNewLabel(e.target.value)} placeholder="Intitulé du critère..."
               onKeyDown={e=>e.key==="Enter"&&addCriteria()}
               style={{ flex:1,background:DARK,border:"1px solid "+BRD,borderRadius:7,color:TXT,padding:"7px 10px",fontSize:12 }} />
           </div>
           <div style={{ display:"flex",gap:8,alignItems:"center" }}>
-            <select value={newCat} onChange={e=>setNewCat(e.target.value)}
-              style={{ flex:1,background:DARK,border:"1px solid "+BRD,borderRadius:7,color:TXT,padding:"7px 10px",fontSize:12 }}>
-              {[...categories,"Personnalisé"].map(c=><option key={c} value={c}>{c}</option>)}
-            </select>
+            <input value={newCat==="Personnalisé"?"":newCat} onChange={e=>setNewCat(e.target.value||"Personnalisé")} list="kpi-cats" placeholder="Catégorie…"
+              style={{ flex:1,background:DARK,border:"1px solid "+BRD,borderRadius:7,color:TXT,padding:"7px 10px",fontSize:12 }} />
+            <datalist id="kpi-cats">{categories.map(c=><option key={c} value={c} />)}</datalist>
             <button onClick={addCriteria} disabled={saving||!newLabel.trim()} style={{ padding:"7px 18px",background:newLabel.trim()?GREEN:TXT3,border:"none",borderRadius:7,color:"#fff",fontWeight:700,cursor:newLabel.trim()?"pointer":"not-allowed",fontSize:12 }}>Ajouter</button>
           </div>
         </div>
-        {/* Liste */}
-        {[...new Set(list.map(c=>c.category))].map(cat=>(
+        {/* Liste (filtrée par profil sélectionné) */}
+        {[...new Set(list.filter(c=>(c.profile||"ing")===newProfile).map(c=>c.category))].map(cat=>(
           <div key={cat} style={{ marginBottom:16 }}>
             <div style={{ color:CYAN,fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:8,borderBottom:"1px solid "+BRD,paddingBottom:4 }}>{cat}</div>
-            {list.filter(c=>c.category===cat).map(c=>(
+            {list.filter(c=>(c.profile||"ing")===newProfile&&c.category===cat).map(c=>(
               <div key={c.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"7px 4px",borderBottom:"1px solid "+DARK3 }}>
                 <span style={{ flex:1,color:c.active?TXT:TXT3,fontSize:12,textDecoration:c.active?"none":"line-through" }}>{c.label}</span>
                 <button onClick={()=>toggleActive(c)} style={{ padding:"3px 10px",background:c.active?GREEN+"22":DARK3,border:"1px solid "+(c.active?GREEN:BRD),borderRadius:5,color:c.active?GREEN:TXT3,fontSize:10,fontWeight:700,cursor:"pointer" }}>
@@ -2487,7 +2517,12 @@ function KPIPickerModal({ employees, evaluator, criteria, onClose }) {
     authFetch("/api/kpi/criteria").then(r=>r.json()).then(setLocalCriteria).catch(()=>{});
   };
 
-  const members = employees.filter(e=>!e.isAdmin && e.pole !== "Direction" && (evaluator.isAdmin || evaluator.canViewKPI || evaluator.canViewAll || e.pole===evaluator.pole));
+  const members = employees.filter(e=>{
+    const isEng = (e.pole === "Fluide" || e.pole === "Élec") && !e.isAdmin;
+    const isAdminGroup = KPI_ADMIN_EVAL.has(e.name);   // Direction + Commercial + IT (Seif)
+    if (!(isEng || isAdminGroup)) return false;
+    return evaluator.isAdmin || evaluator.canViewKPI || evaluator.canViewAll || e.pole===evaluator.pole;
+  });
   const canEvaluate = evaluator.isAdmin || evaluator.isChef || evaluator.canViewAll;
   const poles = [...new Set(members.map(m=>m.pole))];
   const [printPole, setPrintPole] = useState(poles[0] || "");

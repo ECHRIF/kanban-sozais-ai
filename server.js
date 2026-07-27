@@ -395,6 +395,81 @@ const pool = mysql.createPool({
       );
     }
 
+    // ─── Profils d'évaluation KPI ─────────────────────────────
+    // Colonne `profile` : sépare les jeux de critères par type de poste.
+    //   ing (défaut) = ingénieurs Fluide/Élec | assistant | finance | commercial | it
+    {
+      const [pc] = await conn.query(
+        "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='kpi_criteria' AND COLUMN_NAME='profile'"
+      );
+      if (pc[0].cnt === 0) {
+        await conn.query("ALTER TABLE kpi_criteria ADD COLUMN profile VARCHAR(20) NOT NULL DEFAULT 'ing'");
+        console.log("✅ Migration kpi_criteria: colonne profile");
+      }
+      // Les critères existants (sans profil) sont ceux des ingénieurs
+      await conn.query("UPDATE kpi_criteria SET profile='ing' WHERE profile IS NULL OR profile=''");
+      // La contrainte d'unicité doit être (profile,label) et non label seul,
+      // car un même intitulé (ex. « Autonomie ») peut exister dans 2 profils.
+      try {
+        const [idx] = await conn.query("SHOW INDEX FROM kpi_criteria WHERE Key_name='uq_label'");
+        if (idx.length) await conn.query("ALTER TABLE kpi_criteria DROP INDEX uq_label");
+        const [idx2] = await conn.query("SHOW INDEX FROM kpi_criteria WHERE Key_name='uq_profile_label'");
+        if (!idx2.length) await conn.query("ALTER TABLE kpi_criteria ADD UNIQUE KEY uq_profile_label (profile, label)");
+      } catch (e) { console.warn("   ⚠️  Index kpi_criteria :", e.message); }
+    }
+
+    // Critères des profils administratifs (label, catégorie, profil, position)
+    const kpiAdmin = [
+      // Assistante de direction
+      ["Gestion de l'agenda et des priorités de la direction", 'Organisation & rigueur',        'assistant', 101],
+      ['Fiabilité dans le suivi des dossiers',                  'Organisation & rigueur',        'assistant', 102],
+      ['Organisation et classement documentaire',              'Organisation & rigueur',        'assistant', 103],
+      ['Qualité de la communication écrite et orale',          'Communication & relationnel',   'assistant', 104],
+      ['Accueil et relation (interne / externe)',              'Communication & relationnel',   'assistant', 105],
+      ['Réactivité aux sollicitations',                        'Communication & relationnel',   'assistant', 106],
+      ["Autonomie et prise d'initiative",                      'Autonomie & confidentialité',   'assistant', 107],
+      ['Discrétion et confidentialité',                        'Autonomie & confidentialité',   'assistant', 108],
+      ['Polyvalence et adaptabilité',                          'Autonomie & confidentialité',   'assistant', 109],
+      // Finance / Comptabilité
+      ['Fiabilité et exactitude des données financières',      'Gestion financière',            'finance',   201],
+      ['Suivi de la trésorerie et des encaissements',          'Gestion financière',            'finance',   202],
+      ['Établissement et suivi des factures',                  'Gestion financière',            'finance',   203],
+      ['Préparation de la paie dans les délais',               'Gestion financière',            'finance',   204],
+      ['Qualité et clarté du reporting financier',             'Reporting & analyse',           'finance',   205],
+      ['Respect des échéances comptables et fiscales',         'Reporting & analyse',           'finance',   206],
+      ["Capacité d'analyse et d'alerte",                       'Reporting & analyse',           'finance',   207],
+      ['Rigueur et sens du détail',                            'Rigueur & conformité',          'finance',   208],
+      ['Respect des procédures et de la confidentialité',      'Rigueur & conformité',          'finance',   209],
+      ['Autonomie dans la gestion financière',                 'Rigueur & conformité',          'finance',   210],
+      // Commercial
+      ['Prospection de nouveaux clients',                      'Développement commercial',      'commercial',301],
+      ['Suivi et fidélisation du portefeuille client',         'Développement commercial',      'commercial',302],
+      ['Taux de conversion des offres / devis',                'Développement commercial',      'commercial',303],
+      ['Atteinte des objectifs commerciaux',                   'Développement commercial',      'commercial',304],
+      ['Qualité de la relation client',                        'Relation client',               'commercial',305],
+      ['Réactivité et suivi des demandes clients',             'Relation client',               'commercial',306],
+      ['Qualité des offres et propositions commerciales',      'Relation client',               'commercial',307],
+      ["Suivi et reporting de l'activité commerciale",         'Organisation & reporting',      'commercial',308],
+      ['Collaboration avec les équipes techniques',            'Organisation & reporting',      'commercial',309],
+      ['Autonomie et initiative commerciale',                  'Organisation & reporting',      'commercial',310],
+      // Informatique
+      ['Réactivité et résolution des incidents',               'Support & disponibilité',       'it',        401],
+      ['Disponibilité et accompagnement des utilisateurs',     'Support & disponibilité',       'it',        402],
+      ['Qualité de la communication technique',                'Support & disponibilité',       'it',        403],
+      ["Fiabilité et maintenance de l'infrastructure",         'Infrastructure & sécurité',     'it',        404],
+      ['Gestion des sauvegardes et sécurité des données',      'Infrastructure & sécurité',     'it',        405],
+      ['Gestion des licences et du parc informatique',         'Infrastructure & sécurité',     'it',        406],
+      ["Contribution aux projets d'amélioration (outils, automatisation)", 'Projets & amélioration', 'it',  407],
+      ['Autonomie et proactivité',                             'Projets & amélioration',        'it',        408],
+      ['Documentation et partage des procédures',              'Projets & amélioration',        'it',        409],
+    ];
+    for (const [label, category, profile, position] of kpiAdmin) {
+      await conn.query(
+        'INSERT IGNORE INTO kpi_criteria (label, category, profile, position) VALUES (?, ?, ?, ?)',
+        [label, category, profile, position]
+      );
+    }
+
     // Charger les modèles IA choisis par l'admin (surchargent les valeurs par défaut)
     try {
       const [rows] = await conn.query("SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN ('groq_model','groq_agent_model')");
@@ -2800,11 +2875,12 @@ app.get("/api/kpi/criteria", authenticate, async (req, res) => {
 
 app.post("/api/kpi/criteria", authenticate, requireAdmin, async (req, res) => {
   try {
-    const { label, category } = req.body;
+    const { label, category, profile } = req.body;
     if (!label || !label.trim()) return res.status(400).json({ error: "Label requis" });
+    const prof = ['ing','assistant','finance','commercial','it'].includes(profile) ? profile : 'ing';
     const [r] = await pool.query(
-      "INSERT INTO kpi_criteria (label, category, position) VALUES (?, ?, (SELECT COALESCE(MAX(position),0)+1 FROM kpi_criteria k2))",
-      [label.trim(), category || "Personnalisé"]
+      "INSERT INTO kpi_criteria (label, category, profile, position) VALUES (?, ?, ?, (SELECT COALESCE(MAX(position),0)+1 FROM kpi_criteria k2))",
+      [label.trim(), category || "Personnalisé", prof]
     );
     res.json({ ok: true, id: r.insertId });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -2950,7 +3026,7 @@ app.post("/api/kpi/analysis-pole", authenticate, async (req, res) => {
   try {
     const { pole } = req.body;
     if (!pole) return res.status(400).json({ error: "pole requis" });
-    const [members] = await pool.query("SELECT name, role FROM employees WHERE pole = ? ORDER BY name", [pole]);
+    const [members] = await pool.query("SELECT name, role, pole FROM employees WHERE pole = ? ORDER BY name", [pole]);
     const [crit] = await pool.query("SELECT id, label, category FROM kpi_criteria WHERE active = 1");
     const out = [];
     for (const m of members) {
@@ -2977,7 +3053,7 @@ app.post("/api/kpi/analysis-pole", authenticate, async (req, res) => {
         });
         analysis = (resp.choices[0].message.content || "").trim();
       } catch (e) { analysis = "(Analyse IA indisponible.)"; }
-      out.push({ name: m.name, role: m.role, period: ev.period, evaluator: ev.evaluator_name, globalAvg, scores, comment: ev.overall_comment || "", analysis });
+      out.push({ name: m.name, role: m.role, pole: m.pole, period: ev.period, evaluator: ev.evaluator_name, globalAvg, scores, comment: ev.overall_comment || "", analysis });
       await new Promise(r => setTimeout(r, 300)); // léger throttle
     }
     res.json({ ok: true, pole, count: out.length, membres: out });
