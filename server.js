@@ -2844,6 +2844,80 @@ app.post("/api/kpi/evaluate", authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// PUT /api/kpi/evaluations/:id — modifier une évaluation existante (corriger une note)
+// Autorisé : admin, chef, droit KPI global, ou l'évaluateur d'origine.
+app.put("/api/kpi/evaluations/:id", authenticate, async (req, res) => {
+  try {
+    const { scores, overall_comment, period } = req.body;
+    const [rows] = await pool.query("SELECT evaluator_name FROM kpi_evaluations WHERE id = ?", [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: "Évaluation introuvable" });
+    const u = req.user;
+    const autorise = u.isAdmin || u.isChef || u.canViewAll || u.canViewKPI || rows[0].evaluator_name === u.name;
+    if (!autorise) return res.status(403).json({ error: "Non autorisé à modifier cette évaluation" });
+    const sets = [], vals = [];
+    if (scores !== undefined)          { sets.push("scores = ?");          vals.push(JSON.stringify(scores || {})); }
+    if (overall_comment !== undefined) { sets.push("overall_comment = ?"); vals.push(overall_comment || ""); }
+    if (period !== undefined)          { sets.push("period = ?");          vals.push(period); }
+    if (!sets.length) return res.status(400).json({ error: "Rien à modifier" });
+    vals.push(req.params.id);
+    await pool.query(`UPDATE kpi_evaluations SET ${sets.join(", ")} WHERE id = ?`, vals);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/kpi/analysis — analyse IA d'une évaluation (pour l'impression PDF)
+// body: { evaluated_name, evaluation_id? }  (par défaut : la dernière évaluation)
+app.post("/api/kpi/analysis", authenticate, async (req, res) => {
+  if (!requireAI(res)) return;
+  try {
+    const { evaluated_name, evaluation_id } = req.body;
+    if (!evaluated_name) return res.status(400).json({ error: "evaluated_name requis" });
+    let ev;
+    if (evaluation_id) {
+      const [r] = await pool.query("SELECT * FROM kpi_evaluations WHERE id = ?", [evaluation_id]);
+      ev = r[0];
+    } else {
+      const [r] = await pool.query("SELECT * FROM kpi_evaluations WHERE evaluated_name = ? ORDER BY created_at DESC LIMIT 1", [evaluated_name]);
+      ev = r[0];
+    }
+    if (!ev) return res.status(404).json({ error: "Aucune évaluation pour ce membre" });
+    const scores = typeof ev.scores === "string" ? JSON.parse(ev.scores) : ev.scores;
+    const [crit] = await pool.query("SELECT id, label, category FROM kpi_criteria WHERE active = 1");
+    // Regrouper par catégorie
+    const byCat = {};
+    for (const c of crit) {
+      const v = scores[c.id];
+      if (v > 0) (byCat[c.category] = byCat[c.category] || []).push({ label: c.label, score: v });
+    }
+    const lignes = Object.entries(byCat).map(([cat, items]) => {
+      const moy = (items.reduce((a, b) => a + b.score, 0) / items.length).toFixed(1);
+      const detail = items.map(i => `${i.label}: ${i.score}/5`).join(", ");
+      return `• ${cat} (moyenne ${moy}/5) — ${detail}`;
+    }).join("\n");
+    const allVals = Object.values(scores).filter(v => v > 0);
+    const globalAvg = allVals.length ? (allVals.reduce((a, b) => a + b, 0) / allVals.length).toFixed(2) : "0";
+
+    const resp = await llmChat({
+      max_tokens: 900,
+      temperature: 0.3,
+      messages: [{ role: "user", content:
+        `Tu es responsable RH du bureau d'études SOZAIS. Rédige une analyse professionnelle de l'évaluation KPI de ${evaluated_name} (période ${ev.period}).\n\n` +
+        `Note globale : ${globalAvg}/5\n\nDétail par catégorie :\n${lignes}\n\n` +
+        (ev.overall_comment ? `Commentaire de l'évaluateur : "${ev.overall_comment}"\n\n` : "") +
+        `Structure ton analyse en français, factuelle et bienveillante, avec ces sections :\n` +
+        `**Synthèse** (2-3 phrases sur le niveau global)\n` +
+        `**Points forts** (2-4 puces sur les meilleures catégories/critères)\n` +
+        `**Axes d'amélioration** (2-4 puces sur les critères les plus faibles)\n` +
+        `**Recommandations** (2-3 actions concrètes de développement)\n` +
+        `Sois concret, pas de blabla. N'invente aucune donnée non fournie.` }],
+    });
+    res.json({ ok: true, analysis: (resp.choices[0].message.content || "").trim(), period: ev.period, globalAvg, evaluator: ev.evaluator_name });
+  } catch (err) {
+    console.error("POST /api/kpi/analysis", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── API NOTIFICATIONS ────────────────────────────────────────
 
 // GET /api/notifications  — retourne les notifs non lues + les 20 dernières lues

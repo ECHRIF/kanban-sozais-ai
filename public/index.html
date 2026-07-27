@@ -2052,11 +2052,13 @@ function StarRating({ value, onChange, readonly }) {
 }
 
 // ─── KPI : Modal Évaluation ───────────────────────────────────
-function KPIEvalModal({ evaluator, evaluated, criteria, onClose, onSaved }) {
-  const [scores, setScores] = useState({});
-  const [comment, setComment] = useState("");
+function KPIEvalModal({ evaluator, evaluated, criteria, onClose, onSaved, existing }) {
+  const isEdit = !!existing;
+  const [scores, setScores] = useState(() => existing ? { ...existing.scores } : {});
+  const [comment, setComment] = useState(existing?.overall_comment || "");
   const MONTHS_FR=["Jan","F\u00e9v","Mar","Avr","Mai","Jun","Jul","Ao\u00fb","Sep","Oct","Nov","D\u00e9c"];
   const [period, setPeriod] = useState(() => {
+    if (existing?.period) return existing.period;
     const d = new Date();
     return d.getFullYear()+"-"+["Jan","F\u00e9v","Mar","Avr","Mai","Jun","Jul","Ao\u00fb","Sep","Oct","Nov","D\u00e9c"][d.getMonth()];
   });
@@ -2070,10 +2072,17 @@ function KPIEvalModal({ evaluator, evaluated, criteria, onClose, onSaved }) {
 
   const save = async () => {
     setSaving(true);
-    await authFetch("/api/kpi/evaluate", {
-      method: "POST",
-      body: JSON.stringify({ evaluator_name: evaluator.name, evaluated_name: evaluated.name, period, scores, overall_comment: comment })
-    });
+    if (isEdit) {
+      await authFetch(`/api/kpi/evaluations/${existing.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ scores, overall_comment: comment, period })
+      });
+    } else {
+      await authFetch("/api/kpi/evaluate", {
+        method: "POST",
+        body: JSON.stringify({ evaluator_name: evaluator.name, evaluated_name: evaluated.name, period, scores, overall_comment: comment })
+      });
+    }
     setSaving(false); setDone(true);
     setTimeout(() => { onSaved(); onClose(); }, 1500);
   };
@@ -2082,7 +2091,7 @@ function KPIEvalModal({ evaluator, evaluated, criteria, onClose, onSaved }) {
     <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:3000 }}>
       <div style={{ background:DARK2,border:"1px solid "+GREEN,borderRadius:16,padding:40,textAlign:"center" }}>
         <div style={{ fontSize:48,marginBottom:12 }}>✅</div>
-        <div style={{ color:GREEN,fontSize:16,fontWeight:700 }}>Évaluation enregistrée !</div>
+        <div style={{ color:GREEN,fontSize:16,fontWeight:700 }}>{isEdit ? "Évaluation modifiée !" : "Évaluation enregistrée !"}</div>
         <div style={{ color:TXT3,fontSize:12,marginTop:6 }}>Moyenne : {avg}/5</div>
       </div>
     </div>
@@ -2094,7 +2103,7 @@ function KPIEvalModal({ evaluator, evaluated, criteria, onClose, onSaved }) {
         {/* Header */}
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
           <div>
-            <h2 style={{ color:TXT,fontSize:18,fontWeight:700,margin:0 }}>📋 Évaluation KPI</h2>
+            <h2 style={{ color:TXT,fontSize:18,fontWeight:700,margin:0 }}>{isEdit ? "✏️ Modifier l'évaluation" : "📋 Évaluation KPI"}</h2>
             <div style={{ color:PURPLE,fontSize:13,marginTop:3,fontWeight:600 }}>{evaluated.name} — {evaluated.role}</div>
           </div>
           <button onClick={onClose} style={{ background:"none",border:"none",color:TXT3,fontSize:22,cursor:"pointer" }}>✕</button>
@@ -2139,7 +2148,7 @@ function KPIEvalModal({ evaluator, evaluated, criteria, onClose, onSaved }) {
             {filled>0 && <span style={{ color:ORANGE,fontWeight:700,marginLeft:12 }}>Moy : {avg}/5</span>}
           </div>
           <button onClick={save} disabled={saving||filled===0} style={{ padding:"10px 28px",background:filled>0?PURPLE:TXT3,border:"none",borderRadius:8,color:"#fff",fontWeight:700,cursor:filled>0?"pointer":"not-allowed",fontSize:13 }}>
-            {saving?"⏳ Enregistrement...":"💾 Enregistrer"}
+            {saving?"⏳ Enregistrement...":(isEdit?"💾 Enregistrer les modifications":"💾 Enregistrer")}
           </button>
         </div>
       </div>
@@ -2148,16 +2157,33 @@ function KPIEvalModal({ evaluator, evaluated, criteria, onClose, onSaved }) {
 }
 
 // ─── KPI : Modal Résultats ────────────────────────────────────
-function KPIResultsModal({ employee, criteria, onClose }) {
+function KPIResultsModal({ employee, criteria, onClose, evaluator }) {
   const [evals, setEvals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selEval, setSelEval] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
-  useEffect(() => {
-    authFetch(`/api/kpi/evaluations/${encodeURIComponent(employee.name)}`)
-      .then(r=>r.json()).then(d=>{ setEvals(d); if(d.length) setSelEval(d[0]); setLoading(false); })
+  const reload = () => authFetch(`/api/kpi/evaluations/${encodeURIComponent(employee.name)}`)
+      .then(r=>r.json()).then(d=>{ setEvals(d); setSelEval(prev => d.find(x=>x.id===prev?.id) || d[0] || null); setLoading(false); })
       .catch(()=>setLoading(false));
-  }, [employee.name]);
+  useEffect(() => { reload(); }, [employee.name]);
+
+  const canEdit = evaluator && (evaluator.isAdmin || evaluator.isChef || evaluator.canViewAll || evaluator.canViewKPI || selEval?.evaluator_name === evaluator.name);
+
+  // Impression PDF : récupère l'analyse IA puis ouvre une fenêtre imprimable
+  const printPDF = async () => {
+    if (!selEval) return;
+    setPrinting(true);
+    let analysis = "";
+    try {
+      const r = await authFetch('/api/kpi/analysis', { method: 'POST', body: JSON.stringify({ evaluated_name: employee.name, evaluation_id: selEval.id }) });
+      const d = await r.json();
+      analysis = d.ok ? d.analysis : "(Analyse IA indisponible : " + (d.error || "") + ")";
+    } catch (e) { analysis = "(Analyse IA indisponible.)"; }
+    setPrinting(false);
+    openKpiPrintWindow(employee, selEval, criteria, analysis);
+  };
 
   const catColors = { "Qualité du travail":CYAN, "Délais & Productivité":ORANGE, "Autonomie & Initiative":GREEN, "Collaboration":BLUE, "Développement professionnel":PURPLE, "Management / Chef de projet":RED };
 
@@ -2193,7 +2219,15 @@ function KPIResultsModal({ employee, criteria, onClose }) {
             <h2 style={{ color:TXT,fontSize:18,fontWeight:700,margin:0 }}>📊 Historique KPI — {employee.name}</h2>
             <div style={{ color:TXT3,fontSize:12,marginTop:3 }}>{evals.length} évaluation{evals.length>1?"s":""} enregistrée{evals.length>1?"s":""}</div>
           </div>
-          <button onClick={onClose} style={{ background:"none",border:"none",color:TXT3,fontSize:22,cursor:"pointer" }}>✕</button>
+          <div style={{ display:"flex",gap:8,alignItems:"center" }}>
+            {selEval && canEdit && (
+              <button onClick={()=>setEditing(true)} title="Corriger cette évaluation" style={{ padding:"6px 12px",background:CYAN+"22",border:"1px solid "+CYAN+"44",borderRadius:7,color:CYAN,fontSize:11,fontWeight:700,cursor:"pointer" }}>✏️ Modifier</button>
+            )}
+            {selEval && (
+              <button onClick={printPDF} disabled={printing} title="Imprimer / exporter en PDF avec analyse IA" style={{ padding:"6px 12px",background:PURPLE+"22",border:"1px solid "+PURPLE+"44",borderRadius:7,color:PURPLE,fontSize:11,fontWeight:700,cursor:printing?"wait":"pointer" }}>{printing?"⏳ Analyse…":"🖨️ Imprimer PDF"}</button>
+            )}
+            <button onClick={onClose} style={{ background:"none",border:"none",color:TXT3,fontSize:22,cursor:"pointer" }}>✕</button>
+          </div>
         </div>
         {loading && <div style={{ color:TXT3,textAlign:"center",padding:40 }}>Chargement...</div>}
         {!loading && !evals.length && <div style={{ color:TXT3,textAlign:"center",padding:40 }}>Aucune évaluation pour ce membre.</div>}
@@ -2227,8 +2261,75 @@ function KPIResultsModal({ employee, criteria, onClose }) {
           </div>
         )}
       </div>
+      {editing && selEval && (
+        <KPIEvalModal evaluator={evaluator} evaluated={employee} criteria={criteria} existing={selEval}
+          onClose={()=>setEditing(false)} onSaved={()=>{ setEditing(false); reload(); }} />
+      )}
     </div>
   );
+}
+
+// ─── KPI : Fenêtre d'impression PDF (scores + analyse IA) ──────
+function openKpiPrintWindow(employee, ev, criteria, analysis) {
+  const cats = [...new Set(criteria.filter(c=>c.active).map(c=>c.category))];
+  const allVals = Object.values(ev.scores).filter(v=>v>0);
+  const globalAvg = allVals.length ? (allVals.reduce((a,b)=>a+b,0)/allVals.length).toFixed(2) : "—";
+  const esc = s => String(s==null?"":s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const stars = n => "★".repeat(n) + "☆".repeat(5-n);
+  let body = "";
+  for (const cat of cats) {
+    const cc = criteria.filter(c=>c.active && c.category===cat);
+    const vals = cc.map(c=>ev.scores[c.id]||0).filter(v=>v>0);
+    const avg = vals.length ? (vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1) : "—";
+    body += `<tr class="cat"><td colspan="2">${esc(cat)}</td><td class="avg">${avg}${avg!=="—"?"/5":""}</td></tr>`;
+    for (const c of cc) {
+      const v = ev.scores[c.id]||0;
+      body += `<tr><td class="lbl">${esc(c.label)}</td><td class="star">${v>0?stars(v):"—"}</td><td class="num">${v>0?v+"/5":"—"}</td></tr>`;
+    }
+  }
+  // Convertir le markdown léger de l'analyse en HTML
+  const analysisHtml = esc(analysis)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/^[•\-]\s?(.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>')
+    .replace(/\n{2,}/g, '</p><p>')
+    .replace(/\n/g, '<br>');
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>KPI ${esc(employee.name)} — ${esc(ev.period)}</title>
+  <style>
+    *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#1e293b;margin:0;padding:32px;max-width:800px}
+    h1{font-size:22px;margin:0 0 2px} .sub{color:#64748b;font-size:12px;margin-bottom:4px}
+    .brand{color:#2563eb;font-weight:800}
+    .hdr{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #2563eb;padding-bottom:12px;margin-bottom:18px}
+    .glob{text-align:right} .glob .big{font-size:30px;font-weight:800;color:#f59e0b}
+    table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:12px}
+    td{padding:5px 8px;border-bottom:1px solid #e2e8f0}
+    tr.cat td{background:#f1f5f9;font-weight:700;color:#0f172a;text-transform:uppercase;font-size:11px;letter-spacing:.5px}
+    tr.cat .avg{text-align:right;color:#2563eb}
+    .lbl{width:60%} .star{color:#f59e0b;letter-spacing:2px} .num{text-align:right;width:60px;font-weight:600}
+    .analysis{background:#f8fafc;border-left:4px solid #2563eb;border-radius:6px;padding:14px 18px;font-size:12.5px;line-height:1.65}
+    .analysis h2,.analysis strong{color:#0f172a} .analysis ul{margin:6px 0 6px 18px;padding:0} .analysis li{margin:3px 0}
+    .sec{font-size:13px;font-weight:700;color:#2563eb;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.5px}
+    .foot{margin-top:26px;color:#94a3b8;font-size:10px;border-top:1px solid #e2e8f0;padding-top:10px}
+    @media print{body{padding:0}.noprint{display:none}}
+    .btn{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:18px}
+  </style></head><body>
+  <button class="btn noprint" onclick="window.print()">🖨️ Imprimer / Enregistrer en PDF</button>
+  <div class="hdr">
+    <div><h1>Kanban <span class="brand">SOZAIS</span> — Évaluation KPI</h1>
+      <div class="sub">${esc(employee.name)} · ${esc(employee.role||"")}${employee.pole?" · "+esc(employee.pole):""}</div>
+      <div class="sub">Période : <strong>${esc(ev.period)}</strong> · Évaluateur : ${esc(ev.evaluator_name||"—")}</div></div>
+    <div class="glob"><div style="font-size:11px;color:#64748b">Note globale</div><div class="big">${globalAvg}<span style="font-size:16px;color:#94a3b8">/5</span></div></div>
+  </div>
+  <div class="sec">Détail des critères</div>
+  <table>${body}</table>
+  ${ev.overall_comment?`<div class="sec">Commentaire de l'évaluateur</div><div style="font-style:italic;color:#475569;font-size:12.5px;margin-bottom:16px">« ${esc(ev.overall_comment)} »</div>`:""}
+  <div class="sec">🤖 Analyse IA</div>
+  <div class="analysis"><p>${analysisHtml}</p></div>
+  <div class="foot">Document généré automatiquement par Kanban SOZAIS le ${new Date().toLocaleDateString("fr-FR")} — Confidentiel RH.</div>
+  </body></html>`;
+  const w = window.open("", "_blank");
+  if (!w) { alert("Autorisez les fenêtres pop-up pour imprimer le PDF."); return; }
+  w.document.write(html); w.document.close();
 }
 
 // ─── KPI : Modal Gestion des critères (admin) ─────────────────
@@ -2364,7 +2465,7 @@ function KPIPickerModal({ employees, evaluator, criteria, onClose }) {
         </div>
       </div>
       {kpiTarget && <KPIEvalModal evaluator={evaluator} evaluated={kpiTarget} criteria={localCriteria} onClose={()=>setKpiTarget(null)} onSaved={()=>{ setKpiTarget(null); authFetch("/api/kpi/summary").then(r=>r.json()).then(setSummary).catch(()=>{}); }} />}
-      {kpiView   && <KPIResultsModal employee={kpiView} criteria={localCriteria} onClose={()=>setKpiView(null)} />}
+      {kpiView   && <KPIResultsModal employee={kpiView} criteria={localCriteria} evaluator={evaluator} onClose={()=>setKpiView(null)} />}
       {manage    && <KPIManageModal criteria={localCriteria} onClose={()=>setManage(false)} onRefresh={refreshCriteria} />}
     </div>
   );
