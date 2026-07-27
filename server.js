@@ -2965,6 +2965,20 @@ app.put("/api/kpi/evaluations/:id", authenticate, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// DELETE /api/kpi/evaluations/:id — supprimer une évaluation (éval erronée)
+// Autorisé : admin, chef, droit KPI global, ou l'évaluateur d'origine.
+app.delete("/api/kpi/evaluations/:id", authenticate, async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT evaluator_name FROM kpi_evaluations WHERE id = ?", [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: "Évaluation introuvable" });
+    const u = req.user;
+    const autorise = u.isAdmin || u.isChef || u.canViewAll || u.canViewKPI || rows[0].evaluator_name === u.name;
+    if (!autorise) return res.status(403).json({ error: "Non autorisé" });
+    await pool.query("DELETE FROM kpi_evaluations WHERE id = ?", [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // POST /api/kpi/analysis — analyse IA d'une évaluation (pour l'impression PDF)
 // body: { evaluated_name, evaluation_id? }  (par défaut : la dernière évaluation)
 app.post("/api/kpi/analysis", authenticate, async (req, res) => {
