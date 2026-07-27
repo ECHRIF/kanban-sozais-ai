@@ -452,16 +452,30 @@ const CLAUDE_MODEL  = process.env.CLAUDE_MODEL || "claude-sonnet-4-5";
 // admin les met à jour à chaud, sans redéploiement.
 // - GROQ_MODEL : fonctions légères (briefing, priorisation, analyse, récaps, extraction) → GPT-OSS 20B (raisonnement).
 // - GROQ_AGENT_MODEL : agent conversationnel (prompt + 9 outils + historique) → LLaMA 70B (quota gratuit plus large).
-let GROQ_MODEL       = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
-let GROQ_AGENT_MODEL = process.env.GROQ_AGENT_MODEL || "llama-3.3-70b-versatile";
+// Le modèle choisi (agent / fonctions) est AUTORITAIRE : "claude" force Claude,
+// un id Groq force ce modèle Groq. Défaut : Claude si crédits dispo, sinon Groq.
+let GROQ_MODEL       = process.env.GROQ_MODEL || (ANTHROPIC_KEY ? "claude" : "openai/gpt-oss-20b");
+let GROQ_AGENT_MODEL = process.env.GROQ_AGENT_MODEL || (ANTHROPIC_KEY ? "claude" : "llama-3.3-70b-versatile");
+// Modèle Groq de secours si Claude échoue (crédits épuisés) : LLaMA 70B (tool_use + gros contexte).
+const GROQ_FALLBACK  = "llama-3.3-70b-versatile";
 
-// Modèles Groq gratuits proposés dans le menu déroulant (id exact → libellé).
+// Modèles proposés dans le menu déroulant (id exact → libellé).
 const GROQ_MODEL_CHOICES = [
-  { id: "openai/gpt-oss-20b",       label: "GPT-OSS 20B — raisonnement, léger (recommandé fonctions)" },
-  { id: "openai/gpt-oss-120b",      label: "GPT-OSS 120B — raisonnement + (limite gratuite basse)" },
-  { id: "llama-3.3-70b-versatile",  label: "LLaMA 3.3 70B — rapide, fiable (recommandé agent)" },
-  { id: "llama-3.1-8b-instant",     label: "LLaMA 3.1 8B — ultra-rapide, quota très large" },
+  { id: "openai/gpt-oss-20b",       label: "GPT-OSS 20B — raisonnement, léger (gratuit)" },
+  { id: "openai/gpt-oss-120b",      label: "GPT-OSS 120B — raisonnement + (gratuit, limite basse)" },
+  { id: "llama-3.3-70b-versatile",  label: "LLaMA 3.3 70B — rapide, fiable (gratuit)" },
+  { id: "llama-3.1-8b-instant",     label: "LLaMA 3.1 8B — ultra-rapide (gratuit)" },
 ];
+// Choix affichés = Claude (si crédits) en tête + modèles Groq gratuits.
+function aiModelChoices() {
+  const list = [...GROQ_MODEL_CHOICES];
+  if (ANTHROPIC_KEY) list.unshift({ id: "claude", label: "Claude (Anthropic) — le plus performant (payant)" });
+  return list;
+}
+function isValidModelId(id) {
+  if (id === "claude") return !!ANTHROPIC_KEY;
+  return GROQ_MODEL_CHOICES.some(m => m.id === id);
+}
 const GROQ_MODEL_IDS = new Set(GROQ_MODEL_CHOICES.map(m => m.id));
 
 function toAnthropicTools(tools) {
@@ -501,22 +515,30 @@ function toAnthropicMessages(messages) {
 }
 
 async function llmChat(opts) {
-  // Claude en priorité ; si l'appel échoue (crédits épuisés, panne, etc.),
-  // bascule automatique sur Groq/LLaMA pour que l'IA reste disponible.
-  if (ANTHROPIC_KEY) {
+  // Le modèle passé est AUTORITAIRE :
+  //  - "claude" (ou vide + crédits Anthropic) → Claude, avec repli Groq si échec.
+  //  - un id Groq → ce modèle Groq précisément (Claude ignoré).
+  const { model, max_tokens, temperature, messages, tools, tool_choice } = opts;
+  const runGroq = (m) => {
+    if (!groq) throw new Error("Groq non configuré");
+    // GPT-OSS valide strictement les schémas (rejette `null` sur un paramètre
+    // optionnel typé "string") → on rend nullable tout paramètre non requis.
+    return groq.chat.completions.create({ model: m, max_tokens, temperature, messages, tools: groqSafeTools(tools), tool_choice });
+  };
+  const wantsClaude = model === "claude" || (!model && ANTHROPIC_KEY);
+  if (wantsClaude && ANTHROPIC_KEY) {
     try {
       return await claudeChat(opts);
     } catch (e) {
-      console.warn("⚠️  Claude indisponible (" + e.message.slice(0, 120) + ") — bascule sur Groq");
+      console.warn("⚠️  Claude indisponible (" + e.message.slice(0, 120) + ") — repli Groq " + GROQ_FALLBACK);
       if (!groq) throw e;
+      return runGroq(GROQ_FALLBACK);
     }
   }
-  if (!groq) throw new Error("Aucun moteur IA configuré (ANTHROPIC_API_KEY ou GROQ_API_KEY)");
-  const { model, max_tokens, temperature, messages, tools, tool_choice } = opts;
-  // GPT-OSS 120B valide strictement les schémas : il envoie parfois `null` pour
-  // un paramètre optionnel (ex. filter: null), ce que refuse la validation si le
-  // type est "string". On rend donc tout paramètre NON requis nullable.
-  return groq.chat.completions.create({ model: model || GROQ_MODEL, max_tokens, temperature, messages, tools: groqSafeTools(tools), tool_choice });
+  // Modèle Groq explicite (ou pas de clé Claude)
+  if (groq) return runGroq(GROQ_MODEL_IDS.has(model) ? model : GROQ_FALLBACK);
+  if (ANTHROPIC_KEY) return claudeChat(opts); // dernier recours
+  throw new Error("Aucun moteur IA configuré (ANTHROPIC_API_KEY ou GROQ_API_KEY)");
 }
 
 function groqSafeTools(tools) {
@@ -834,6 +856,7 @@ async function sendWeeklyPoleRecaps(dryRun = false) {
     let synthese = "";
     try {
       const resp = await llmChat({
+        model: GROQ_MODEL,
         max_tokens: 700,
         messages: [{ role: "user", content:
           `Tu écris le récap hebdomadaire du pôle ${chef.pole} pour son chef, ${chef.name} (bureau d'études SOZAIS).\n\nDonnées :\n${dataStr}\n\n` +
@@ -1621,6 +1644,7 @@ app.post("/api/ai/parse-tasks", authenticate, async (req, res) => {
     const today = new Date().toISOString().split("T")[0];
 
     const response = await llmChat({
+      model: GROQ_MODEL,
       max_tokens: 2000,
       temperature: 0,
       messages: [{
@@ -2598,7 +2622,7 @@ app.get("/api/admin/ai-model", authenticate, requireAdmin, async (req, res) => {
   res.json({
     ok: true,
     current: { groqModel: GROQ_MODEL, agentModel: GROQ_AGENT_MODEL, claudeActive: !!ANTHROPIC_KEY },
-    choices: GROQ_MODEL_CHOICES,
+    choices: aiModelChoices(),
   });
 });
 
@@ -2607,8 +2631,8 @@ app.get("/api/admin/ai-model", authenticate, requireAdmin, async (req, res) => {
 app.post("/api/admin/ai-model", authenticate, requireAdmin, async (req, res) => {
   try {
     const { groqModel, agentModel } = req.body || {};
-    if (groqModel && !GROQ_MODEL_IDS.has(groqModel)) return res.status(400).json({ error: "Modèle 'fonctions' inconnu" });
-    if (agentModel && !GROQ_MODEL_IDS.has(agentModel)) return res.status(400).json({ error: "Modèle 'agent' inconnu" });
+    if (groqModel && !isValidModelId(groqModel)) return res.status(400).json({ error: "Modèle 'fonctions' inconnu" });
+    if (agentModel && !isValidModelId(agentModel)) return res.status(400).json({ error: "Modèle 'agent' inconnu" });
     if (groqModel) {
       GROQ_MODEL = groqModel;
       await pool.query("INSERT INTO app_settings (setting_key, setting_value) VALUES ('groq_model', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)", [groqModel]);
@@ -2898,6 +2922,7 @@ app.post("/api/kpi/analysis", authenticate, async (req, res) => {
     const globalAvg = allVals.length ? (allVals.reduce((a, b) => a + b, 0) / allVals.length).toFixed(2) : "0";
 
     const resp = await llmChat({
+      model: GROQ_MODEL,
       max_tokens: 900,
       temperature: 0.3,
       messages: [{ role: "user", content:
