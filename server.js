@@ -1059,11 +1059,11 @@ const AGENT_TOOLS = [
     type: "function",
     function: {
       name: "get_team_data",
-      description: "Récupère toutes les données en temps réel : tâches, statuts, deadlines, timers de tous les collaborateurs. Toujours utiliser avant d'analyser ou de prendre des décisions.",
+      description: "Vue d'ensemble de l'équipe. SANS filtre : statistiques par personne (totaux, en cours, en retard) — rapide, idéal pour un aperçu global. AVEC filtre (nom d'un collaborateur ou 'Fluide'/'Élec') : inclut en plus le DÉTAIL des tâches de cette personne/ce pôle. N'utilise cet outil que pour analyser/comparer, pas pour une simple création de tâche.",
       parameters: {
         type: "object",
         properties: {
-          filter: { type: "string", description: "Optionnel: 'Fluide', 'Élec', ou nom d'un collaborateur" }
+          filter: { type: "string", description: "Optionnel: nom d'un collaborateur, 'Fluide' ou 'Élec' pour obtenir le détail de leurs tâches" }
         }
       }
     }
@@ -1246,6 +1246,10 @@ async function execTool(name, input) {
           e.pole.toLowerCase().includes(f) || e.name.toLowerCase().includes(f)
         );
       }
+      // Sans filtre → vue d'ensemble LÉGÈRE (stats par personne, sans le détail
+      // de chaque tâche) pour ne pas noyer l'IA sous un énorme payload (lenteur).
+      // Avec filtre (une personne / un pôle) → on inclut le détail des tâches.
+      const includeTasks = !!input.filter;
       const data = filtered.map(e => {
         const tasks = byOwner[e.name] || [];
         const overdue = tasks.filter(t => t.deadline && t.deadline < today && t.column !== "done");
@@ -1253,17 +1257,19 @@ async function execTool(name, input) {
         const done    = tasks.filter(t => t.column === "done").length;
         const totalH  = tasks.reduce((s, t) => s + (parseFloat(t.estimatedHours) || 0), 0);
         const workedH = tasks.reduce((s, t) => s + (t.timerSeconds || 0) / 3600, 0);
-        return {
+        const row = {
           name: e.name, role: e.role, pole: e.pole,
           stats: { total: tasks.length, inProgress: inProg, done, overdue: overdue.length, totalH: Math.round(totalH), workedH: Math.round(workedH * 10) / 10 },
-          tasks: tasks.map(t => ({
+        };
+        if (includeTasks) {
+          row.tasks = tasks.map(t => ({
             id: t.id, title: t.title, project: t.project,
             priority: t.priority, column: t.column,
             deadline: t.deadline || null, estimatedHours: t.estimatedHours,
-            timerSeconds: t.timerSeconds,
             isOverdue: !!(t.deadline && t.deadline < today && t.column !== "done")
-          }))
-        };
+          }));
+        }
+        return row;
       });
       const summary = {
         totalTasks:      data.reduce((s, e) => s + e.stats.total, 0),
@@ -1456,7 +1462,8 @@ function buildAgentSystemPrompt(userName, userRole, isAdmin, isChef, agentName, 
     `- Tu peux CONSULTER les KPIs et évaluations de performance (get_kpi_summary)\n\n` +
     `RÈGLES IMPORTANTES :\n` +
     `- Réponds TOUJOURS en français\n` +
-    `- Avant d'analyser ou recommander, UTILISE get_team_data pour avoir des données fraîches\n` +
+    `- Pour une ACTION DIRECTE (créer / modifier / déplacer / réaffecter / supprimer une tâche) quand l'utilisateur fournit les informations nécessaires, agis IMMÉDIATEMENT via l'outil approprié, SANS appeler get_team_data. C'est plus rapide.\n` +
+    `- N'utilise get_team_data QUE pour analyser, comparer ou répondre à une question sur l'état global de l'équipe. Pour retrouver une tâche précise, utilise plutôt search_tasks.\n` +
     `- Quand tu crées/modifies/déplaces une tâche, CONFIRME clairement ce que tu as fait\n` +
     `- Si un nom de collaborateur est ambigu, propose les options possibles\n` +
     `- Pour les suppressions, demande toujours confirmation sauf si l'utilisateur a dit "confirme" ou "oui"\n` +
