@@ -308,22 +308,40 @@ function Logo({ size }) {
   return <img src={LOGO_SRC} alt="SOZAIS" style={{ height: size || 36, objectFit: "contain" }} />;
 }
 
-// Transforme les URLs d'un texte en liens cliquables (les liens de téléchargement
-// NDC deviennent des boutons « ⬇️ Télécharger »).
+// Téléchargement AUTHENTIFIÉ d'un fichier NDC (jeton JWT dans l'en-tête, pas dans l'URL).
+async function downloadNdc(id, fallbackName) {
+  try {
+    const r = await authFetch('/api/ndc/' + encodeURIComponent(id) + '/download');
+    if (!r.ok) { alert('Téléchargement impossible (' + r.status + ')'); return; }
+    const cd = r.headers.get('Content-Disposition') || '';
+    let name = fallbackName || 'ndc';
+    const mm = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)/i);
+    if (mm) { try { name = decodeURIComponent(mm[1]); } catch { name = mm[1]; } }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    a.remove(); URL.revokeObjectURL(url);
+  } catch (e) { alert('Erreur de téléchargement'); }
+}
+
+// Transforme les URLs d'un texte en éléments cliquables. Les liens de
+// téléchargement NDC deviennent des boutons qui téléchargent via session authentifiée.
 function linkify(text) {
   if (!text || typeof text !== "string") return text;
   const parts = text.split(/(https?:\/\/[^\s)]+)/g);
   return parts.map((part, i) => {
     if (/^https?:\/\//.test(part)) {
-      const isDownload = /\/api\/ndc\/[^/]+\/download/.test(part);
-      return (
-        <a key={i} href={part} target="_blank" rel="noopener noreferrer"
-          style={isDownload
-            ? { display: "inline-flex", alignItems: "center", gap: 5, margin: "3px 0", padding: "5px 11px", background: BLUE, color: "#fff", borderRadius: 7, textDecoration: "none", fontWeight: 700, fontSize: 11 }
-            : { color: CYAN, textDecoration: "underline", wordBreak: "break-all" }}>
-          {isDownload ? "⬇️ Télécharger le fichier" : part}
-        </a>
-      );
+      const ndc = part.match(/\/api\/ndc\/([^/]+)\/download/);
+      if (ndc) {
+        return (
+          <button key={i} onClick={() => downloadNdc(ndc[1])}
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, margin: "3px 0", padding: "5px 11px", background: BLUE, color: "#fff", border: "none", borderRadius: 7, fontWeight: 700, fontSize: 11, cursor: "pointer" }}>
+            ⬇️ Télécharger le fichier
+          </button>
+        );
+      }
+      return <a key={i} href={part} target="_blank" rel="noopener noreferrer" style={{ color: CYAN, textDecoration: "underline", wordBreak: "break-all" }}>{part}</a>;
     }
     return part;
   });
@@ -709,7 +727,7 @@ function NdcLibraryModal({ onClose }) {
               <div style={{ color: TXT, fontSize: 12.5, fontWeight: 600 }}>{n.title}</div>
               <div style={{ color: TXT3, fontSize: 10 }}>{[n.category, n.filename, n.filesize ? kb(n.filesize) : null].filter(Boolean).join(" · ")}</div>
             </div>
-            {n.filename && <a href={`/api/ndc/${n.id}/download`} target="_blank" rel="noopener noreferrer" style={{ padding: "4px 10px", background: BLUE + "22", border: "1px solid " + BLUE + "44", borderRadius: 6, color: BLUE, fontSize: 11, fontWeight: 700, textDecoration: "none" }}>⬇️</a>}
+            {n.filename && <button onClick={() => downloadNdc(n.id, n.filename)} style={{ padding: "4px 10px", background: BLUE + "22", border: "1px solid " + BLUE + "44", borderRadius: 6, color: BLUE, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>⬇️</button>}
             <button onClick={() => del(n)} style={{ padding: "4px 8px", background: RED + "11", border: "1px solid " + RED + "44", borderRadius: 6, color: RED, fontSize: 11, cursor: "pointer" }}>🗑️</button>
           </div>
         ))}

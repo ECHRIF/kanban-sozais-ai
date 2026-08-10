@@ -2838,8 +2838,9 @@ app.delete("/api/ndc/:id", authenticate, requireAdmin, async (req, res) => {
 });
 
 // GET /api/ndc/:id/download — télécharger le fichier NDC
-// Public par identifiant non devinable (lien cliquable depuis le chat/navigateur).
-app.get("/api/ndc/:id/download", async (req, res) => {
+// RÉSERVÉ AUX UTILISATEURS CONNECTÉS : le front télécharge via fetch authentifié
+// (jeton JWT dans l'en-tête, jamais dans l'URL).
+app.get("/api/ndc/:id/download", authenticate, async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT filename, mimetype, filedata FROM ndc_templates WHERE id=?", [req.params.id]);
     if (!rows.length || !rows[0].filedata) return res.status(404).send("Fichier introuvable");
