@@ -308,6 +308,27 @@ function Logo({ size }) {
   return <img src={LOGO_SRC} alt="SOZAIS" style={{ height: size || 36, objectFit: "contain" }} />;
 }
 
+// Transforme les URLs d'un texte en liens cliquables (les liens de téléchargement
+// NDC deviennent des boutons « ⬇️ Télécharger »).
+function linkify(text) {
+  if (!text || typeof text !== "string") return text;
+  const parts = text.split(/(https?:\/\/[^\s)]+)/g);
+  return parts.map((part, i) => {
+    if (/^https?:\/\//.test(part)) {
+      const isDownload = /\/api\/ndc\/[^/]+\/download/.test(part);
+      return (
+        <a key={i} href={part} target="_blank" rel="noopener noreferrer"
+          style={isDownload
+            ? { display: "inline-flex", alignItems: "center", gap: 5, margin: "3px 0", padding: "5px 11px", background: BLUE, color: "#fff", borderRadius: 7, textDecoration: "none", fontWeight: 700, fontSize: 11 }
+            : { color: CYAN, textDecoration: "underline", wordBreak: "break-all" }}>
+          {isDownload ? "⬇️ Télécharger le fichier" : part}
+        </a>
+      );
+    }
+    return part;
+  });
+}
+
 // ─── KPI : profil d'évaluation d'une personne (jeu de critères adapté) ──
 // ing = ingénieurs Fluide/Élec | assistant | finance | commercial | it
 const KPI_PROFILE_LABELS = { ing: "Ingénierie", assistant: "Assistante de direction", finance: "Finance / Comptabilité", commercial: "Commercial", it: "Informatique" };
@@ -487,7 +508,7 @@ function AIChatPanel({ user, onClose, onAction }) {
           <div key={i}>
             <div style={{ display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start' }}>
               <div style={{ maxWidth: '88%', padding: '8px 12px', borderRadius: m.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px', background: m.role === 'user' ? BLUE : DARK3, color: TXT, fontSize: 12, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                {m.content}
+                {linkify(m.content)}
               </div>
             </div>
             {m.actions && m.actions.length > 0 && (
@@ -593,6 +614,105 @@ function ParseTasksModal({ user, employees, onCreate, onClose }) {
             </div>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Composant : Bibliothèque NDC (admin) ─────────────────────
+function NdcLibraryModal({ onClose }) {
+  const [list, setList] = useState(null);
+  const [q, setQ] = useState("");
+  const [form, setForm] = useState({ title: "", category: "", keywords: "", description: "" });
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  const reload = () => authFetch('/api/ndc').then(r => r.json()).then(setList).catch(() => setList([]));
+  useEffect(() => { reload(); }, []);
+
+  const onFile = (e) => {
+    const f = e.target.files[0];
+    if (!f) { setFile(null); return; }
+    if (f.size > 22 * 1024 * 1024) { setMsg("⚠️ Fichier trop volumineux (max 22 Mo)"); return; }
+    const reader = new FileReader();
+    reader.onload = () => setFile({ name: f.name, type: f.type, size: f.size, b64: reader.result });
+    reader.readAsDataURL(f);
+    if (!form.title) setForm(s => ({ ...s, title: f.name.replace(/\.[^.]+$/, "") }));
+  };
+
+  const add = async () => {
+    if (!form.title.trim()) { setMsg("⚠️ Titre requis"); return; }
+    setBusy(true); setMsg("");
+    const r = await authFetch('/api/ndc', { method: 'POST', body: JSON.stringify({
+      ...form, filename: file?.name || "", mimetype: file?.type || "", fileBase64: file?.b64 || null,
+    }) });
+    setBusy(false);
+    if (r.ok) { setMsg("✓ NDC ajoutée !"); setForm({ title: "", category: "", keywords: "", description: "" }); setFile(null); reload(); }
+    else setMsg("⚠️ " + ((await r.json()).error || "Erreur"));
+  };
+
+  const del = async (n) => {
+    if (!window.confirm(`Supprimer « ${n.title} » ?`)) return;
+    await authFetch('/api/ndc/' + n.id, { method: 'DELETE' });
+    reload();
+  };
+
+  const filtered = (list || []).filter(n => !q || (n.title + " " + n.category + " " + n.keywords + " " + n.description).toLowerCase().includes(q.toLowerCase()));
+  const kb = (b) => b > 1048576 ? (b / 1048576).toFixed(1) + " Mo" : Math.round(b / 1024) + " Ko";
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: DARK2, border: "1px solid " + BRD, borderRadius: 16, padding: 26, width: "100%", maxWidth: 680, maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+          <div>
+            <h2 style={{ color: TXT, fontSize: 18, fontWeight: 700, margin: 0 }}>📐 Bibliothèque NDC</h2>
+            <div style={{ color: TXT3, fontSize: 12, marginTop: 3 }}>Notes de calcul — l'agent IA les retrouve et fournit le lien de téléchargement</div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: TXT3, fontSize: 22, cursor: "pointer" }}>✕</button>
+        </div>
+
+        {/* Formulaire d'ajout */}
+        <div style={{ background: DARK3, borderRadius: 10, padding: "14px 16px", marginBottom: 18 }}>
+          <div style={{ color: GREEN, fontSize: 12, fontWeight: 700, marginBottom: 10 }}>➕ Ajouter une NDC</div>
+          <input value={form.title} onChange={e => setForm(s => ({ ...s, title: e.target.value }))} placeholder="Titre — ex: NDC dimensionnement échangeur à plaques"
+            style={{ width: "100%", boxSizing: "border-box", background: DARK, border: "1px solid " + BRD, borderRadius: 7, color: TXT, padding: "8px 11px", fontSize: 12, marginBottom: 8 }} />
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <input value={form.category} onChange={e => setForm(s => ({ ...s, category: e.target.value }))} placeholder="Type (échangeur, ballon ECS…)"
+              style={{ flex: 1, background: DARK, border: "1px solid " + BRD, borderRadius: 7, color: TXT, padding: "8px 11px", fontSize: 12 }} />
+            <input value={form.keywords} onChange={e => setForm(s => ({ ...s, keywords: e.target.value }))} placeholder="Mots-clés (séparés par des espaces)"
+              style={{ flex: 1, background: DARK, border: "1px solid " + BRD, borderRadius: 7, color: TXT, padding: "8px 11px", fontSize: 12 }} />
+          </div>
+          <textarea value={form.description} onChange={e => setForm(s => ({ ...s, description: e.target.value }))} rows={2} placeholder="Description courte (aide l'IA à bien retrouver le bon template)"
+            style={{ width: "100%", boxSizing: "border-box", background: DARK, border: "1px solid " + BRD, borderRadius: 7, color: TXT, padding: "8px 11px", fontSize: 12, marginBottom: 8, resize: "vertical" }} />
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <label style={{ padding: "7px 14px", background: DARK, border: "1px dashed " + BRD, borderRadius: 7, color: TXT2, fontSize: 12, cursor: "pointer" }}>
+              📎 {file ? file.name + " (" + kb(file.size) + ")" : "Choisir un fichier (Excel/Word/PDF)"}
+              <input type="file" accept=".xlsx,.xls,.docx,.doc,.pdf" onChange={onFile} style={{ display: "none" }} />
+            </label>
+            <button onClick={add} disabled={busy || !form.title.trim()} style={{ marginLeft: "auto", padding: "8px 20px", background: form.title.trim() ? GREEN : TXT3, border: "none", borderRadius: 7, color: "#fff", fontWeight: 700, fontSize: 12, cursor: busy ? "wait" : "pointer" }}>
+              {busy ? "⏳…" : "Ajouter"}
+            </button>
+          </div>
+          {msg && <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: msg.startsWith("✓") ? GREEN : RED }}>{msg}</div>}
+        </div>
+
+        {/* Recherche + liste */}
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="🔍 Rechercher une NDC…"
+          style={{ width: "100%", boxSizing: "border-box", background: DARK, border: "1px solid " + BRD, borderRadius: 7, color: TXT, padding: "8px 11px", fontSize: 12, marginBottom: 12 }} />
+        {list === null && <div style={{ color: TXT3, textAlign: "center", padding: 20 }}>Chargement…</div>}
+        {list && filtered.length === 0 && <div style={{ color: TXT3, textAlign: "center", padding: 20 }}>Aucune NDC{q ? " pour cette recherche" : " — ajoutez-en une ci-dessus"}.</div>}
+        {filtered.map(n => (
+          <div key={n.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: DARK3, border: "1px solid " + BRD, borderRadius: 9, marginBottom: 7 }}>
+            <span style={{ fontSize: 18 }}>📄</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ color: TXT, fontSize: 12.5, fontWeight: 600 }}>{n.title}</div>
+              <div style={{ color: TXT3, fontSize: 10 }}>{[n.category, n.filename, n.filesize ? kb(n.filesize) : null].filter(Boolean).join(" · ")}</div>
+            </div>
+            {n.filename && <a href={`/api/ndc/${n.id}/download`} target="_blank" rel="noopener noreferrer" style={{ padding: "4px 10px", background: BLUE + "22", border: "1px solid " + BLUE + "44", borderRadius: 6, color: BLUE, fontSize: 11, fontWeight: 700, textDecoration: "none" }}>⬇️</a>}
+            <button onClick={() => del(n)} style={{ padding: "4px 8px", background: RED + "11", border: "1px solid " + RED + "44", borderRadius: 6, color: RED, fontSize: 11, cursor: "pointer" }}>🗑️</button>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -2915,6 +3035,7 @@ function App() {
   const [chatOpen, setChatOpen] = useState(true);
   const [workloadOpen, setWorkloadOpen] = useState(false);
   const [parseOpen, setParseOpen] = useState(false);
+  const [ndcOpen, setNdcOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [prioritizing, setPrioritizing] = useState(null);
   const [prioritizeMsg, setPrioritizeMsg] = useState(null);
@@ -3478,6 +3599,13 @@ function App() {
           </button>
 
           {user.isAdmin && (
+            <button onClick={() => setNdcOpen(true)}
+              style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background:"none", border:"none", borderLeft:"3px solid transparent", color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
+              <span style={{ fontSize:15 }}>📐</span> Bibliothèque NDC
+            </button>
+          )}
+
+          {user.isAdmin && (
             <button onClick={() => { setSettingsTab("ia"); setSettings(true); }}
               style={{ width:"100%", display:"flex", alignItems:"center", gap:9, padding:"9px 14px", background:"none", border:"none", borderLeft:"3px solid transparent", color:TXT2, fontSize:13, cursor:"pointer", textAlign:"left" }}>
               <span style={{ fontSize:15 }}>🤖</span> Modèle IA
@@ -3676,6 +3804,7 @@ function App() {
       {importModal && <ImportExcelModal employees={empList} allTasks={all} onImport={handleImport} onClose={() => setImportModal(false)} />}
       {workloadOpen && <WorkloadModal onClose={() => setWorkloadOpen(false)} />}
       {parseOpen && <ParseTasksModal user={user} employees={empList} onCreate={handleParseCreate} onClose={() => setParseOpen(false)} />}
+      {ndcOpen && <NdcLibraryModal onClose={() => setNdcOpen(false)} />}
       {reportOpen && <ReportModal onClose={() => setReportOpen(false)} />}
       {chatOpen && <AIChatPanel user={user} onClose={() => setChatOpen(false)} onAction={refetchAll} />}
       {prioritizeMsg && <PrioritizeToast name={prioritizeMsg.name} msg={prioritizeMsg.msg} onClose={() => setPrioritizeMsg(null)} />}

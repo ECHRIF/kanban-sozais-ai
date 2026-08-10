@@ -52,7 +52,7 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "25mb" })); // 25mb : autorise l'upload de fichiers NDC (Excel/Word/PDF) encodés en base64
 app.use(express.static(path.join(__dirname, "public")));
 
 // ─── Rate limiting ─────────────────────────────────────────────
@@ -232,6 +232,23 @@ const pool = mysql.createPool({
         PRIMARY KEY (id),
         INDEX idx_recipient_seen (recipient, seen),
         INDEX idx_created (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS ndc_templates (
+        id          VARCHAR(20)   NOT NULL,
+        title       VARCHAR(300)  NOT NULL,
+        category    VARCHAR(150)  DEFAULT '',
+        keywords    VARCHAR(500)  DEFAULT '',
+        description TEXT          NULL,
+        filename    VARCHAR(300)  DEFAULT '',
+        mimetype    VARCHAR(120)  DEFAULT '',
+        filedata    LONGBLOB      NULL,
+        filesize    INT UNSIGNED  DEFAULT 0,
+        created_by  VARCHAR(200)  DEFAULT '',
+        created_at  DATETIME      DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        FULLTEXT KEY ft_ndc (title, category, keywords, description)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     await conn.query(`
@@ -1215,6 +1232,20 @@ const AGENT_TOOLS = [
         }
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_ndc",
+      description: "Recherche dans la bibliothèque de Notes de Calcul (NDC) de SOZAIS le template correspondant à un besoin technique. À utiliser dès que l'utilisateur demande une NDC, une note de calcul, une trame ou un template de dimensionnement (échangeur, ballon ECS, désenfumage, éclairement, débit, puissance, etc.). Renvoie les templates trouvés avec un lien de téléchargement.",
+      parameters: {
+        type: "object",
+        required: ["query"],
+        properties: {
+          query: { type: "string", description: "Le besoin technique ou mot-clé (ex: 'échangeur à plaques', 'ballon ECS', 'désenfumage')" }
+        }
+      }
+    }
   }
 ];
 
@@ -1430,6 +1461,22 @@ async function execTool(name, input) {
       return { ok: true, evaluations: byPerson, total: rows.length };
     }
 
+    case "search_ndc": {
+      const found = await searchNdc(input.query || "", 5);
+      if (!found.length) return { ok: true, count: 0, message: "Aucune NDC trouvée pour cette recherche dans la bibliothèque." };
+      return {
+        ok: true,
+        count: found.length,
+        templates: found.map(n => ({
+          titre: n.title,
+          categorie: n.category || null,
+          description: n.description || null,
+          fichier: n.filename || null,
+          lien_telechargement: n.filename ? `${APP_URL}/api/ndc/${n.id}/download` : null,
+        })),
+      };
+    }
+
     default:
       return { error: `Outil inconnu: "${name}"` };
   }
@@ -1459,7 +1506,8 @@ function buildAgentSystemPrompt(userName, userRole, isAdmin, isChef, agentName, 
     `- Tu peux SUPPRIMER des tâches (delete_task — demander confirmation d'abord)\n` +
     `- Tu peux ANALYSER toute l'équipe avec stats globales (get_team_data)\n` +
     `- Tu peux RECHERCHER des tâches par mot-clé/projet/priorité/retard (search_tasks)\n` +
-    `- Tu peux CONSULTER les KPIs et évaluations de performance (get_kpi_summary)\n\n` +
+    `- Tu peux CONSULTER les KPIs et évaluations de performance (get_kpi_summary)\n` +
+    `- Tu peux RECHERCHER dans la bibliothèque de Notes de Calcul (search_ndc) et fournir le template adapté\n\n` +
     `RÈGLES IMPORTANTES :\n` +
     `- Réponds TOUJOURS en français\n` +
     `- Pour une ACTION DIRECTE (créer / modifier / déplacer / réaffecter / supprimer une tâche) quand l'utilisateur fournit les informations nécessaires, agis IMMÉDIATEMENT via l'outil approprié, SANS appeler get_team_data. C'est plus rapide.\n` +
@@ -1469,6 +1517,7 @@ function buildAgentSystemPrompt(userName, userRole, isAdmin, isChef, agentName, 
     `- Pour les suppressions, demande toujours confirmation sauf si l'utilisateur a dit "confirme" ou "oui"\n` +
     `- Propose des actions concrètes, pas juste des conseils abstraits\n` +
     `- N'écris JAMAIS de syntaxe d'appel d'outil dans ta réponse (pas de balises <function=...>). Utilise les outils via le mécanisme prévu, et ne mentionne pas leurs noms techniques.\n` +
+    `- Pour une NDC / note de calcul : utilise search_ndc, puis présente le(s) template(s) avec leur titre et le LIEN DE TÉLÉCHARGEMENT complet (colle l'URL telle quelle). Si aucune NDC ne correspond, dis-le et propose à l'utilisateur d'en ajouter une via la bibliothèque NDC.\n` +
     `- Les colonnes disponibles : backlog, todo (À faire), in_progress (En cours), review (En revue), done (Terminé)\n` +
     `- Les priorités : high (Haute 🔴), medium (Moyenne 🟠), low (Basse 🟢)\n\n` +
     `FORMAT DE CONFIRMATION :\n` +
@@ -2702,6 +2751,103 @@ app.post("/api/admin/broadcast", authenticate, requireAdmin, async (req, res) =>
     try { await pool.query(`INSERT INTO ai_actions_log (actor, tool_name, input_json, result_json) VALUES (?, 'broadcast', ?, ?)`, [req.user.name, JSON.stringify({ subject }), JSON.stringify({ sent, failed })]); } catch (e) {}
     res.json({ ok: true, sent, failed, details });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── API : Bibliothèque NDC (Notes de Calcul) ────────────────
+// Recherche interne réutilisée par l'endpoint et par l'outil IA.
+async function searchNdc(query, limit = 5) {
+  const q = (query || "").trim();
+  if (!q) {
+    const [rows] = await pool.query(
+      "SELECT id, title, category, keywords, description, filename, filesize FROM ndc_templates ORDER BY created_at DESC LIMIT ?", [limit]
+    );
+    return rows;
+  }
+  // Recherche plein-texte (avec repli LIKE si trop peu de résultats)
+  let rows = [];
+  try {
+    [rows] = await pool.query(
+      `SELECT id, title, category, keywords, description, filename, filesize,
+              MATCH(title, category, keywords, description) AGAINST (? IN NATURAL LANGUAGE MODE) AS score
+       FROM ndc_templates
+       WHERE MATCH(title, category, keywords, description) AGAINST (? IN NATURAL LANGUAGE MODE)
+       ORDER BY score DESC LIMIT ?`, [q, q, limit]
+    );
+  } catch (e) { rows = []; }
+  if (rows.length === 0) {
+    const like = `%${q}%`;
+    [rows] = await pool.query(
+      `SELECT id, title, category, keywords, description, filename, filesize FROM ndc_templates
+       WHERE title LIKE ? OR category LIKE ? OR keywords LIKE ? OR description LIKE ?
+       ORDER BY created_at DESC LIMIT ?`, [like, like, like, like, limit]
+    );
+  }
+  return rows;
+}
+
+// GET /api/ndc — liste des NDC (métadonnées seulement, sans le fichier)
+app.get("/api/ndc", authenticate, async (req, res) => {
+  try {
+    const rows = await searchNdc(req.query.q || "", parseInt(req.query.limit) || 100);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/ndc — ajouter une NDC (admin) — fichier en base64
+// body: { title, category, keywords, description, filename, mimetype, fileBase64 }
+app.post("/api/ndc", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { title, category, keywords, description, filename, mimetype, fileBase64 } = req.body || {};
+    if (!title || !title.trim()) return res.status(400).json({ error: "Titre requis" });
+    let buf = null, size = 0;
+    if (fileBase64) {
+      const b64 = fileBase64.includes(",") ? fileBase64.split(",")[1] : fileBase64; // supporte data:...;base64,
+      buf = Buffer.from(b64, "base64");
+      size = buf.length;
+      if (size > 22 * 1024 * 1024) return res.status(413).json({ error: "Fichier trop volumineux (max ~22 Mo)" });
+    }
+    const id = Math.random().toString(36).substr(2, 9);
+    await pool.query(
+      `INSERT INTO ndc_templates (id, title, category, keywords, description, filename, mimetype, filedata, filesize, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, title.trim(), category || "", keywords || "", description || "", filename || "", mimetype || "", buf, size, req.user.name]
+    );
+    res.json({ ok: true, id });
+  } catch (err) { console.error("POST /api/ndc", err); res.status(500).json({ error: err.message }); }
+});
+
+// PUT /api/ndc/:id — modifier les métadonnées (admin)
+app.put("/api/ndc/:id", authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { title, category, keywords, description } = req.body || {};
+    const [r] = await pool.query(
+      "UPDATE ndc_templates SET title=?, category=?, keywords=?, description=? WHERE id=?",
+      [title || "", category || "", keywords || "", description || "", req.params.id]
+    );
+    if (!r.affectedRows) return res.status(404).json({ error: "NDC introuvable" });
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/ndc/:id — supprimer une NDC (admin)
+app.delete("/api/ndc/:id", authenticate, requireAdmin, async (req, res) => {
+  try {
+    await pool.query("DELETE FROM ndc_templates WHERE id=?", [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/ndc/:id/download — télécharger le fichier NDC
+// Public par identifiant non devinable (lien cliquable depuis le chat/navigateur).
+app.get("/api/ndc/:id/download", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT filename, mimetype, filedata FROM ndc_templates WHERE id=?", [req.params.id]);
+    if (!rows.length || !rows[0].filedata) return res.status(404).send("Fichier introuvable");
+    const f = rows[0];
+    res.setHeader("Content-Type", f.mimetype || "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(f.filename || "ndc")}"`);
+    res.send(f.filedata);
+  } catch (err) { res.status(500).send("Erreur"); }
 });
 
 // GET /api/admin/ai-model — modèles IA actuels + choix possibles (admin)
