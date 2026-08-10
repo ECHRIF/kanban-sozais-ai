@@ -1487,10 +1487,15 @@ app.post("/api/ai/agent", authenticate, async (req, res) => {
     const systemPrompt = buildAgentSystemPrompt(userName, userRole || "", !!isAdmin, !!isChef, agentName, agentStyle);
 
     const actions = [];
+    // PERF : ne conserver que les 6 derniers messages de la conversation.
+    // Un historique qui grandit ralentit fortement l'IA (contexte plus lourd,
+    // et le modèle a tendance à multiplier les appels d'outils). 6 messages
+    // suffisent au suivi conversationnel tout en gardant des réponses rapides.
+    const recentMessages = Array.isArray(messages) ? messages.slice(-6) : [];
     // Groq : le system prompt est un message {role:"system"} en début de tableau
     let convMessages = [
       { role: "system", content: systemPrompt },
-      ...messages.map(m => ({ role: m.role, content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) }))
+      ...recentMessages.map(m => ({ role: m.role, content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) }))
     ];
 
     let iterations = 0;
